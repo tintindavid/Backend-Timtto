@@ -42,7 +42,7 @@ const app = express();
 
 // Respect reverse proxies (e.g. Railway, Heroku). Enable in production or when
 // explicitly configured via TRUST_PROXY env var.
-app.set('trust proxy', (env.NODE_ENV === 'production') || process.env.TRUST_PROXY === 'true');
+app.set('trust proxy', (env.NODE_ENV === 'production') || process.env.TRUST_PROXY === 1);
 
 app.use(helmet());
 
