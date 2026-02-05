@@ -9,7 +9,7 @@
     "dev:ts": "ts-node-dev --respawn --transpile-only --respawn-delay 200 src/server.ts",
     "dev:js": "nodemon --watch src --ext js,json --exec \"node --enable-source-maps src/server.js\"",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "start": "node --enable-source-maps src/server.js",
     "lint": "eslint \"src/**/*.{ts,js}\" --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\""
   },
