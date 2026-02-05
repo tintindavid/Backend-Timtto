@@ -40,7 +40,9 @@ import { successResponse } from './utils/apiResponse.util.js';
 
 const app = express();
 
-app.set('trust proxy', false);
+// Respect reverse proxies (e.g. Railway, Heroku). Enable in production or when
+// explicitly configured via TRUST_PROXY env var.
+app.set('trust proxy', (env.NODE_ENV === 'production') || process.env.TRUST_PROXY === 'true');
 
 app.use(helmet());
 
