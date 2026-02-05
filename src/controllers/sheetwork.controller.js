@@ -1,4 +1,4 @@
-import { sheetWorkService } from '../services/sheetWork.service.js';
+import { sheetWorkService } from '../services/sheetwork.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class SheetWorkController {
