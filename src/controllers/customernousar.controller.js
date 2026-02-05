@@ -1,4 +1,4 @@
-import { customerNoUsarService } from '../services/customerNoUsar.service.js';
+import { customerNoUsarService } from '../services/customernousar.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class CustomerNoUsarController {

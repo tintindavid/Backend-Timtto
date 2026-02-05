@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { customerNoUsarController } from '../controllers/customerNoUsar.controller.js';
+import { customerNoUsarController } from '../controllers/customernousar.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createCustomerNoUsarDto } from '../dtos/createCustomerNoUsar.dto.js';

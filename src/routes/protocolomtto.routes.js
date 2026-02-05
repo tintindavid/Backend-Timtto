@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protocoloMttoController } from '../controllers/protocoloMtto.controller.js';
+import { protocoloMttoController } from '../controllers/protocolomtto.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createProtocoloMttoDto } from '../dtos/createProtocoloMtto.dto.js';

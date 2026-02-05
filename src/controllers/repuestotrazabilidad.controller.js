@@ -1,4 +1,4 @@
-import { repuestoTrazabilidadService } from '../services/repuestoTrazabilidad.service.js';
+import { repuestoTrazabilidadService } from '../services/repuestotrazabilidad.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class RepuestoTrazabilidadController {

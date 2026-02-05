@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { oTController } from '../controllers/oT.controller.js';
+import { oTController } from '../controllers/ot.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createOTDto } from '../dtos/createOT.dto.js';

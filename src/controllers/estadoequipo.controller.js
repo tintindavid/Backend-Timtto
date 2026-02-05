@@ -1,4 +1,4 @@
-import { estadoEquipoService } from '../services/estadoEquipo.service.js';
+import { estadoEquipoService } from '../services/estadoequipo.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class EstadoEquipoController {

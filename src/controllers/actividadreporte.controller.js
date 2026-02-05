@@ -1,4 +1,4 @@
-import { actividadReporteService } from '../services/actividadReporte.service.js';
+import { actividadReporteService } from '../services/actividadreporte.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class ActividadReporteController {

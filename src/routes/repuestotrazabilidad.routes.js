@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { repuestoTrazabilidadController } from '../controllers/repuestoTrazabilidad.controller.js';
+import { repuestoTrazabilidadController } from '../controllers/repuestotrazabilidad.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createRepuestoTrazabilidadDto } from '../dtos/createRepuestoTrazabilidad.dto.js';

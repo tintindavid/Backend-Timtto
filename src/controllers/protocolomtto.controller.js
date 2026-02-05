@@ -1,5 +1,5 @@
 import { logger } from '../config/logger.config.js';
-import { protocoloMttoService } from '../services/protocoloMtto.service.js';
+import { protocoloMttoService } from '../services/protocolomtto.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class ProtocoloMttoController {

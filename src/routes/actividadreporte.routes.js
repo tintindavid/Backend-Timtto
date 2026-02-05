@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { actividadReporteController } from '../controllers/actividadReporte.controller.js';
+import { actividadReporteController } from '../controllers/actividadreporte.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createActividadReporteDto } from '../dtos/createActividadReporte.dto.js';

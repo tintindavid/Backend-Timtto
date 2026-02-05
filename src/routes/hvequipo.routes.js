@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { hVEquipoController } from '../controllers/hVEquipo.controller.js';
+import { hVEquipoController } from '../controllers/hvequipo.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createHVEquipoDto } from '../dtos/createHVEquipo.dto.js';

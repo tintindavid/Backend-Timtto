@@ -1,4 +1,4 @@
-import { actividadMttoService } from '../services/actividadMtto.service.js';
+import { actividadMttoService } from '../services/actividadmtto.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { logger } from '../config/logger.config.js';
 

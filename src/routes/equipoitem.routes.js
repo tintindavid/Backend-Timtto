@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { equipoItemController } from '../controllers/equipoItem.controller.js';
+import { equipoItemController } from '../controllers/equipoitem.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createEquipoItemDto } from '../dtos/createEquipoItem.dto.js';

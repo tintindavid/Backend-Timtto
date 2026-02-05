@@ -1,5 +1,5 @@
 import { logger } from '../config/logger.config.js';
-import { equipoItemService } from '../services/equipoItem.service.js';
+import { equipoItemService } from '../services/equipoitem.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class EquipoItemController {

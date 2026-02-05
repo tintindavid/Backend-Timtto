@@ -1,4 +1,4 @@
-import { protocoloActividadService } from '../services/protocoloActividad.service.js';
+import { protocoloActividadService } from '../services/protocoloactividad.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class ProtocoloActividadController {

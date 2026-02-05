@@ -1,4 +1,4 @@
-import { hVEquipoService } from '../services/hVEquipo.service.js';
+import { hVEquipoService } from '../services/hvequipo.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class HVEquipoController {
