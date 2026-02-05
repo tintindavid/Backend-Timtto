@@ -42,7 +42,20 @@ const app = express();
 
 // Respect reverse proxies (e.g. Railway, Heroku). Enable in production or when
 // explicitly configured via TRUST_PROXY env var.
-app.set('trust proxy', (env.NODE_ENV === 'production') || process.env.TRUST_PROXY === 1);
+// Respect reverse proxies (e.g. Railway, Heroku).
+// Use a numeric value (number of trusted proxies) or an explicit value from
+// `TRUST_PROXY` to avoid permissive boolean true which express-rate-limit
+// rejects for security reasons.
+const _trustProxyEnv = process.env.TRUST_PROXY;
+let trustProxyValue = false;
+if (typeof _trustProxyEnv !== 'undefined' && _trustProxyEnv !== '') {
+  if (_trustProxyEnv === 'true') trustProxyValue = 1; // treat 'true' as 1
+  else if (!Number.isNaN(Number(_trustProxyEnv))) trustProxyValue = Number(_trustProxyEnv);
+  else trustProxyValue = _trustProxyEnv; // allow values like 'loopback'
+} else {
+  trustProxyValue = env.NODE_ENV === 'production' ? 1 : false;
+}
+app.set('trust proxy', trustProxyValue);
 
 app.use(helmet());
 

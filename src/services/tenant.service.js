@@ -31,6 +31,7 @@ export class TenantService {
 
   static async getByTenantId(tenantId) {
     // Búsqueda case-insensitive usando regex
+    logger.info('Buscando tenant por tenantId', { tenantId });
     const tenant = await Tenant.findOne({ 
       tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') }
     }).lean();

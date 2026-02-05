@@ -1,6 +1,7 @@
 'use strict';
 import { ApiError } from '../utils/apiError.util.js';
 import { Tenant } from '../models/tenant.model.js';
+import { logger } from '../config/logger.config.js';
 
 /**
  * Resolve tenantId for the request and validate it exists.
@@ -19,7 +20,10 @@ export async function tenantResolver(req, res, next) {
       tenantId = req.body.tenantId;
     }
 
-    if (!tenantId) return next();
+    if (!tenantId) {
+      logger.debug && logger.debug('tenantResolver: no tenantId provided');
+      return next();
+    }
 
     // allow tenant creation endpoint to pass without existing tenant
     if (req.method === 'POST' && req.path === '/api/v1/tenants') {
@@ -28,10 +32,13 @@ export async function tenantResolver(req, res, next) {
     }
 
     // Búsqueda case-insensitive
-    const exists = await Tenant.exists({ 
+    logger.info('tenantResolver: resolving tenantId', { tenantId });
+    const exists = await Tenant.exists({
       tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') },
-      isDeleted: false 
+      isDeleted: false,
     });
+    
+    logger.info('tenantResolver: exists?', { tenantId, exists: Boolean(exists) });
     if (!exists) return next(new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND'));
     req.tenantId = tenantId;
     return next();
