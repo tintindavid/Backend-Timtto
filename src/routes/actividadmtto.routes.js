@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { actividadMttoController } from '../controllers/actividadMtto.controller.js';
+import { actividadMttoController } from '../controllers/actividadmtto.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createActividadMttoDto } from '../dtos/createActividadMtto.dto.js';
