@@ -1,0 +1,24 @@
+import Joi from 'joi';
+
+export const updateRepuestosDto = Joi.object({
+  nombre: Joi.string().optional().label('nombre'),
+  Cantidad: Joi.alternatives().try(Joi.string(), Joi.number()).optional().label('Cantidad'),
+  CantidadInstalacion: Joi.number().optional().label('CantidadInstalacion'),
+  Currency: Joi.string().optional().label('Currency'),
+  EquipoId: Joi.string().hex().length(24).optional().label('EquipoId'),
+  EstadoAnterior: Joi.string().optional().label('EstadoAnterior'),
+  EstadoSolicitud: Joi.string().optional().label('EstadoSolicitud'),
+  ExchangeRate: Joi.number().optional().label('ExchangeRate'),
+  FechaInstalacion: Joi.date().optional().label('FechaInstalacion'),
+  FechaSolicitud: Joi.date().optional().label('FechaSolicitud'),
+  observacion: Joi.string().allow('').optional().label('observacion'),
+  ObservacionInstalacion: Joi.string().allow('').optional().label('ObservacionInstalacion'),
+  OrdenId: Joi.string().hex().length(24).optional().label('OrdenId'),
+  origenRepuesto: Joi.string().optional().label('origenRepuesto'),
+  PrecioRepuesto: Joi.number().optional().label('PrecioRepuesto'),
+  Prioridad: Joi.string().optional().label('Prioridad'),
+  ReporteInstalacionId: Joi.string().hex().length(24).optional().label('ReporteInstalacionId'),
+  ReporteSolicitudId: Joi.string().hex().length(24).optional().label('ReporteSolicitudId'),
+  ResponsableInstalacion: Joi.string().hex().length(24).optional().label('ResponsableInstalacion'),
+  ResponsableSolicitud: Joi.string().hex().length(24).optional().label('ResponsableSolicitud'),
+});

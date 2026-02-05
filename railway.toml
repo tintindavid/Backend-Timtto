@@ -1,0 +1,41 @@
+# railway.toml - minimal configuration for deploying TimttoApp to Railway
+#
+# This file provides a basic service definition and recommended environment
+# variables. DO NOT commit real secrets here. Set sensitive values (DB URI,
+# JWT_SECRET, firebase keys, etc.) in the Railway project environment UI.
+
+[project]
+name = "timttoapp"
+
+[[services]]
+name = "web"
+path = "."
+# Command Railway runs to start the service in production. Use `npm run start`
+# (build+start) or `npm run dev` for development mode.
+start = "npm run start"
+build = "npm ci && npm run build"
+
+# Recommended environment variables (placeholders). Set these in Railway UI.
+[env]
+# Port the app listens on (Railway will typically override this automatically)
+PORT = "3000"
+NODE_ENV = "production"
+
+# MongoDB connection string. Set this to your Railway MongoDB plugin or external uri.
+# Example (DO NOT COMMIT real credentials): mongodb+srv://user:pass@cluster.mongodb.net/dbname
+MONGO_URL = ""
+
+# JWT secret used by the backend. Set a strong secret in Railway env.
+JWT_SECRET = ""
+
+# Optional third-party keys/placeholders
+FIREBASE_CONFIG = ""
+FIREBASE_STORAGE_BUCKET = ""
+
+# Other suggestions: SENTRY_DSN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc.
+
+# Notes:
+# - After creating the Railway project, go to the project Settings -> Variables
+#   and add values for MONGO_URL, JWT_SECRET and any other secrets used by the app.
+# - If you use a Railway MongoDB plugin, you can reference the plugin variable
+#   directly via the Railway UI; keep this file free of plaintext secrets.

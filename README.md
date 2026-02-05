@@ -1,0 +1,126 @@
+# TimttoApp — Backend Mantenimiento Biomédico
+
+Descripción
+-----------
+TimttoApp es una API REST para gestión de mantenimiento biomédico: equipos, órdenes de trabajo (OT), usuarios, reportes y repuestos. Está organizada en capas (models, services, controllers, routes) y utiliza MongoDB/Mongoose, JWT para autenticación y Joi para validación.
+
+Requisitos previos
+------------------
+- Node.js v18 o superior
+- npm
+- MongoDB accesible (local o remoto)
+
+Instalación
+----------
+```bash
+git clone <repo-url>
+cd TimttoApp
+npm install
+cp .env.example .env
+# Edita .env según tu entorno
+npm run dev
+```
+
+Configuración de .env
+---------------------
+Copia `.env.example` a `.env` y ajusta las variables críticas:
+
+- `PORT` — puerto de la API (ej. 3000)
+- `NODE_ENV` — development|production
+- `MONGO_URI` — URI de conexión a MongoDB
+- `JWT_SECRET` — secreto para firmar JWT
+- `JWT_EXPIRES_IN` — expiración de token (ej. 7d)
+- `CORS_ORIGINS` — orígenes permitidos (coma-separados)
+- `RATE_LIMIT_WINDOW_MS` y `RATE_LIMIT_MAX` — rate limiter
+- `LOG_LEVEL` — nivel de logs (debug|info|warn|error)
+
+Comandos disponibles
+--------------------
+- `npm run dev` — arranca la app en modo desarrollo (ejecuta `src/server.js`)
+- `npm run build` — compilar (TypeScript projects)
+- `npm start` — iniciar la versión build
+- `npm run lint` — ejecutar ESLint
+- `npm run format` — aplicar Prettier
+
+Estructura del proyecto
+-----------------------
+- `src/`
+  - `config/` — configuración (env, logger, database)
+  - `models/` — modelos Mongoose
+  - `dtos/` — esquemas Joi para validación
+  - `services/` — lógica de negocio
+  - `controllers/` — orquestación de peticiones
+  - `routes/` — definiciones de endpoints
+  - `middlewares/` — auth, validate, error, rateLimiter
+  - `utils/` — jwt, password, responses, ApiError
+  - `app.js` — configuración Express (middlewares, rutas)
+  - `server.js` — entrypoint y conexión a MongoDB
+
+Endpoints principales
+--------------------
+- Autenticación
+  - `POST /api/v1/auth/register` — registrar usuario
+  - `POST /api/v1/auth/login` — login, devuelve JWT
+  - `POST /api/v1/auth/refresh-token` — refrescar token
+  - `GET  /api/v1/auth/me` — obtener usuario actual (protegido)
+
+- Usuarios
+  - `POST   /api/v1/users`
+  - `GET    /api/v1/users`
+  - `GET    /api/v1/users/:id`
+  - `PUT    /api/v1/users/:id`
+  - `PATCH  /api/v1/users/:id`
+  - `DELETE /api/v1/users/:id` (soft delete)
+
+- Health
+  - `GET /api/v1/health`
+
+Además, el generador de CRUD creó rutas montadas en `src/app.js` para las entidades del PlantUML, por ejemplo: `/api/v1/servicios`, `/api/v1/sedes`, `/api/v1/ots`, `/api/v1/repuestos`, `/api/v1/protocolo-mtto`, `/api/v1/protocolo-actividad`, `/api/v1/hv-equipo`, etc.
+
+Seguridad y convenciones
+------------------------
+- JWT en header: `Authorization: Bearer {token}` (ver `src/middlewares/auth.middleware.js`)
+- Passwords hasheadas con bcrypt (`src/utils/password.util.js`)
+- Validación con Joi y middleware `validate(schema, 'body'|'query'|'params')`
+- Soft delete obligatorio: `isDeleted`, `deletedAt`
+- Rate limiting, Helmet, express-mongo-sanitize y CORS ya configurados en `src/app.js`
+- Formato de respuesta estándar: `{ success: true|false, message, data?, error? }`
+
+Ejemplos de uso
+---------------
+1) Registrar
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Juan","lastName":"Pérez","email":"juan@example.com","password":"Secret123"}'
+```
+
+2) Login
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"juan@example.com","password":"Secret123"}'
+# Response contiene `token` -> usar en Authorization header
+```
+
+3) Listar usuarios (paginado)
+```bash
+curl -H "Authorization: Bearer {token}" "http://localhost:3000/api/v1/users?page=1&limit=10&sortBy=createdAt&order=desc"
+```
+
+Notas finales
+------------
+- Revisa `docs/relacionTimtto.plantuml` antes de ajustar o generar modelos adicionales.
+- Los DTOs generados por el script son plantillas; debes completarlos con reglas de negocio precisas.
+
+Si quieres, puedo:
+- ajustar/añadir más ejemplos concretos de endpoints
+- generar documentación OpenAPI/Swagger básica a partir de las rutas
+- crear scripts de prueba de integración básicos
+
+CORS (desarrollo)
+------------------
+- Durante desarrollo el backend permite peticiones desde `http://localhost:5173` (Vite) y `http://localhost:3000` cuando `NODE_ENV=development`.
+- La configuración usa la librería `cors` con `credentials: true`, permite `GET, POST, PUT, DELETE, OPTIONS` y los headers `Content-Type` y `Authorization`.
+ - La configuración usa la librería `cors` con `credentials: true`, permite `GET, POST, PUT, DELETE, OPTIONS` y los headers `Content-Type`, `Authorization` y `x-tenant-id` (necesario para el header personalizado del frontend).
+- En producción establece `CORS_ORIGINS` en el `.env` con los orígenes autorizados.

@@ -1,0 +1,1241 @@
+/'*********************************************************************
+Created by : UML Diagram Generator 1.2025.8.1 for XrmToolBox
+Tool Author: Jonas Rapp https://jonasr.app/
+GitHub     : https://github.com/rappen/LCG-UDG/
+Source Org : https://org9926c9cb.crm.dynamics.com
+Filename   : C:\Users\HP\Documents\TIMTTO\relacionTimtto.plantuml
+Created    : 2026-01-08 10:25:58
+*********************************************************************'/
+
+@startuml
+
+skinparam RoundCorner 5
+skinparam ArrowFontSize 12
+skinparam ClassBorderColor Black
+skinparam ClassBorderColor<<custom>> Blue
+skinparam Padding 1
+skinparam linetype ortho
+hide circle
+hide stereotype
+
+title  Entity Model
+
+footer Generated %date("yyyy-MM-dd") by UML Diagram Generator 1.2025.8.1 for XrmToolBox
+
+entity ActividadMtto <<custom>>
+{
+    *ActividadMtto (PK): Uniqueidentifier
+    --
+    *<color:blue>ActividadId (PN)</color>: String
+    *Status: State
+    <color:blue>Descripcion</color>: Memo
+    <color:blue>EsObligatoria</color>: Picklist
+    <color:blue>Nombre</color>: String
+    StatusReason: Status
+}
+
+entity ActividadReporte <<custom>>
+{
+    *ActividadReporte (PK): Uniqueidentifier
+    --
+    <color:blue>Actividadreport (PN)</color>: String
+    *<color:blue>ActividadId</color>: Lookup
+    *Status: State
+    <color:blue>modificado</color>: Boolean
+    <color:blue>observacion</color>: String
+    <color:blue>Realizado</color>: Boolean
+    <color:blue>reportId</color>: Lookup
+    StatusReason: Status
+}
+
+entity Address <<custom>>
+{
+}
+
+entity Customer <<custom>>
+{
+    *Customer (PK): Uniqueidentifier
+    --
+    *<color:blue>Razonsocial (PN)</color>: String
+    *<color:blue>Ciudad</color>: String
+    *<color:blue>Departamento</color>: String
+    *<color:blue>Email</color>: String
+    *<color:blue>Nit</color>: Integer
+    *Status: State
+    -<color:blue></color>: Uniqueidentifier
+    <color:blue>Address</color>: Lookup
+    <color:blue>Direccion</color>: String
+    -<color:blue>Logo</color>: File
+    StatusReason: Status
+    <color:blue>TelContacto</color>: String
+    <color:blue>UserContacto</color>: String
+}
+
+entity CustomerNoUsar <<custom>>
+{
+    *Customer (PK): Uniqueidentifier
+    --
+    *<color:blue>NombreCliente (PN)</color>: String
+    *Estado: State
+    Razónparaelestado: Status
+}
+
+entity equipoItem <<custom>>
+{
+    *equipoItem (PK): Uniqueidentifier
+    --
+    *<color:blue>NombreequipoItem (PN)</color>: String
+    *Estado: State
+    Razónparaelestado: Status
+}
+
+entity equipoItem <<custom>>
+{
+    *Equitment (PK): Uniqueidentifier
+    --
+    *<color:blue>Equipment (PN)</color>: String
+    *<color:blue>ClienteId</color>: Lookup
+    *<color:blue>Estado</color>: Picklist
+    *<color:blue>ItemId</color>: Lookup
+    *<color:blue>Marca</color>: String
+    *<color:blue>SedeId</color>: Lookup
+    *<color:blue>Serie</color>: String
+    *<color:blue>Servicio</color>: Lookup
+    *Status: State
+    <color:blue>Area</color>: String
+    <color:blue>Cronograma</color>: Memo
+    <color:blue>Inventario</color>: String
+    <color:blue>item</color>: MultiSelectPicklist
+    <color:blue>Meses</color>: MultiSelectPicklist
+    <color:blue>Modelo</color>: String
+    StatusReason: Status
+    <color:blue>UltimoConsecutivoMtto</color>: String
+    <color:blue>UltimoMtto</color>: DateTime
+}
+
+entity EstadoEquipo <<custom>>
+{
+    *EstadoEquipo (PK): Uniqueidentifier
+    --
+    *<color:blue>Estado (PN)</color>: String
+    *Estado: State
+    Razónparaelestado: Status
+}
+
+entity HVEquipo <<custom>>
+{
+    *HVEquipo (PK): Uniqueidentifier
+    --
+    <color:blue>NombreEquipo (PN)</color>: String
+    *Estado: State
+    <color:blue>Accesorios</color>: Memo
+    <color:blue>AñoFabricación</color>: Integer
+    <color:blue>Área</color>: String
+    <color:blue>ClasificaciónRiesgo</color>: Picklist
+    <color:blue>Corriente</color>: String
+    <color:blue>Customer</color>: Lookup
+    <color:blue>DirecciónProveedor</color>: String
+    Divisa: Lookup
+    <color:blue>DocumentoAdjunto</color>: String
+    <color:blue>EmailProveedor</color>: String
+    <color:blue>EquipoId</color>: Lookup
+    <color:blue>equipoItem</color>: Lookup
+    <color:blue>Estado</color>: Picklist
+    <color:blue>EstadoEquipo</color>: Picklist
+    <color:blue>EstadoHV</color>: Picklist
+    <color:blue>Fabricante</color>: String
+    <color:blue>FechaAdquisición</color>: DateTime
+    <color:blue>FechaCreación</color>: DateTime
+    <color:blue>FechaFinGarantía</color>: DateTime
+    <color:blue>FechaInicioGarantía</color>: DateTime
+    <color:blue>FechaInstalación</color>: DateTime
+    <color:blue>FechaPuestaFuncionamiento</color>: DateTime
+    <color:blue>Frecuencia</color>: String
+    <color:blue>FuenteAlimentación</color>: String
+    <color:blue>HumedadOperación</color>: String
+    <color:blue>Marca</color>: String
+    <color:blue>Modelo</color>: String
+    <color:blue>NombreCliente</color>: Lookup
+    <color:blue>NombreProveedor</color>: String
+    <color:blue>NúmeroSerie</color>: String
+    <color:blue>Observaciones</color>: Memo
+    <color:blue>PaísOrigen</color>: String
+    <color:blue>PeriodicidadCalibración</color>: Picklist
+    <color:blue>PeriodicidadMantenimiento</color>: Picklist
+    <color:blue>Peso</color>: Decimal
+    <color:blue>Potencia</color>: String
+    <color:blue>PresiónOperación</color>: String
+    <color:blue>PróximaCalibración</color>: DateTime
+    <color:blue>PróximoMantenimiento</color>: DateTime
+    Razónparaelestado: Status
+    <color:blue>Recomendaciones</color>: Memo
+    <color:blue>RegistroINVIMA</color>: String
+    <color:blue>RequiereCalibración</color>: Boolean
+    <color:blue>Servicio</color>: String
+    <color:blue>TecnologíaPredominante</color>: String
+    <color:blue>TeléfonoProveedor</color>: String
+    <color:blue>TemperaturaOperación</color>: String
+    <color:blue>TipoAdquisición</color>: Picklist
+    -Tipodecambio: Decimal
+    <color:blue>TipoEquipo</color>: Picklist
+    <color:blue>UsoEquipo</color>: Picklist
+    <color:blue>Usuario</color>: Lookup
+    <color:blue>ValorAdquisición</color>: Money
+    <color:blue>Versión</color>: String
+    <color:blue>Voltaje</color>: String
+}
+
+entity Informe <<standard>>
+{
+    *Informe (PK): Uniqueidentifier
+    --
+    *Nombre (PN): String
+    *Estáadministrado: Boolean
+    *Estadodelcomponente: Picklist
+    *Esuninformepersonalizado: Boolean
+    *Esuninformeprogramado: Boolean
+    *Horadesobrescrituradelregistro: DateTime
+    *Idioma: Integer
+    *Informe_: Uniqueidentifier
+    *Personalizable: ManagedProperty
+    *Solución: Uniqueidentifier
+    *Tipodeinforme: Picklist
+    *Visiblepor: Boolean
+    -ApplicationId: String
+    -cdsdatasetid: String
+    Códigodeidiomadefirma: Integer
+    Cuerpobinario: String
+    DependentModelReportId: Lookup
+    Descripción: String
+    Estadodelinforme: String
+    -Estructuradeinformacióndeconsulta: String
+    Fechadefirmadeinforme: DateTime
+    -<color:blue>FileContent</color>: File
+    Filtropredeterminado: String
+    Firma: Uniqueidentifier
+    -Hashdeltextodelcuerpo: Integer
+    -InformacióndeláreadetrabajodePowerBI: String
+    Informeprimario: Lookup
+    -InformeXMLpersonalizado: String
+    ManagedType: Picklist
+    Nombredearchivo: String
+    -NombredelinformedePowerBI: String
+    -NombreenSRS: String
+    -PowerBIDatasetId: String
+    powerbifeaturetag: String
+    -PowerBiReportId: String
+    -powerbireportinternalstate: String
+    -Solución: Uniqueidentifier
+    -Tamañodearchivobytes: Integer
+    Textodecuerpo: String
+    -Textodecuerpo: String
+    TipoMIME: String
+    URLdeinformevinculado: String
+    Versióndelinforme: Integer
+    Versiónintroducida: String
+    Versiónprincipaldefirmadeinforme: Integer
+    Versiónsecundariadefirmadeinforme: Integer
+    -XMLdedefinicióndeprogramación: String
+}
+
+entity Items <<custom>>
+{
+    *Items (PK): Uniqueidentifier
+    --
+    *<color:blue>ItemId (PN)</color>: String
+    *<color:blue>Nombre</color>: String
+    *Status: State
+    <color:blue>Observacion</color>: String
+    <color:blue>ProtocoloId</color>: Lookup
+    StatusReason: Status
+}
+
+entity OT <<custom>>
+{
+    *OT (PK): Uniqueidentifier
+    --
+    *<color:blue>Consecutivo (PN)</color>: String
+    *<color:blue>ClienteId</color>: Lookup
+    *<color:blue>EstadoOt</color>: Picklist
+    *<color:blue>FechaCreacion</color>: DateTime
+    *<color:blue>Norden</color>: String
+    *Status: State
+    *<color:blue>TipoServicio</color>: Picklist
+    <color:blue>Avance</color>: Integer
+    <color:blue>EstadoText</color>: String
+    <color:blue>numeroOt</color>: Integer
+    <color:blue>OtPrioridad</color>: Picklist
+    <color:blue>ResponsableId</color>: Lookup
+    StatusReason: Status
+}
+
+entity ProtocoloActividad <<custom>>
+{
+    *ProtocoloActividad (PK): Uniqueidentifier
+    --
+    *<color:blue>Id (PN)</color>: String
+    *Status: State
+    <color:blue>ActividadId</color>: Lookup
+    <color:blue>ProtocoloId</color>: Lookup
+    StatusReason: Status
+}
+
+entity ProtocoloMtto <<custom>>
+{
+    *ProtocoloMtto (PK): Uniqueidentifier
+    --
+    *<color:blue>ProtocoloId (PN)</color>: String
+    *Status: State
+    <color:blue>Descripcion</color>: String
+    <color:blue>nombre</color>: String
+    StatusReason: Status
+}
+
+entity Report <<custom>>
+{
+    *Report (PK): Uniqueidentifier
+    --
+    *<color:blue>ID (PN)</color>: String
+    *Status: State
+    -<color:blue></color>: Uniqueidentifier
+    <color:blue>AccesoriosDelEquipo</color>: String
+    <color:blue>CausaEncontrada</color>: String
+    <color:blue>ClienteId</color>: Lookup
+    <color:blue>consecutivo</color>: String
+    <color:blue>duracion</color>: Integer
+    <color:blue>Equipo</color>: Lookup
+    <color:blue>estado</color>: Picklist
+    <color:blue>EstadoOperativo</color>: Picklist
+    <color:blue>fechaCancelado</color>: DateTime
+    <color:blue>FechaCreacion</color>: DateTime
+    <color:blue>fechaFinalizdo</color>: DateTime
+    <color:blue>fechaProcesado</color>: DateTime
+    <color:blue>hojaDeTrabajo</color>: Lookup
+    <color:blue>Inventario</color>: String
+    <color:blue>ItemText</color>: String
+    <color:blue>Marca</color>: String
+    <color:blue>MesesMtto</color>: MultiSelectPicklist
+    <color:blue>Modelo</color>: String
+    <color:blue>MotivoFueraDeServicio</color>: String
+    <color:blue>Observacion</color>: String
+    <color:blue>orden</color>: Lookup
+    <color:blue>reporterecibido</color>: String
+    <color:blue>ReportPDF</color>: String
+    <color:blue>ResponsableId</color>: Lookup
+    <color:blue>ResponsableMtto</color>: Lookup
+    <color:blue>Sede</color>: String
+    <color:blue>Serie</color>: String
+    <color:blue>Servicio</color>: String
+    StatusReason: Status
+    <color:blue>tipoMtto</color>: Picklist
+    <color:blue>Ubicacion</color>: String
+}
+
+entity Repuesto_Trazabilidad <<custom>>
+{
+    *Repuesto_Trazabilidad (PK): Uniqueidentifier
+    --
+    *<color:blue>Repuesto_Trazabilidad (PN)</color>: String
+    *Status: State
+    <color:blue>Attachments</color>: Memo
+    <color:blue>Cantidad</color>: Integer
+    <color:blue>Comentarios</color>: Memo
+    <color:blue>EstadoA</color>: Picklist
+    <color:blue>EstadoActual</color>: Picklist
+    <color:blue>EstadoAnterior</color>: Picklist
+    <color:blue>EstadoNuevo</color>: Picklist
+    <color:blue>FechaHoraCambio</color>: DateTime
+    <color:blue>SolicitudRepuestoId</color>: Lookup
+    StatusReason: Status
+}
+
+entity Repuestos <<custom>>
+{
+    *Repuestos (PK): Uniqueidentifier
+    --
+    *<color:blue>repuesto_id (PN)</color>: String
+    *<color:blue>Cantidad</color>: String
+    *<color:blue>nombre</color>: String
+    *Status: State
+    <color:blue>CantidadInstalacion</color>: Integer
+    Currency: Lookup
+    <color:blue>EquipoId</color>: Lookup
+    <color:blue>EstadoAnterior</color>: Picklist
+    <color:blue>EstadoSolicitud</color>: Picklist
+    -ExchangeRate: Decimal
+    <color:blue>FechaInstalacion</color>: DateTime
+    <color:blue>FechaSolicitud</color>: DateTime
+    <color:blue>observacion</color>: String
+    <color:blue>ObservacionInstalacion</color>: String
+    <color:blue>OrdenId</color>: Lookup
+    <color:blue>origenRepuesto</color>: Picklist
+    <color:blue>PrecioRepuesto</color>: Money
+    <color:blue>Prioridad</color>: Picklist
+    <color:blue>ReporteInstalacionId</color>: Lookup
+    <color:blue>ReporteSolicitudId</color>: Lookup
+    <color:blue>ResponsableInstalacion</color>: Lookup
+    <color:blue>ResponsableSolicitud</color>: Lookup
+    StatusReason: Status
+}
+
+entity Sedes <<custom>>
+{
+    *Sedes (PK): Uniqueidentifier
+    --
+    <color:blue>Sede_id (PN)</color>: String
+    *<color:blue>Cliente</color>: Lookup
+    *<color:blue>contact</color>: String
+    *<color:blue>departamento</color>: String
+    *<color:blue>nombreSede</color>: String
+    *Status: State
+    *<color:blue>telefono</color>: String
+    <color:blue>ciudad</color>: String
+    <color:blue>direccion</color>: String
+    StatusReason: Status
+}
+
+entity Servicios <<custom>>
+{
+    *Ubicacion (PK): Uniqueidentifier
+    --
+    <color:blue>ServicioId (PN)</color>: String
+    *<color:blue>Cliente</color>: Lookup
+    *<color:blue>nombre</color>: String
+    *Status: State
+    <color:blue>observacion</color>: String
+    StatusReason: Status
+}
+
+entity SheetWork <<custom>>
+{
+    *SheetWork (PK): Uniqueidentifier
+    --
+    *<color:blue>sheeWork (PN)</color>: String
+    *<color:blue>otId</color>: Lookup
+    *Status: State
+    -<color:blue></color>: Uniqueidentifier
+    <color:blue>cargoRecibe</color>: String
+    -<color:blue>firmaFile</color>: File
+    -<color:blue>firmaResponsable</color>: File
+    <color:blue>numeroHoja</color>: Integer
+    <color:blue>PdfGenerado</color>: Boolean
+    <color:blue>PdfHojaTrabajo</color>: String
+    <color:blue>personaRecibe</color>: String
+    <color:blue>responsable</color>: Lookup
+    StatusReason: Status
+}
+
+entity Usuario <<custom>>
+{
+    *Usuario (PK): Uniqueidentifier
+    --
+    *<color:blue>NombreUsuario (PN)</color>: String
+    *Estado: State
+    Razónparaelestado: Status
+}
+
+entity Usuario <<custom>>
+{
+    *Usuario (PK): Uniqueidentifier
+    --
+    *<color:blue>NombredeUsuario (PN)</color>: String
+    *Status: State
+    <color:blue>Ciudad</color>: String
+    <color:blue>CorreoElectrónico</color>: String
+    <color:blue>Estado</color>: Picklist
+    -<color:blue>Firma</color>: File
+    -<color:blue>Foto</color>: File
+    -<color:blue>MiFirma</color>: File
+    <color:blue>PrimerApellido</color>: String
+    <color:blue>RegistroInvima</color>: String
+    <color:blue>Rol</color>: String
+    <color:blue>SegundoApellido</color>: String
+    StatusReason: Status
+    <color:blue>TarjetaProfesional</color>: String
+    <color:blue>Teléfono</color>: String
+}
+
+entity Usuario <<standard>>
+{
+    *Usuario (PK): Uniqueidentifier
+    --
+    -Nombrecompleto (PN): String
+    *Apellidos: String
+    *Correoelectrónicoprincipal: String
+    *EstadodeaprobacióndeAdministraciónO365dedireccióndecorreoelectrónico: Boolean
+    *EstadodeAzure: Picklist
+    *Estadodecorreoelectrónicoprincipal: Picklist
+    *Estadodeinvitación: Picklist
+    *Estadoeliminado: Picklist
+    *EsusuariodeActiveDirectory: Boolean
+    *Filtrosrellenadosdeformapredeterminada: Boolean
+    *Iddeidentidaddeusuarioúnico: Integer
+    *Métododeentregadecorreoelectrónicoentrante: Picklist
+    *Métododeentregadelcorreoelectrónicosaliente: Picklist
+    *Mododeacceso: Picklist
+    *Mododeaccesorestringido: Boolean
+    *Mododeusuariodeintegración: Boolean
+    *NombredelacarpetadeOneDriveparalaEmpresapredeterminado: String
+    *Nombredepila: String
+    *Nombredeusuario: String
+    *Organización: Uniqueidentifier
+    *Tipodelicencia: Picklist
+    *Tipodelicenciadeusuario: Integer
+    *Tipodeusuarioadministradoporelsistema: Picklist
+    *Unidaddenegocio: Lookup
+    *Usuarioconlicencia: Boolean
+    *Usuariosincronizado: Boolean
+    Administrador: Lookup
+    ApellidosYomi: String
+    -Buzón: Lookup
+    Calendario: Lookup
+    Colapredeterminada: Lookup
+    Conocimientos: String
+    Correoelectrónico2: String
+    Correoelectrónicodealertamóvil: String
+    CorreoelectrónicodeYammer: String
+    DireccióndecorreoelectrónicodeSharePoint: String
+    Direccióndecorreoelectrónicopreferida: Picklist
+    Direcciónpreferida: Picklist
+    DirecciónURLdefoto: String
+    Divisa: Lookup
+    -EliminadodeAzureel: DateTime
+    Empleado: String
+    -Estado: Boolean
+    Gubernamental: String
+    -GUIDdeActiveDirectory: Uniqueidentifier
+    Iddeaplicación: Uniqueidentifier
+    -IddeobjetodeAzureAD: Uniqueidentifier
+    IddeusuariodeYammer: String
+    -Identificadordeimagendelaentidad: Uniqueidentifier
+    Mostrarenvistasdeservicio: Boolean
+    NombredepilaYomi: String
+    -NombreYomicompleto: String
+    ObsoletoFasedeproceso: Uniqueidentifier
+    ObsoletoRutarecorrida: String
+    Passportalto: Integer
+    Passportbajo: Integer
+    PerfildeMobileOffline: Lookup
+    Posición: Lookup
+    Proceso: Uniqueidentifier
+    Puesto: String
+    -PUIDdeusuario: String
+    -Razóndeladeshabilitación: String
+    Saludo: String
+    Segundonombre: String
+    SegundonombreYomi: String
+    Sobrenombre: String
+    Teléfonomóvil: String
+    Teléfonoparticular: String
+    Teléfonopreferido: Picklist
+    -Tipodecambio: Decimal
+    Título: String
+    TobypassIPfirewallrestrictionontheuser: Boolean
+    -Últimahoradeactualizacióndeusuario: DateTime
+    -URIdeIddeaplicación: String
+    WindowsLiveID: String
+    Zonadeventas: Lookup
+}
+
+ActividadMtto ||--{ ActividadReporte: ActividadId
+ActividadMtto --{ ProtocoloActividad: ActividadId
+Report --{ ActividadReporte: reportId
+Address --{ Customer: Address
+Customer ||--{ equipoItem: ClienteId
+Customer ||--{ OT: ClienteId
+Customer --{ Report: ClienteId
+Customer ||--{ Sedes: Cliente
+Customer ||--{ Servicios: Cliente
+Customer --{ HVEquipo: NombreCliente
+CustomerNoUsar --{ HVEquipo: Customer
+equipoItem --{ HVEquipo: equipoItem
+Items ||--{ equipoItem: ItemId
+Sedes ||--{ equipoItem: SedeId
+Servicios ||--{ equipoItem: Servicio
+equipoItem --{ Report: Equipo
+equipoItem --{ Repuestos: EquipoId
+equipoItem --{ HVEquipo: EquipoId
+Usuario --{ HVEquipo: Usuario
+ProtocoloMtto --{ Items: ProtocoloId
+Usuario --{ OT: ResponsableId
+OT --{ Report: orden
+OT --{ Repuestos: OrdenId
+OT ||--{ SheetWork: otId
+ProtocoloMtto --{ ProtocoloActividad: ProtocoloId
+SheetWork --{ Report: hojaDeTrabajo
+Usuario --{ Report: ResponsableId
+Usuario --{ Report: ResponsableMtto
+Report --{ Repuestos: ReporteInstalacionId
+Report --{ Repuestos: ReporteSolicitudId
+Repuestos --{ Repuesto_Trazabilidad: SolicitudRepuestoId
+Usuario --{ Repuestos: ResponsableInstalacion
+Usuario --{ Repuestos: ResponsableSolicitud
+Usuario --{ SheetWork: responsable
+
+@enduml
+
+
+/'**** LCG-configuration-BEGIN ****
+<?xml version="1.0" encoding="utf-16"?>
+<Settings xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <TemplateFormat>PlantUML</TemplateFormat>
+  <Version>1.2025.8.1</Version>
+  <NameSpace />
+  <Theme />
+  <ColorByType>true</ColorByType>
+  <UseCommonFile>true</UseCommonFile>
+  <SaveConfigurationInCommonFile>true</SaveConfigurationInCommonFile>
+  <FileName>DisplayName</FileName>
+  <ConstantName>DisplayName</ConstantName>
+  <ConstantCamelCased>false</ConstantCamelCased>
+  <Encoding>UTF-8</Encoding>
+  <DoStripPrefix>false</DoStripPrefix>
+  <StripPrefix>_</StripPrefix>
+  <XmlProperties>false</XmlProperties>
+  <XmlDescription>false</XmlDescription>
+  <TypeDetails>false</TypeDetails>
+  <Regions>false</Regions>
+  <RelationShips>true</RelationShips>
+  <RelationshipLabels>true</RelationshipLabels>
+  <OptionSets>false</OptionSets>
+  <GlobalOptionSets>false</GlobalOptionSets>
+  <Legend>false</Legend>
+  <TableSize>1</TableSize>
+  <RelationShipSize>2</RelationShipSize>
+  <CommonAttributes>None</CommonAttributes>
+  <AttributeSortMode>AlphabeticalAndRequired</AttributeSortMode>
+  <Groups />
+  <SelectedEntities>
+    <SelectedEntity>
+      <Name>crc10_actividadmtto</Name>
+      <Attributes>
+        <string>crc10_actividadid</string>
+        <string>crc10_actividadmttoid</string>
+        <string>crc10_descripcion</string>
+        <string>crc10_esobligatoria</string>
+        <string>crc10_nombre</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_actividadreporte_ActividadId_crc10_actividadmtto</string>
+        <string>crc10_protocoloactividad_ActividadId_crc10_actividadmtto</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_actividadreporte</Name>
+      <Attributes>
+        <string>crc10_actividadid</string>
+        <string>crc10_actividadreport</string>
+        <string>crc10_actividadreporteid</string>
+        <string>crc10_modificado</string>
+        <string>crc10_observacion</string>
+        <string>crc10_realizado</string>
+        <string>crc10_reportid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_actividadreporte_ActividadId_crc10_actividadmtto</string>
+        <string>crc10_actividadreporte_reportId_crc10_report</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_address</Name>
+      <Attributes />
+      <Relationships>
+        <string>crc10_Customer_crc10_Address</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_customer</Name>
+      <Attributes>
+        <string>crc10_addressid</string>
+        <string>crc10_ciudad</string>
+        <string>crc10_logoclienteid</string>
+        <string>crc10_customerid</string>
+        <string>crc10_departamento</string>
+        <string>crc10_direccion</string>
+        <string>crc10_email</string>
+        <string>crc10_logo</string>
+        <string>crc10_nit</string>
+        <string>crc10_customername</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_telcontacto</string>
+        <string>crc10_usercontacto</string>
+      </Attributes>
+      <Relationships>
+        <string>ImageDescriptor_crc10_Customer_crc10_logoCliente</string>
+        <string>crc10_Customer_crc10_Address</string>
+        <string>crc10_equipo_ClienteId</string>
+        <string>crc10_ot_ClienteId_crc10_customer</string>
+        <string>crc10_report_ClienteId_crc10_customer</string>
+        <string>crc10_Sede_Cliente</string>
+        <string>crc10_Serivicio_cliente</string>
+        <string>cr727_hvequipo_NombreCliente_crc10_customer</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>cr727_customer1</Name>
+      <Attributes>
+        <string>cr727_customer1id</string>
+        <string>statecode</string>
+        <string>cr727_nombrecliente</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>cr727_hvequipo_cr727_cliente_cr727_customer1</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>cr727_equipoitem</Name>
+      <Attributes>
+        <string>cr727_equipoitemid</string>
+        <string>statecode</string>
+        <string>cr727_nombreequipoitem</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>cr727_HVEquipo_cr727_equipoItem</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_equitment</Name>
+      <Attributes>
+        <string>crc10_area</string>
+        <string>crc10_clienteid</string>
+        <string>crc10_cronograma</string>
+        <string>crc10_equipment</string>
+        <string>crc10_equitmentid</string>
+        <string>crc10_estado</string>
+        <string>crc10_inventario</string>
+        <string>crc10_item</string>
+        <string>crc10_itemid</string>
+        <string>crc10_marca</string>
+        <string>crc10_meses</string>
+        <string>crc10_modelo</string>
+        <string>crc10_sedeid</string>
+        <string>crc10_serie</string>
+        <string>crc10_servicio</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_ultimoconsecutivomtto</string>
+        <string>crc10_ultimomtto</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_equipo_ClienteId</string>
+        <string>crc10_equipo_ItemId</string>
+        <string>crc10_equipo_SedeIdes</string>
+        <string>crc10_servicio_Servicio</string>
+        <string>crc10_report_Equipo_crc10_equitment</string>
+        <string>crc10_repuestos_EquipoId_crc10_equitment</string>
+        <string>cr727_hvequipo_EquipoId_crc10_equitment</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>cr727_estadoequipo</Name>
+      <Attributes>
+        <string>cr727_estado</string>
+        <string>statecode</string>
+        <string>cr727_estadoequipoid</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships />
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>cr727_hvequipo</Name>
+      <Attributes>
+        <string>cr727_accesorios</string>
+        <string>cr727_anofabricacion</string>
+        <string>cr727_area</string>
+        <string>cr727_clasificacionriesgo</string>
+        <string>cr727_corriente</string>
+        <string>cr727_cliente</string>
+        <string>cr727_direccionproveedor</string>
+        <string>transactioncurrencyid</string>
+        <string>cr727_documentoadjunto</string>
+        <string>cr727_emailproveedor</string>
+        <string>cr727_equipoid</string>
+        <string>cr727_id</string>
+        <string>cr727_estado</string>
+        <string>statecode</string>
+        <string>cr727_estadoequipo</string>
+        <string>cr727_estadohv</string>
+        <string>cr727_fabricante</string>
+        <string>cr727_fechaadquisicion</string>
+        <string>cr727_fechacreacion</string>
+        <string>cr727_fechafingarantia</string>
+        <string>cr727_fechainiciogarantia</string>
+        <string>cr727_fechainstalacion</string>
+        <string>cr727_fechapuestafuncionamiento</string>
+        <string>cr727_frecuencia</string>
+        <string>cr727_fuentealimentacion</string>
+        <string>cr727_humedadoperacion</string>
+        <string>cr727_hvequipoid</string>
+        <string>cr727_marca</string>
+        <string>cr727_modelo</string>
+        <string>cr727_nombrecliente</string>
+        <string>cr727_nombreequipo</string>
+        <string>cr727_nombreproveedor</string>
+        <string>cr727_numeroserie</string>
+        <string>cr727_observaciones</string>
+        <string>cr727_paisorigen</string>
+        <string>cr727_periodicidadcalibracion</string>
+        <string>cr727_periodicidadmantenimiento</string>
+        <string>cr727_peso</string>
+        <string>cr727_potencia</string>
+        <string>cr727_presionoperacion</string>
+        <string>cr727_proximacalibracion</string>
+        <string>cr727_proximomantenimiento</string>
+        <string>statuscode</string>
+        <string>cr727_recomendaciones</string>
+        <string>cr727_registroinvima</string>
+        <string>cr727_requierecalibracion</string>
+        <string>cr727_servicio</string>
+        <string>cr727_tecnologiapredominante</string>
+        <string>cr727_telefonoproveedor</string>
+        <string>cr727_temperaturaoperacion</string>
+        <string>cr727_tipoadquisicion</string>
+        <string>exchangerate</string>
+        <string>cr727_tipoequipo</string>
+        <string>cr727_usoequipo</string>
+        <string>cr727_elaboradopor</string>
+        <string>cr727_valoradquisicion</string>
+        <string>cr727_version</string>
+        <string>cr727_voltaje</string>
+      </Attributes>
+      <Relationships>
+        <string>cr727_HVEquipo_cr727_Usuario</string>
+        <string>cr727_hvequipo_cr727_cliente_cr727_customer1</string>
+        <string>cr727_HVEquipo_cr727_equipoItem</string>
+        <string>cr727_hvequipo_NombreCliente_crc10_customer</string>
+        <string>cr727_hvequipo_EquipoId_crc10_equitment</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>report</Name>
+      <Attributes>
+        <string>applicationid</string>
+        <string>cdsdatasetid</string>
+        <string>signaturelcid</string>
+        <string>bodybinary</string>
+        <string>dependentmodelreportid</string>
+        <string>description</string>
+        <string>iscustomreport</string>
+        <string>isscheduledreport</string>
+        <string>ismanaged</string>
+        <string>componentstate</string>
+        <string>reportstatus</string>
+        <string>queryinfo</string>
+        <string>signaturedate</string>
+        <string>filecontent</string>
+        <string>defaultfilter</string>
+        <string>signatureid</string>
+        <string>rdlhash</string>
+        <string>overwritetime</string>
+        <string>languagecode</string>
+        <string>powerbiworkspaceinfo</string>
+        <string>reportid</string>
+        <string>reportidunique</string>
+        <string>parentreportid</string>
+        <string>customreportxml</string>
+        <string>managedtype</string>
+        <string>name</string>
+        <string>filename</string>
+        <string>powerbireportname</string>
+        <string>reportnameonsrs</string>
+        <string>iscustomizable</string>
+        <string>powerbidatasetid</string>
+        <string>powerbifeaturetag</string>
+        <string>powerbireportid</string>
+        <string>powerbireportinternalstate</string>
+        <string>solutionid</string>
+        <string>supportingsolutionid</string>
+        <string>filesize</string>
+        <string>bodytext</string>
+        <string>originalbodytext</string>
+        <string>reporttypecode</string>
+        <string>mimetype</string>
+        <string>bodyurl</string>
+        <string>reportversion</string>
+        <string>introducedversion</string>
+        <string>signaturemajorversion</string>
+        <string>signatureminorversion</string>
+        <string>ispersonal</string>
+        <string>schedulexml</string>
+      </Attributes>
+      <Relationships />
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_items</Name>
+      <Attributes>
+        <string>crc10_items_id</string>
+        <string>crc10_itemsid</string>
+        <string>crc10_nombre</string>
+        <string>crc10_observacion</string>
+        <string>crc10_protocoloid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_items_ProtocoloId</string>
+        <string>crc10_equipo_ItemId</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_ot</Name>
+      <Attributes>
+        <string>crc10_avance</string>
+        <string>crc10_clienteid</string>
+        <string>crc10_estado</string>
+        <string>crc10_estadoot</string>
+        <string>crc10_estadotext</string>
+        <string>crc10_fechacreacion</string>
+        <string>crc10_norden</string>
+        <string>crc10_numeroot</string>
+        <string>crc10_otid</string>
+        <string>crc10_otprioridad</string>
+        <string>crc10_responsableid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_tiposervicio</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_ot_ClienteId_crc10_customer</string>
+        <string>crc10_ResponsableOt</string>
+        <string>crc10_report_orden_crc10_ot</string>
+        <string>crc10_repuestos_OrdenId_crc10_ot</string>
+        <string>crc10_sheetwork_otId_crc10_ot</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_protocoloactividad</Name>
+      <Attributes>
+        <string>crc10_actividadid</string>
+        <string>crc10_newcolumn</string>
+        <string>crc10_protocoloactividadid</string>
+        <string>crc10_protocoloid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_protocoloactividad_ActividadId_crc10_actividadmtto</string>
+        <string>crc10_protocoloactividadpar</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_protocolomtto</Name>
+      <Attributes>
+        <string>crc10_descripcion</string>
+        <string>crc10_nombre</string>
+        <string>crc10_protocoloid</string>
+        <string>crc10_protocolomttoid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_items_ProtocoloId</string>
+        <string>crc10_protocoloactividadpar</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_report</Name>
+      <Attributes>
+        <string>cr727_accesoriosdelequipo</string>
+        <string>cr727_causaencontrada</string>
+        <string>crc10_clienteid</string>
+        <string>crc10_consecutivo</string>
+        <string>crc10_firmarecibeid</string>
+        <string>crc10_duracion</string>
+        <string>crc10_equipo</string>
+        <string>crc10_estado</string>
+        <string>crc10_estadooperativo</string>
+        <string>crc10_fechacancelado</string>
+        <string>crc10_fechacreacion</string>
+        <string>crc10_fechafinalizdo</string>
+        <string>crc10_fechaprocesado</string>
+        <string>crc10_hojadetrabajo</string>
+        <string>crc10_id</string>
+        <string>crc10_inventario</string>
+        <string>crc10_itemtext</string>
+        <string>crc10_marca</string>
+        <string>cr727_mesesmtto</string>
+        <string>crc10_modelo</string>
+        <string>cr727_motivofueradeservicio</string>
+        <string>crc10_observacion</string>
+        <string>crc10_orden</string>
+        <string>crc10_reportid</string>
+        <string>crc10_reporterecibido</string>
+        <string>crc10_reportpdf</string>
+        <string>crc10_responsableid</string>
+        <string>crc10_responsablemtto</string>
+        <string>crc10_sede</string>
+        <string>crc10_serie</string>
+        <string>crc10_servicio</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_tipomtto</string>
+        <string>crc10_ubicacion</string>
+      </Attributes>
+      <Relationships>
+        <string>ImageDescriptor_crc10_Report_crc10_firmaRecibe</string>
+        <string>crc10_report_ClienteId_crc10_customer</string>
+        <string>crc10_report_Equipo_crc10_equitment</string>
+        <string>crc10_report_hojaDeTrabajo</string>
+        <string>crc10_report_orden_crc10_ot</string>
+        <string>crc10_report_ResponsableId_systemuser</string>
+        <string>crc10_report_ResponsableMtto_crc10_usuario</string>
+        <string>crc10_actividadreporte_reportId_crc10_report</string>
+        <string>crc10_repuestos_ReporteInstalacionId_crc10_report</string>
+        <string>crc10_repuestos_ReporteSolicitudId_crc10_report</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_repuesto_trazabilidad</Name>
+      <Attributes>
+        <string>crc10_attachments</string>
+        <string>crc10_cantidad</string>
+        <string>crc10_comentarios</string>
+        <string>crc10_estadoanterior</string>
+        <string>crc10_estadoactual</string>
+        <string>crc10_estadobefore</string>
+        <string>crc10_estadonuevo</string>
+        <string>crc10_fechahoracambio</string>
+        <string>crc10_repuesto_trazabilidad1</string>
+        <string>crc10_repuesto_trazabilidadid</string>
+        <string>crc10_solicitudrepuestoid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_repuesto_trazabilidad_SolicitudRepuestoId_crc10_repuestos</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_repuestos</Name>
+      <Attributes>
+        <string>crc10_cantidad</string>
+        <string>crc10_cantidadinstalacion</string>
+        <string>transactioncurrencyid</string>
+        <string>crc10_equipoid</string>
+        <string>crc10_estadoanterior</string>
+        <string>crc10_estadosolicitud</string>
+        <string>exchangerate</string>
+        <string>crc10_fechainstalacion</string>
+        <string>crc10_fechasolicitud</string>
+        <string>crc10_nombre</string>
+        <string>crc10_observacion</string>
+        <string>crc10_observacioninstalacion</string>
+        <string>crc10_ordenid</string>
+        <string>crc10_origenrepuesto</string>
+        <string>crc10_preciorepuesto</string>
+        <string>crc10_prioridad</string>
+        <string>crc10_reporteinstalacionid</string>
+        <string>crc10_reportesolicitudid</string>
+        <string>crc10_repuesto_id</string>
+        <string>crc10_repuestosid</string>
+        <string>crc10_responsableinstalacion</string>
+        <string>crc10_responsablesolicitud</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_repuestos_EquipoId_crc10_equitment</string>
+        <string>crc10_repuestos_OrdenId_crc10_ot</string>
+        <string>crc10_repuestos_ReporteInstalacionId_crc10_report</string>
+        <string>crc10_repuestos_ReporteSolicitudId_crc10_report</string>
+        <string>crc10_repuestos_ResponsableInstalacion_systemuser</string>
+        <string>crc10_repuestos_ResponsableSolicitud_systemuser</string>
+        <string>crc10_repuesto_trazabilidad_SolicitudRepuestoId_crc10_repuestos</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_sedes</Name>
+      <Attributes>
+        <string>crc10_ciudad</string>
+        <string>crc10_cliente</string>
+        <string>crc10_contact</string>
+        <string>crc10_departamento</string>
+        <string>crc10_direccion</string>
+        <string>crc10_nombresede</string>
+        <string>crc10_sede_id</string>
+        <string>crc10_sedesid</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_telefono</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_Sede_Cliente</string>
+        <string>crc10_equipo_SedeIdes</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_ubicacion</Name>
+      <Attributes>
+        <string>crc10_cliente</string>
+        <string>crc10_nombre</string>
+        <string>crc10_observacion</string>
+        <string>crc10_ubicacion_id</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_ubicacionid</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_Serivicio_cliente</string>
+        <string>crc10_servicio_Servicio</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_sheetwork</Name>
+      <Attributes>
+        <string>crc10_cargorecibe</string>
+        <string>crc10_firmarecibeid</string>
+        <string>crc10_firmafile</string>
+        <string>crc10_firmaresponsable</string>
+        <string>crc10_numerohoja</string>
+        <string>crc10_otid</string>
+        <string>crc10_pdfgenerado</string>
+        <string>crc10_pdfhojatrabajo</string>
+        <string>crc10_personarecibe</string>
+        <string>crc10_responsable</string>
+        <string>crc10_sheetworkid</string>
+        <string>crc10_sheework</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+      </Attributes>
+      <Relationships>
+        <string>ImageDescriptor_crc10_SheetWork_crc10_firmaRecibe</string>
+        <string>crc10_sheetwork_otId_crc10_ot</string>
+        <string>crc10_sheetwork_responsable_crc10_usuario</string>
+        <string>crc10_report_hojaDeTrabajo</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>cr727_usuario</Name>
+      <Attributes>
+        <string>statecode</string>
+        <string>cr727_nombreusuario</string>
+        <string>statuscode</string>
+        <string>cr727_usuarioid</string>
+      </Attributes>
+      <Relationships>
+        <string>cr727_HVEquipo_cr727_Usuario</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>crc10_usuario</Name>
+      <Attributes>
+        <string>crc10_ciudad</string>
+        <string>crc10_correoelectronico</string>
+        <string>crc10_estado</string>
+        <string>crc10_firma</string>
+        <string>crc10_foto</string>
+        <string>crc10_mifirma</string>
+        <string>crc10_nombredeusuario</string>
+        <string>crc10_primerapellido</string>
+        <string>crc10_registroinvima</string>
+        <string>crc10_rol</string>
+        <string>crc10_segundoapellido</string>
+        <string>statecode</string>
+        <string>statuscode</string>
+        <string>crc10_tarjetaprofesional</string>
+        <string>crc10_telefono</string>
+        <string>crc10_usuarioid</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_report_ResponsableMtto_crc10_usuario</string>
+        <string>crc10_sheetwork_responsable_crc10_usuario</string>
+      </Relationships>
+    </SelectedEntity>
+    <SelectedEntity>
+      <Name>systemuser</Name>
+      <Attributes>
+        <string>stageid</string>
+        <string>traversedpath</string>
+        <string>parentsystemuserid</string>
+        <string>lastname</string>
+        <string>yomilastname</string>
+        <string>defaultmailbox</string>
+        <string>calendarid</string>
+        <string>queueid</string>
+        <string>skills</string>
+        <string>personalemailaddress</string>
+        <string>mobilealertemail</string>
+        <string>yammeremailaddress</string>
+        <string>internalemailaddress</string>
+        <string>sharepointemailaddress</string>
+        <string>preferredemailcode</string>
+        <string>preferredaddresscode</string>
+        <string>photourl</string>
+        <string>transactioncurrencyid</string>
+        <string>azuredeletedon</string>
+        <string>employeeid</string>
+        <string>isactivedirectoryuser</string>
+        <string>isdisabled</string>
+        <string>isemailaddressapprovedbyo365admin</string>
+        <string>azurestate</string>
+        <string>emailrouteraccessapproval</string>
+        <string>invitestatuscode</string>
+        <string>deletedstate</string>
+        <string>defaultfilterspopulated</string>
+        <string>governmentid</string>
+        <string>activedirectoryguid</string>
+        <string>applicationid</string>
+        <string>identityid</string>
+        <string>azureactivedirectoryobjectid</string>
+        <string>yammeruserid</string>
+        <string>entityimageid</string>
+        <string>incomingemaildeliverymethod</string>
+        <string>outgoingemaildeliverymethod</string>
+        <string>accessmode</string>
+        <string>setupuser</string>
+        <string>isintegrationuser</string>
+        <string>displayinserviceviews</string>
+        <string>fullname</string>
+        <string>defaultodbfoldername</string>
+        <string>firstname</string>
+        <string>yomifirstname</string>
+        <string>domainname</string>
+        <string>yomifullname</string>
+        <string>organizationid</string>
+        <string>passporthi</string>
+        <string>passportlo</string>
+        <string>mobileofflineprofileid</string>
+        <string>positionid</string>
+        <string>processid</string>
+        <string>jobtitle</string>
+        <string>userpuid</string>
+        <string>disabledreason</string>
+        <string>salutation</string>
+        <string>middlename</string>
+        <string>yomimiddlename</string>
+        <string>nickname</string>
+        <string>mobilephone</string>
+        <string>homephone</string>
+        <string>preferredphonecode</string>
+        <string>exchangerate</string>
+        <string>caltype</string>
+        <string>userlicensetype</string>
+        <string>systemmanagedusertype</string>
+        <string>title</string>
+        <string>isallowedbyipfirewall</string>
+        <string>latestupdatetime</string>
+        <string>businessunitid</string>
+        <string>applicationiduri</string>
+        <string>systemuserid</string>
+        <string>islicensed</string>
+        <string>issyncwithdirectory</string>
+        <string>windowsliveid</string>
+        <string>territoryid</string>
+      </Attributes>
+      <Relationships>
+        <string>crc10_report_ResponsableId_systemuser</string>
+        <string>crc10_repuestos_ResponsableInstalacion_systemuser</string>
+        <string>crc10_repuestos_ResponsableSolicitud_systemuser</string>
+        <string>crc10_ResponsableOt</string>
+      </Relationships>
+    </SelectedEntity>
+  </SelectedEntities>
+</Settings>
+**** LCG-configuration-END   ****'/
