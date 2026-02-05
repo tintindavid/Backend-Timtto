@@ -10,9 +10,10 @@ name = "timttoapp"
 [[services]]
 name = "web"
 path = "."
-# Command Railway runs to start the service in production. Use `npm run start`
-# (build+start) or `npm run dev` for development mode.
-start = "npm run start"
+# Start the app directly from source — works for local dev and on Railway when
+# you prefer to run JS from `src/`. If you build to `dist/` in CI, adjust to
+# `npm run start` instead.
+start = "node --enable-source-maps src/server.js"
 build = "npm ci && npm run build"
 
 # Recommended environment variables (placeholders). Set these in Railway UI.
@@ -21,8 +22,9 @@ build = "npm ci && npm run build"
 PORT = "3000"
 NODE_ENV = "production"
 
-# MongoDB connection string. Set this to your Railway MongoDB plugin or external uri.
-# Example (DO NOT COMMIT real credentials): mongodb+srv://user:pass@cluster.mongodb.net/dbname
+# MongoDB connection strings (support both common names used by projects)
+# Set either MONGO_URI or MONGO_URL in Railway variables to your connection string.
+MONGO_URI = ""
 MONGO_URL = ""
 
 # JWT secret used by the backend. Set a strong secret in Railway env.
@@ -36,6 +38,6 @@ FIREBASE_STORAGE_BUCKET = ""
 
 # Notes:
 # - After creating the Railway project, go to the project Settings -> Variables
-#   and add values for MONGO_URL, JWT_SECRET and any other secrets used by the app.
-# - If you use a Railway MongoDB plugin, you can reference the plugin variable
-#   directly via the Railway UI; keep this file free of plaintext secrets.
+#   and add values for MONGO_URI (or MONGO_URL), JWT_SECRET and any other secrets used by the app.
+# - Railway provides plugin variables when you add a MongoDB plugin; you can map
+#   that plugin variable to MONGO_URI or MONGO_URL in the Railway UI.
