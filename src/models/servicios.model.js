@@ -7,13 +7,13 @@ const ServiciosSchema = new Schema({
     Cliente: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     nombre: { type: String, required: true, trim: true },
     observacion: { type: String,  trim: true },
-      tenantId: { type: String, required: true },
+    tenantId: { type: String, required: true },
     // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
 }, {
   timestamps: true,
-  collection: 'servicioss'
+  collection: 'servicios'
 });
 
 // Indexes

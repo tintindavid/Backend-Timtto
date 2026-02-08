@@ -26,6 +26,7 @@ const TenantSchema = new Schema(
   },
   {
     timestamps: true,
+    // Use the existing collection name present in the database (singular 'tenant')
     collection: 'tenants',
   }
 );

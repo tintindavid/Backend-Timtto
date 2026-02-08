@@ -10,7 +10,7 @@ const OTSchema = new Schema({
     FechaCreacion: { type: Date, required: true, trim: true },
     Norden: { type: String, required: true, trim: true },
     /* Tipo de servicio de mantenimiento es un Enum */
-    TipoServicio: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Instalacion', 'Proactivo'], required: true, trim: true },
+    TipoServicio: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Instalación', 'Proactivo','Diagnóstico'], required: true, trim: true },
     Avance: { type: Number,  trim: true },
     EstadoText: { type: String,  trim: true },
     numeroOt: { type: Number,  trim: true },

@@ -20,6 +20,9 @@ const ReportSchema = new Schema({
     FechaCreacion: { type: Date,  trim: true },
     fechaFinalizdo: { type: Date,  trim: true },
     fechaProcesado: { type: Date,  trim: true },
+    fallaReportada: { type: String,  trim: true },
+    diagnostico: { type: String,  trim: true },
+    accionTomada: { type: String,  trim: true },
     MotivoFueraDeServicio: { type: String,  trim: true },
     fechaCancelacion: { type: Date,  trim: true },
     motivoCancelacion: { type: String,  trim: true },
@@ -46,7 +49,7 @@ const ReportSchema = new Schema({
       }
     ],
     inHt:{type: Boolean, default: false },
-    Observacion: { type: String,  trim: true },
+    observacion: { type: String,  trim: true },
     observacionEstadoFinal: { type: String,  trim: true },
     orden: { type: Schema.Types.ObjectId, ref: 'OT',  trim: true },
     reporterecibido: { type: String,  trim: true },

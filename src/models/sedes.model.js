@@ -11,7 +11,7 @@ const SedesSchema = new Schema({
     telefono: { type: String, required: true, trim: true },
     ciudad: { type: String,  trim: true },
     direccion: { type: String,  trim: true },
-    StatusReason: { type: String,  trim: true },
+    email: { type: String,  trim: true },
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

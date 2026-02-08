@@ -1,4 +1,6 @@
 'use strict';
+
+
 function getHTMLTemplate() {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -499,30 +501,23 @@ table.page-wrapper td {
                             </div>
                             <div class="info-item">
                                 <span class="label">Servicio:</span>
-                                <span class="value">{{equipoServicio}}</span>
-                            </div>
-                            <div class="info-item" style="grid-column:1/3;">
-                                <span class="label">Ubicación:</span>
-                                <span class="value">{{equipoUbicacion}}</span>
+                                <span class="value">{{equipoServicio}} - {{equipoUbicacion}}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- REPORTE RECIBIDO -->
+                    <!-- FALLA REPORTADA -->
                     
+                    
+                    <!-- DIAGNOSTICO -->
+                     
 
-                    <!-- CAUSA ENCONTRADA -->
+                     <!-- ACCION TOMADA -->
+                     {{accionTomada}}
                     
 
                     <!-- ACTIVIDADES -->
-                    <div class="section">
-                        <div class="section-header">
-                            <div class="title">Actividades Realizadas</div>
-                        </div>
-                        <div class="actividades-grid">
-                            {{actividades}}
-                        </div>
-                    </div>
+                    {{actividades}}
 
                     <!-- ACCESORIOS DEL EQUIPO -->
                     
@@ -596,7 +591,8 @@ function formatDate(date) {
 }
 
 function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTemplate()) {
-  const map = {
+    
+    const map = {
     tenantName:tenantData.name || 'N/A',   //en mayuscula
     tenantSlogan:tenantData.slogan || '',
     tenantDireccion:tenantData.direccion || 'N/A',
@@ -608,8 +604,8 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
     numeroReporte: report.consecutivo ?? (report._id ? String(report._id) : 'N/A'),
     numeroOT: report.orden.Consecutivo || 'N/A',
     fecha: formatDate(report.fechaProcesado ?? report.fechaProcesado ?? report.createdAt),
-    tipoServicio: report.orden.TipoServicio ?? 'N/A',
-    estado: report.estadoOperativo ?? 'N/A',
+    tipoServicio: report.tipoMtto ?? report.orden.TipoServicio ?? 'N/A',
+    estado: report.EstadoOperativo ?? report.estadoOperativo ?? 'N/A',
     clienteNombre: report.ClienteId?.Razonsocial ?? report.ClienteNombre ?? 'N/A',
     clienteNit: report.ClienteId?.Nit ?? 'N/A',
     clienteCiudad: report.Equipo?.SedeId?.ciudad || report.ClienteId?.Ciudad || 'N/A',
@@ -623,36 +619,24 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
     equipoInventario: report.equipoSnapshot?.Inventario ?? 'N/A',
     equipoServicio: report.equipoSnapshot?.Servicio ?? 'N/A',
     equipoUbicacion: report.equipoSnapshot?.Ubicacion ?? 'N/A',
-    observaciones: report.Observacion ?? 'N/A',
     tecnicoNombre: report?.hojaDeTrabajo?.fullNameResponsable || 'N/A',
     tecnicoCargo: report?.hojaDeTrabajo?.cargoResponsable ?? 'Técnico' ?? 'N/A',
     clienteFirmaNombre: report?.hojaDeTrabajo?.personaRecibe ?? 'N/A',
     clienteFirmaCargo: report?.hojaDeTrabajo?.cargoRecibe ?? 'N/A',
   };
 
-  // actividades
-  let actividadesHtml = 'No se registraron actividades';
-  if (Array.isArray(report.actividadesRealizadas) && report.actividadesRealizadas.length) {
-    actividadesHtml = report.actividadesRealizadas.map((a) => {
-      const fecha = a.fecha ? formatDate(a.fecha) : '';
-      const desc = a.descripcion ?? a.actividad ?? 'N/A';
-      const obs = a.observaciones ?? '';
-      return `<div class="actividad-item"><strong>${desc}</strong><div>${obs}</div></div>`;
-    }).join('\n');
-  }
+  const actividades = renderActividades(report.actividadesRealizadas);
 
   // repuestos
   let repuestosHtml = '';
   if (Array.isArray(report.repuestos) && report.repuestos.length) {
     repuestosHtml = `<div class="section"><div class="section-header"><div class="title">Repuestos</div></div><table class="repuestos-table"><thead><tr><th>Nombre</th><th>Cantidad</th><th>Instalación</th><th>Observación</th></tr></thead><tbody>${report.repuestos.map(r => `<tr><td>${r.nombre ?? 'N/A'}</td><td>${r.Cantidad ?? r.CantidadInstalacion ?? 'N/A'}</td><td>${r.FechaInstalacion ? formatDate(r.FechaInstalacion) : 'N/A'}</td><td>${r.observacion ?? ''}</td></tr>`).join('')}</tbody></table></div>`;
   }
-
   //Firma responsable
   let firmaResponsableHtml = '';
   if (report.hojaDeTrabajo?.firmaResponsableFile) {
     firmaResponsableHtml = `<img src="${report.hojaDeTrabajo.firmaResponsableFile}" alt="Firma Responsable"/>`;
   }
-
   //Firma cliente firmaFile
     let firmaClienteHtml = '';
     if (report.hojaDeTrabajo?.firmaFile) {
@@ -665,12 +649,38 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
         LogoTenant = `<img src="${tenantData.logoUrl}" alt="Logo Tenant" class="logo-empresa" />`;
     }
 
-        //Logo Cliente
+    //Logo Cliente
     let LogoCliente='';
     if(report.ClienteId?.Logo){
         LogoCliente = `<img src="${report.ClienteId.Logo}" alt="Logo Cliente"  class="logo-cliente"/>`;
     }
+
+    //Detalle de la revisión falla reportada, diagnóstico y acción tomada
+    let detalleRevision='';
+    if(report.accionTomada){    
+        detalleRevision=
+        `<div class="section">
+            <div class="section-header">
+                <div class="title">Detalle de Revisión</div>
+            </div>
+            <div class="actividades-grid">
+                <div class="actividad-item"><strong>Falla Reportada:</strong>  <small>${report.fallaReportada ?? 'N/A'}</small></div>
+                <div class="actividad-item"><strong>Diagnóstico:</strong>  <small>${report.diagnostico ?? 'N/A'}</small></div>
+                <div class="actividad-item"><strong>Acción Tomada:</strong>  <small>${report.accionTomada ?? 'N/A'}</small></div>
+            </div>
+        </div>`
+    }
   
+
+    let observacion=''
+    if(report.observacion){
+        observacion=report.observacion
+    }
+    if(report.observacionEstadoFinal){
+        observacion= //si ya hay una observación general, se concatena con la observación de estado final
+        observacion ? `${observacion}\n\n, \n${report.observacionEstadoFinal}` : `\n${report.observacionEstadoFinal}`
+    }
+
 
   let html = template;
   // replace placeholders
@@ -679,14 +689,46 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
     html = html.replace(re, map[k] ?? 'N/A');
   });
 
-    html = html.replace(/\{\{actividades\}\}/g, actividadesHtml);
+    html = html.replace(/\{\{actividades\}\}/g, actividades);
     html = html.replace(/\{\{repuestos\}\}/g, repuestosHtml);
     html = html.replace(/\{\{firmaResponsable\}\}/g, firmaResponsableHtml);
     html = html.replace(/\{\{firmaCliente\}\}/g, firmaClienteHtml);
     html = html.replace(/\{\{logoTenant\}\}/g, LogoTenant);
     html = html.replace(/\{\{logoCliente\}\}/g, LogoCliente);
+    html = html.replace(/\{\{accionTomada\}\}/g, detalleRevision);
+    html = html.replace(/\{\{observaciones\}\}/g, observacion ? observacion.replace(/\n/g, '<br/>') : 'Ninguna');
 
   return html;
 }
 
 export { getHTMLTemplate, generateHTMLFromReport };
+
+
+function renderActividades(actividadesRealizadas = []) {
+  // Si no hay actividades, no se renderiza nada
+  if (!Array.isArray(actividadesRealizadas) || actividadesRealizadas.length === 0) {
+    return '';
+  }
+
+  const actividadesHtml = actividadesRealizadas
+    .map((a) => {
+      const desc = a.descripcion ?? a.actividad ?? 'N/A';
+      const obs = a.observaciones ?? '';
+
+      return obs !== ''
+        ? `<div class="actividad-item"><strong>${desc}</strong> : <small>${obs}</small></div>`
+        : `<div class="actividad-item"><strong>${desc}</strong></div>`;
+    })
+    .join('\n');
+
+  return `
+    <div class="section">
+      <div class="section-header">
+        <div class="title">Actividades Realizadas</div>
+      </div>
+      <div class="actividades-grid">
+        ${actividadesHtml}
+      </div>
+    </div>
+  `;
+}

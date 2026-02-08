@@ -12,7 +12,6 @@ export class OTService {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
-
       // Map possible front-end field names to internal ones
       if (data.customerId && !data.ClienteId) data.ClienteId = data.customerId;
       if (data.tipoServicio && !data.TipoServicio) data.TipoServicio = data.tipoServicio;
@@ -71,6 +70,7 @@ export class OTService {
           FechaCreacion: new Date(),
           orden: entity._id,
           equipoSnapshot,
+          tipoMtto: entity.TipoServicio || 'Preventivo',
         };
 
         const r = await Report.create(reportPayload);

@@ -13,6 +13,7 @@ export default class PDFMicroserviceClient {
     const endpoint = normalizedBase.match(/\/api\/pdf(\/)?$/i) ? normalizedBase : `${normalizedBase}/api/pdf`;
     // Health URL should point to base/health (without /api/pdf)
     const healthBase = normalizedBase.replace(/\/api\/pdf(\/)?$/i, '') || normalizedBase;
+    logger.info('PDFMicroserviceClient configured with endpoint:', { endpoint, healthUrl: `${healthBase}/health`, timeout });
     this.config = { url: normalizedBase, endpoint, healthUrl: `${healthBase}/health`, timeout, ...config };
   }
 

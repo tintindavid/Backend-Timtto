@@ -1,4 +1,6 @@
 import { Customer } from '../models/customer.model.js';
+import { Sedes } from '../models/sedes.model.js';
+import { Servicios } from '../models/servicios.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -28,8 +30,32 @@ export class CustomerService {
         );
         data.Logo = logoUrl;
       }
-
       const entity = await Customer.create(data);
+
+      const payloadSedes = {
+        tenantId: t,
+        Cliente: entity._id,
+        nombreSede: 'Principal',
+        contact: entity.UserContacto || '',
+        departamento: entity.Departamento || '',
+        ciudad: entity.Ciudad || '',
+        direccion: entity.Direccion || '',
+        telefono: entity.TelContacto || '',
+        email: entity.Email || '',
+      };
+
+      const sede = await Sedes.create(payloadSedes);
+
+      const payloadServicio = {
+        tenantId: t,
+        Cliente: entity._id,
+        sedeId: sede._id,
+        nombre: 'Principal',
+        observacion: 'Servicio creado por defecto al crear el cliente',
+      };
+
+      await Servicios.create(payloadServicio);
+
       logger.info('Customer creado: ' + entity._id);
       return entity;
     } catch (err) {

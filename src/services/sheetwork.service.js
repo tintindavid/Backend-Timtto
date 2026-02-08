@@ -4,6 +4,7 @@ import { OT } from '../models/ot.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 export class SheetWorkService {
 
   async create(data, tenantId) {
@@ -19,6 +20,37 @@ export class SheetWorkService {
       if (data.fullNameResponsable && !data.fullNameResponsable) data.fullNameResponsable = data.fullNameResponsable;
       if (data.cargoResponsable && !data.cargoResponsable) data.cargoResponsable = data.cargoResponsable;
       if (data.firmaResponsableFile && !data.firmaResponsableFile) data.firmaResponsableFile = data.firmaResponsableFile;
+
+      // Auto-generate numeroHoja if not provided
+      if (!data.numeroHoja) {
+        try {
+          // If OT provided, build numeroHoja as <OT.Consecutivo>-<n>
+          const otId = data.otId || data.ot || data.orden || data.ordenId || data.otId;
+          if (otId) {
+            try {
+              const ot = await OT.findOne(applyTenantFilter({ _id: otId }, t)).select('Consecutivo').lean();
+              if (ot && ot.Consecutivo) {
+                const sheetCount = await SheetWork.countDocuments(applyTenantFilter({ otId: otId, isDeleted: false }, t));
+                const nextNumber = sheetCount + 1;
+                data.numeroHoja = `${ot.Consecutivo}-${nextNumber}`;
+              } else {
+                // fallback to global sequence
+                const nextSeq = await getNextSequence(t, 'SHEET');
+                data.numeroHoja = formatConsecutivo('H', nextSeq, 4);
+              }
+            } catch (innerErr) {
+              logger.debug && logger.debug('Error generating numeroHoja from OT, fallback to sequence', { err: String(innerErr) });
+              const nextSeq = await getNextSequence(t, 'SHEET');
+              data.numeroHoja = formatConsecutivo('H', nextSeq, 4);
+            }
+          } else {
+            const nextSeq = await getNextSequence(t, 'SHEET');
+            data.numeroHoja = formatConsecutivo('H', nextSeq, 4);
+          }
+        } catch (seqErr) {
+          logger.debug && logger.debug('Could not generate numeroHoja sequence', { err: String(seqErr) });
+        }
+      }
 
       const entity = await SheetWork.create(data);
 

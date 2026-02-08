@@ -144,13 +144,19 @@ export class ReportService {
       const t = tenantId || data.tenantId;
       requireTenant(t);
 
+      logger.info('data report: ',{ data });
       // Sanitize incoming payload: only allow fields that exist in schema and map actividadesRealizadas
       const allowed = {};
       if (typeof data.estado !== 'undefined') allowed.estado = data.estado;
       if (typeof data.fechaProcesado !== 'undefined') allowed.fechaProcesado = data.fechaProcesado;
-      if (typeof data.Observacion !== 'undefined') allowed.Observacion = data.Observacion;
+      if (typeof data.observacion !== 'undefined') allowed.observacion = data.observacion;
       if (typeof data.CausaEncontrada !== 'undefined') allowed.CausaEncontrada = data.CausaEncontrada;
       if (typeof data.ResponsableMtto !== 'undefined') allowed.ResponsableMtto = data.ResponsableMtto;
+      if (typeof data.fallaReportada !== 'undefined') allowed.fallaReportada = data.fallaReportada;
+      if (typeof data.diagnostico !== 'undefined') allowed.diagnostico = data.diagnostico;
+      if (typeof data.accionTomada !== 'undefined') allowed.accionTomada = data.accionTomada;
+      if (typeof data.observacionEstadoFinal !== 'undefined') allowed.observacionEstadoFinal = data.observacionEstadoFinal;
+      if (typeof data.estadoOperativo !== 'undefined') allowed.estadoOperativo = data.estadoOperativo;
 
       if (Array.isArray(data.actividadesRealizadas)) {
         // Map and strip any _id or unexpected fields to avoid cast errors

@@ -1,5 +1,6 @@
 'use strict';
 import { userService } from '../services/user.service.js';
+import { Tenant } from '../models/tenant.model.js';
 import { signToken, verifyToken } from '../utils/jwt.util.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -23,6 +24,13 @@ export class AuthController {
       logger.debug && logger.debug('AuthController.login reached');
       const { email, password } = req.body;
       const tenantId = req.tenantId || req.body.tenantId;
+      // DEBUG: list tenants to inspect DB contents when debugging TENANT_NOT_FOUND
+      try {
+        const tenants = await Tenant.find().select('tenantId name isDeleted').lean();
+        logger.info('AuthController.login: tenants snapshot', { count: tenants.length, sample: tenants.slice(0, 10) });
+      } catch (te) {
+        logger.debug && logger.debug('AuthController.login: tenant list failed', { err: String(te) });
+      }
       const user = await userService.login(email, password, tenantId);
       const token = signToken({ userId: user._id, role: user.role, tenantId: user.tenantId });
       res.json(successResponse({ user: user.toJSON(), token }, 'Login exitoso'));
