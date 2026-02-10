@@ -6,6 +6,9 @@ const ItemsSchema = new Schema({
     Nombre: { type: String, required: true, trim: true },
     Observacion: { type: String,  trim: true },
     ProtocoloId: { type: String,  trim: true },
+    Precio: { type: Number,  trim: true },
+    IvaIncluido: { type: Boolean, default: false },
+    Iva: { type: Number,  trim: true },
     tenantId: { type: String, required: true },
       // Soft delete & audit
       isDeleted: { type: Boolean, default: false },

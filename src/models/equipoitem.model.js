@@ -22,6 +22,7 @@ const EquipoItemSchema = new Schema({
     Invima: { type: String,  trim: true },
     Riesgo: { type: String,  trim: true },
     UltimoConsecutivoMtto: { type: String,  trim: true },
+    Precio: { type: Number,  trim: true },
     UltimoMtto: { type: Date,  trim: true },
       tenantId: { type: String, required: true },
   // Soft delete & audit
