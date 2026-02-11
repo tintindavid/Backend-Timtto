@@ -53,6 +53,19 @@ function getHTMLTemplate() {
         }
     }
 
+    /* ====== ESTILOS PARA ACTIVIDADES ====== */
+    .actividades-grid {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .actividad-item {
+        width: 50%;
+        box-sizing: border-box;
+        padding-right: 10px;
+        margin-bottom: 8px;
+    }
+
     /* ====== TABLA ENVOLVENTE ====== */
     .page-wrapper {
         width: 100%;
@@ -705,30 +718,46 @@ export { getHTMLTemplate, generateHTMLFromReport };
 
 
 function renderActividades(actividadesRealizadas = []) {
-  // Si no hay actividades, no se renderiza nada
   if (!Array.isArray(actividadesRealizadas) || actividadesRealizadas.length === 0) {
     return '';
   }
 
-  const actividadesHtml = actividadesRealizadas
-    .map((a) => {
+  let rows = '';
+
+  for (let i = 0; i < actividadesRealizadas.length; i += 2) {
+    const a1 = actividadesRealizadas[i];
+    const a2 = actividadesRealizadas[i + 1];
+
+    const renderItem = (a) => {
+      if (!a) return '';
       const desc = a.descripcion ?? a.actividad ?? 'N/A';
       const obs = a.observaciones ?? '';
 
       return obs !== ''
-        ? `<div class="actividad-item"><strong>${desc}</strong> : <small>${obs}</small></div>`
-        : `<div class="actividad-item"><strong>${desc}</strong></div>`;
-    })
-    .join('\n');
+        ? `<strong>${desc}</strong> : <small>${obs}</small>`
+        : `<strong>${desc}</strong>`;
+    };
+
+    rows += `
+      <tr>
+        <td style="width:50%; vertical-align:top; padding-right:10px;">
+          ${renderItem(a1)}
+        </td>
+        <td style="width:50%; vertical-align:top;">
+          ${renderItem(a2)}
+        </td>
+      </tr>
+    `;
+  }
 
   return `
     <div class="section">
       <div class="section-header">
         <div class="title">Actividades Realizadas</div>
       </div>
-      <div class="actividades-grid">
-        ${actividadesHtml}
-      </div>
+      <table width="100%" cellspacing="0" cellpadding="0">
+        ${rows}
+      </table>
     </div>
   `;
 }
