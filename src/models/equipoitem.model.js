@@ -16,7 +16,7 @@ const EquipoItemSchema = new Schema({
     Inventario: { type: String,  trim: true }, 
     item: { type: String,  trim: true },
     Meses: { type: String,  trim: true },
-    mesesMtto: [{ type: String, trim: true }],
+    mesesMtto: [{ type: String, trim: true }], // [ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov, dic]
     mesesMtto:[{ type: String, trim: true }],  // Array of maintenance months
     Modelo: { type: String,  trim: true },
     Invima: { type: String,  trim: true },

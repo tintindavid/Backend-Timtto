@@ -62,6 +62,31 @@ export class EquipoItemService {
     }
   }
 
+  /**
+   * Obtiene un EquipoItem por ID con todas las referencias populadas
+   * @param {string} id - ID del equipo
+   * @param {string} tenantId - ID del tenant
+   */
+  async getByIdPopulated(id, tenantId) {
+    try {
+      const query = applyTenantFilter({ _id: id, isDeleted: false }, tenantId);
+      const e = await EquipoItem.findOne(query)
+        .populate('ClienteId', 'Razonsocial Nit Direccion Ciudad Telefono Email')
+        .populate('ItemId', 'Nombre Descripcion Categoria')
+        .populate('SedeId', 'nombreSede Direccion Ciudad Telefono')
+        .populate('Servicio', 'nombre descripcion')
+        .lean();
+      
+      if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
+      logger.info(`EquipoItem populado recuperado: ${id}`);
+      return e;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error obteniendo equipoItem populado:', err);
+      throw new ApiError(500, 'Error obteniendo EquipoItem populado', 'GET_POPULATED_ERROR');
+    }
+  }
+
   async update(id, data) {
     try {
       const e = await EquipoItem.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });

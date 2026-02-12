@@ -12,6 +12,10 @@ router.use(authenticate);
 
 router.post('/', validate(createEquipoItemDto, 'body'), equipoItemController.create);
 router.get('/', validate(queryEquipoItemDto, 'query'), equipoItemController.list);
+
+// GET - Obtener equipo con todas las relaciones populadas (debe ir ANTES de /:id)
+router.get('/:id/populated', equipoItemController.getByIdPopulated);
+
 router.get('/:id', equipoItemController.getById);
 router.put('/:id', validate(updateEquipoItemDto, 'body'), equipoItemController.update);
 router.patch('/:id', validate(updateEquipoItemDto, 'body'), equipoItemController.update);

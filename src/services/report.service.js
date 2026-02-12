@@ -92,6 +92,66 @@ export class ReportService {
     }
   }
 
+  /**
+   * Obtiene reports filtrados por Equipo
+   * @param {string} equipoId - ID del equipo
+   * @param {object} pagination - Opciones de paginación
+   * @param {string} tenantId - ID del tenant
+   */
+  async listByEquipo(equipoId, pagination = {}, tenantId) {
+    try {
+      const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
+      const skip = (page - 1) * limit;
+      const query = applyTenantFilter({ Equipo: equipoId, isDeleted: false }, tenantId);
+      
+      if (search) {
+        const rx = new RegExp(search, 'i');
+        query.$or = [{ consecutivo: rx }, { estado: rx }, { 'equipoSnapshot.ItemText': rx }];
+      }
+      
+      const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
+      const [data, total] = await Promise.all([
+        Report.find(query)
+          .populate('ResponsableMtto', 'firstName lastName')
+          .populate('ClienteId')
+          .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'Nombre ProtocoloId' } })
+          .populate('orden', 'Consecutivo')
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Report.countDocuments(query),
+      ]);
+
+      // Attach protocolo data from ItemId.ProtocoloId when available
+      await Promise.all(data.map(async (r) => {
+        try {
+          const protocoloId = r?.Equipo?.ItemId?.ProtocoloId || r?.Equipo?.ItemId?.protocoloId || null;
+          if (protocoloId) {
+            const p = await ProtocoloMtto.findById(protocoloId).lean();
+            r.protocolo = p || null;
+          } else {
+            r.protocolo = null;
+          }
+        } catch (e) {
+          r.protocolo = null;
+        }
+      }));
+
+      logger.info(`Reports encontrados para EquipoId ${equipoId}: ${total}`);
+      return {
+        data,
+        pagination: {
+          page, limit, total, pages: Math.ceil(total / limit),
+          hasNext: page < Math.ceil(total / limit), hasPrev: page > 1
+        }
+      };
+    } catch (err) {
+      logger.error('Error listando reports por Equipo:', err);
+      throw new ApiError(500, 'Error listando Reports por Equipo', 'LIST_BY_EQUIPO_ERROR');
+    }
+  }
+
   async getById(id, tenantId) {
     try {
       const e = await Report.findOne(applyTenantFilter({ _id: id }, tenantId))

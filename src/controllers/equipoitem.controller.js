@@ -28,6 +28,17 @@ export class EquipoItemController {
     } catch (err) { next(err); }
   }
 
+  /**
+   * Obtiene un EquipoItem por ID con todas las relaciones populadas
+   * Ruta: GET /api/v1/equipo-item/:id/populated
+   */
+  async getByIdPopulated(req, res, next) {
+    try {
+      const data = await equipoItemService.getByIdPopulated(req.params.id, req.tenantId);
+      res.json(successResponse(data, 'EquipoItem con datos completos recuperado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
   async update(req, res, next) {
     try {
       const data = await equipoItemService.update(req.params.id, req.body, req.tenantId);

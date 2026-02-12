@@ -1,5 +1,85 @@
 import Joi from 'joi';
 
 export const updateHVEquipoDto = Joi.object({
-  // Campos opcionales para actualización
-});
+  EquipoId: Joi.string().hex().length(24).optional(),
+  clienteId: Joi.string().hex().length(24).optional(),
+  
+  equipoSnapshot: Joi.object({
+    ItemText: Joi.string().allow('').optional(),
+    Marca: Joi.string().allow('').optional(),
+    Modelo: Joi.string().allow('').optional(),
+    Sede: Joi.string().allow('').optional(),
+    Serie: Joi.string().allow('').optional(),
+    Inventario: Joi.string().allow('').optional(),
+    Servicio: Joi.string().allow('').optional(),
+    Ubicacion: Joi.string().allow('').optional(),
+    MesesMtto: Joi.array().items(Joi.string()).optional()
+  }).optional(),
+
+  Accesorios: Joi.array().items(Joi.object({
+    nombre: Joi.string().allow('').optional(),
+    descripcion: Joi.string().allow('').optional(),
+    cantidad: Joi.number().optional(),
+    estado: Joi.string().allow('').optional(),
+    observaciones: Joi.string().allow('').optional(),
+    _id: Joi.string().optional() // MongoDB agrega _id automáticamente
+  }).unknown(true)).optional(),
+
+  TecnologiaPredominante: Joi.string().allow('').optional(),
+  AnoFabricacion: Joi.number().integer().min(1900).max(new Date().getFullYear()).optional(),
+  AutonomiaBatería: Joi.string().allow('').optional(),
+  ClasificacinRiesgo: Joi.string().allow('').optional(),
+  Corriente: Joi.string().allow('').optional(),
+  DireccinProveedor: Joi.string().allow('').optional(),
+  DireccionProveedor: Joi.string().allow('').optional(),
+  DocumentoAdjunto: Joi.string().allow('').optional(),
+  EmailProveedor: Joi.string().email().allow('').optional(),
+  EstadoHV: Joi.string().valid('Guardada', 'Aprobada').optional(),
+  Fabricante: Joi.string().allow('').optional(),
+  FechaAdquisicin: Joi.date().allow('').optional(),
+  FechaCreacion: Joi.date().allow('').optional(),
+  FechaFinGarantia: Joi.date().allow('').optional(),
+  FechaInicioGarantia: Joi.date().allow('').optional(),
+  FechaInstalacion: Joi.date().allow('').optional(),
+  FechaPuestaFuncionamiento: Joi.date().allow('').optional(),
+  FechaFuncionamiento: Joi.date().allow('').optional(),
+  Frecuencia: Joi.string().allow('').optional(),
+  FuenteAlimentacion: Joi.string().allow('').optional(),
+  HumedadOperacion: Joi.string().allow('').optional(),
+  NombreCliente: Joi.string().allow('').optional(),
+  NombreProveedor: Joi.string().allow('').optional(),
+  Observaciones: Joi.string().allow('').optional(),
+  PaisOrigen: Joi.string().allow('').optional(),
+  RequiereCalibracion: Joi.boolean().optional(),
+  PeriodicidadCalibracion: Joi.string().allow('').optional(),
+  PeriodicidadMantenimiento: Joi.string().allow('').optional(),
+  Peso: Joi.number().optional(),
+  Potencia: Joi.string().allow('').optional(),
+  PresionOperacion: Joi.string().allow('').optional(),
+  Recomendaciones: Joi.alternatives().try(
+    Joi.string().allow(''),
+    Joi.array().items(Joi.string())
+  ).optional(),
+  RegistroINVIMA: Joi.string().allow('').optional(),
+  Servicio: Joi.string().allow('').optional(),
+  ManualDisponible: Joi.boolean().optional(),
+  PlanoDisponible: Joi.boolean().optional(),
+  RequiereCapacitacion: Joi.boolean().optional(),
+  TelefonoProveedor: Joi.string().allow('').optional(),
+  TemperaturaOperacion: Joi.string().allow('').optional(),
+  TipoAdquisicion: Joi.string().valid('Compra', 'Leasing', 'Donación', 'Alquiler').allow('').optional(),
+  TipoEquipo: Joi.string().allow('').optional(),
+  UsoEquipo: Joi.string().valid('Apoyo', 'Soporte', 'Produccion', 'Investigacion', 'Docencia').allow('').optional(),
+  ValorAdquisicion: Joi.number().optional(),
+  software: Joi.string().allow('').optional(),
+  Version: Joi.string().allow('').optional(),
+  Voltaje: Joi.string().allow('').optional(),
+  userIdCreacion: Joi.string().hex().length(24).optional(),
+  UserApruebacion: Joi.string().allow('').optional(),
+  CargoUserAprobacion: Joi.string().allow('').optional(),
+  FirmAprobacion: Joi.string().allow('').optional(),
+  ResponsableCustomer: Joi.string().allow('').optional(),
+  CargoResponsableCustomer: Joi.string().allow('').optional(),
+  FirmaResponsableCustomer: Joi.string().allow('').optional(),
+  foto: Joi.string().allow('').optional()
+}).min(1).unknown(true);

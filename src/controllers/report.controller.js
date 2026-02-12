@@ -26,6 +26,19 @@ export class ReportController {
     } catch (err) { next(err); }
   }
 
+  /**
+   * Lista reports filtrados por Equipo
+   * Ruta: GET /api/v1/report/equipo/:equipoId
+   */
+  async listByEquipo(req, res, next) {
+    try {
+      const { equipoId } = req.params;
+      const { page, limit, sortBy, order } = req.query;
+      const result = await reportService.listByEquipo(equipoId, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      res.json(successResponse(result.data, 'Reports por Equipo recuperados exitosamente', 200, result.pagination));
+    } catch (err) { next(err); }
+  }
+
   async getById(req, res, next) {
     try {
       const data = await reportService.getById(req.params.id, req.tenantId);
