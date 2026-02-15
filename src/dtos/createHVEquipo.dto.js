@@ -4,7 +4,6 @@ export const createHVEquipoDto = Joi.object({
   tenantId: Joi.string().optional(),
   EquipoId: Joi.string().hex().length(24).optional().label('EquipoId'),
   clienteId: Joi.string().hex().length(24).required().label('clienteId'),
-  
   equipoSnapshot: Joi.object({
     ItemText: Joi.string().allow('').optional(),
     Marca: Joi.string().allow('').optional(),
@@ -16,7 +15,6 @@ export const createHVEquipoDto = Joi.object({
     Ubicacion: Joi.string().allow('').optional(),
     MesesMtto: Joi.array().items(Joi.string()).optional()
   }).optional(),
-
   Accesorios: Joi.array().items(Joi.object({
     nombre: Joi.string().allow('').optional(),
     descripcion: Joi.string().allow('').optional(),
@@ -31,9 +29,10 @@ export const createHVEquipoDto = Joi.object({
   AutonomiaBatería: Joi.string().allow('').optional(),
   ClasificacinRiesgo: Joi.string().allow('').optional(),
   Corriente: Joi.string().allow('').optional(),
-  DireccinProveedor: Joi.string().allow('').optional(),
+  CiudadProveedor: Joi.string().allow('').optional(),
   DireccionProveedor: Joi.string().allow('').optional(),
   DocumentoAdjunto: Joi.string().allow('').optional(),
+  Descripcion: Joi.string().allow('').optional(),
   EmailProveedor: Joi.string().email().allow('').optional(),
   EstadoHV: Joi.string().valid('Guardada', 'Aprobada').default('Guardada'),
   Fabricante: Joi.string().allow('').optional(),
@@ -59,7 +58,7 @@ export const createHVEquipoDto = Joi.object({
   PresionOperacion: Joi.string().allow('').optional(),
   Recomendaciones: Joi.alternatives().try(
     Joi.string().allow(''),
-    Joi.array().items(Joi.string())
+    Joi.array().items(Joi.string().allow(''))
   ).optional(),
   RegistroINVIMA: Joi.string().allow('').optional(),
   Servicio: Joi.string().allow('').optional(),
@@ -76,11 +75,13 @@ export const createHVEquipoDto = Joi.object({
   Version: Joi.string().allow('').optional(),
   Voltaje: Joi.string().allow('').optional(),
   userIdCreacion: Joi.string().hex().length(24).optional(),
-  UserApruebacion: Joi.string().allow('').optional(),
+  UserIdAprobacion: Joi.string().hex().length(24).optional(),
+  UserAprobacion: Joi.string().allow('').optional(),
   CargoUserAprobacion: Joi.string().allow('').optional(),
   FirmAprobacion: Joi.string().allow('').optional(),
+  FechaAprobacion: Joi.date().allow('').optional(),
   ResponsableCustomer: Joi.string().allow('').optional(),
   CargoResponsableCustomer: Joi.string().allow('').optional(),
   FirmaResponsableCustomer: Joi.string().allow('').optional(),
-  foto: Joi.string().allow('').optional()
+  Foto: Joi.string().allow('').optional()
 }).unknown(true);

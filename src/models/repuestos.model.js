@@ -24,6 +24,8 @@ const RepuestosSchema = new Schema({
     ReporteSolicitudId: { type: Schema.Types.ObjectId, ref: 'Report', required: true },
     ResponsableInstalacion: { type: Schema.Types.ObjectId, ref: 'User' },
     ResponsableSolicitud: { type: Schema.Types.ObjectId, ref: 'User',  required: true },
+    FrecuenciaDeCambio: { type: Number,  trim: true }, // en meses o según criterio del cliente
+    Fotos: [{ type: String,  trim: true }], // array de URLs o paths a las fotos
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

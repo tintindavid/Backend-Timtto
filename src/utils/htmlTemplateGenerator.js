@@ -43,7 +43,7 @@ function getHTMLTemplate() {
 
         .page-wrapper tbody {
             display: table-row-group;
-        }
+        } 
 
         .section,
         .actividad-item,

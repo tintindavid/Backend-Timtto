@@ -30,7 +30,7 @@ export const updateHVEquipoDto = Joi.object({
   AutonomiaBatería: Joi.string().allow('').optional(),
   ClasificacinRiesgo: Joi.string().allow('').optional(),
   Corriente: Joi.string().allow('').optional(),
-  DireccinProveedor: Joi.string().allow('').optional(),
+  CiudadProveedor: Joi.string().allow('').optional(),
   DireccionProveedor: Joi.string().allow('').optional(),
   DocumentoAdjunto: Joi.string().allow('').optional(),
   EmailProveedor: Joi.string().email().allow('').optional(),
@@ -58,7 +58,7 @@ export const updateHVEquipoDto = Joi.object({
   PresionOperacion: Joi.string().allow('').optional(),
   Recomendaciones: Joi.alternatives().try(
     Joi.string().allow(''),
-    Joi.array().items(Joi.string())
+    Joi.array().items(Joi.string().allow(''))
   ).optional(),
   RegistroINVIMA: Joi.string().allow('').optional(),
   Servicio: Joi.string().allow('').optional(),

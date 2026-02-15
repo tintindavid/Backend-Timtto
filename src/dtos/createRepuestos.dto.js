@@ -22,4 +22,6 @@ export const createRepuestosDto = Joi.object({
   ReporteSolicitudId: Joi.string().hex().length(24).optional().label('ReporteSolicitudId'),
   ResponsableInstalacion: Joi.string().hex().length(24).optional().label('ResponsableInstalacion'),
   ResponsableSolicitud: Joi.string().hex().length(24).required().label('ResponsableSolicitud'),
+  FrecuenciaDeCambio: Joi.number().optional().label('FrecuenciaDeCambio'),
+  Fotos: Joi.array().items(Joi.string()).optional().label('Fotos'),
 });

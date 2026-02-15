@@ -2,16 +2,54 @@ import { HVEquipo } from '../models/hvequipo.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { firebaseStorageService } from './external/firebase.service.js';
 
 export class HVEquipoService {
+  /**
+   * Procesa el campo foto: si es base64 lo sube a Firebase, si es URL la mantiene
+   * @param {object} data - Datos que pueden contener foto
+   * @returns {Promise<void>} Modifica data.foto directamente
+   */
+  async processFoto(data) {
+    if (!data.Foto) return;
+
+    // Si ya es una URL de Firebase o http/https, mantenerla
+    if (data.Foto.startsWith('http://') || data.Foto.startsWith('https://')) {
+      logger.debug('Foto ya es una URL, manteniéndola:', data.Foto.substring(0, 50));
+      return;
+    }
+
+    // Si no es URL, asumirlo como base64 y subirlo
+    try {
+      logger.info('Procesando foto base64 para subir a Firebase Storage...');
+      const fotoUrl = await firebaseStorageService.uploadBase64Image(
+        data.Foto,
+        'hvequipo',
+        `hv_${Date.now()}`
+      );
+      data.Foto = fotoUrl;
+      logger.info('Foto subida exitosamente:', fotoUrl);
+    } catch (err) {
+      logger.error('Error procesando foto:', err);
+      // Si falla el upload, eliminar el campo foto para no guardar base64 en DB
+      delete data.Foto;
+      throw new ApiError(400, 'Error procesando imagen. Verifica que sea una imagen válida en base64.', 'FOTO_PROCESSING_ERROR');
+    }
+  }
+
   async create(data, tenantId) {
     try {
       requireTenant(tenantId);
+      
+      // Procesar foto si existe (base64 -> Firebase URL)
+      await this.processFoto(data);
+      
       const hvData = { ...data, tenantId };
       const entity = await HVEquipo.create(hvData);
       logger.info(`HVEquipo creado: ${entity._id} (tenant: ${tenantId})`);
       return entity;
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando HVEquipo:', err);
       throw new ApiError(500, 'Error creando HVEquipo', 'CREATE_ERROR');
     }
@@ -160,6 +198,9 @@ export class HVEquipoService {
 
   async update(id, data, tenantId) {
     try {
+      // Procesar foto si existe (base64 -> Firebase URL)
+      await this.processFoto(data);
+      
       const query = applyTenantFilter({ _id: id }, tenantId);
       const e = await HVEquipo.findOneAndUpdate(
         query,

@@ -67,6 +67,79 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Sube una imagen desde base64 a Firebase Storage
+   * @param {string} base64String - String base64 (con o sin prefijo data:image/...)
+   * @param {string} folder - Carpeta donde guardar (default: 'hvequipo')
+   * @param {string} filename - Nombre base del archivo (opcional)
+   * @returns {Promise<string>} URL pública del archivo subido
+   */
+  async uploadBase64Image(base64String, folder = 'hvequipo', filename = null) {
+    try {
+      const storage = getFirebaseStorage();
+
+      // Extraer mimetype y datos base64
+      let mimetype = 'image/jpeg'; // default
+      let base64Data = base64String;
+
+      // Si tiene prefijo data:image/..., extraer mimetype y datos
+      if (base64String.startsWith('data:')) {
+        const matches = base64String.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          mimetype = matches[1];
+          base64Data = matches[2];
+        } else {
+          throw new ApiError(400, 'Formato base64 inválido', 'INVALID_BASE64_FORMAT');
+        }
+      }
+
+      // Validar tipo de archivo
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(mimetype)) {
+        throw new ApiError(400, 'Tipo de imagen no permitido. Solo se permiten imágenes.', 'INVALID_IMAGE_TYPE');
+      }
+
+      // Convertir base64 a Buffer
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+
+      // Validar tamaño (máximo 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (fileBuffer.length > maxSize) {
+        throw new ApiError(400, 'La imagen es demasiado grande. Máximo 5MB.', 'FILE_TOO_LARGE');
+      }
+
+      // Generar nombre único para el archivo
+      const extension = mimetype.split('/')[1];
+      const uniqueName = filename 
+        ? `${folder}/${filename}_${uuidv4()}.${extension}`
+        : `${folder}/${uuidv4()}.${extension}`;
+
+      // Crear referencia al archivo en Storage
+      const storageRef = ref(storage, uniqueName);
+
+      // Subir archivo con metadata
+      const metadata = {
+        contentType: mimetype,
+        customMetadata: {
+          uploadedAt: new Date().toISOString(),
+        }
+      };
+
+      await uploadBytes(storageRef, fileBuffer, metadata);
+
+      // Obtener URL pública
+      const publicUrl = await getDownloadURL(storageRef);
+      
+      logger.info('Imagen base64 subida exitosamente a Firebase Storage', { url: publicUrl });
+      return publicUrl;
+      
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error subiendo imagen base64 a Firebase Storage:', error);
+      throw new ApiError(500, 'Error subiendo imagen a Firebase Storage', 'UPLOAD_BASE64_ERROR');
+    }
+  }
+
+  /**
    * Elimina un logo de Firebase Storage
    * @param {string} fileUrl - URL pública del archivo a eliminar
    * @returns {Promise<void>}

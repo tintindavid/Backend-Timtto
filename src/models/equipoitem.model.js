@@ -5,7 +5,8 @@ const { Schema, model } = mongoose;
 const EquipoItemSchema = new Schema({
     tenantId: { type: String, required: true },
     ClienteId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
-    Estado: { type: String, required: true, trim: true, default: 'Operativo' },
+    Estado: { type: String, required: true, trim: true },
+    EstadoOperativo: { type: String, default: 'Operativo', trim: true }, // se actualiza cuando se cierra un reporte o se edita un equipo 
     ItemId: { type: Schema.Types.ObjectId, ref: 'Items', required: true},
     Marca: { type: String, required: true, trim: true },
     SedeId: { type: Schema.Types.ObjectId, ref: 'Sedes', required: true },
@@ -16,15 +17,20 @@ const EquipoItemSchema = new Schema({
     Inventario: { type: String,  trim: true }, 
     item: { type: String,  trim: true },
     Meses: { type: String,  trim: true },
-    mesesMtto: [{ type: String, trim: true }], // [ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov, dic]
-    mesesMtto:[{ type: String, trim: true }],  // Array of maintenance months
+    mesesMtto: [{ type: String, trim: true }],  // Array of maintenance months
+    mesesMttoRealizados: [{     // array que almacena los meses de mantenimiento realizados
+      fecha: { type: Date }, 
+      mes: { type: String, trim: true },
+      consecutivo: { type: String, trim: true }
+    }],  // Array of completed maintenance months
+    ProximoMtto: { type: String,  trim: true },  // campo que se actualiza con el próximo mes de mantenimiento cuando se cierra un reporte
     Modelo: { type: String,  trim: true },
-    Invima: { type: String,  trim: true },
-    Riesgo: { type: String,  trim: true },
     UltimoConsecutivoMtto: { type: String,  trim: true },
-    Precio: { type: Number,  trim: true },
-    UltimoMtto: { type: Date,  trim: true },
-      tenantId: { type: String, required: true },
+    UltimoMtto: { type: Date },
+    Riesgo: { type: String, trim: true },
+    Invima: { type: String, trim: true },
+    Precio: { type: Number },
+    TieneHV: { type: Boolean, default: false },
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

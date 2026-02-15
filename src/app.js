@@ -1,3 +1,8 @@
+import { EventEmitter } from 'events';
+
+// Aumentar límite de listeners si es necesario
+EventEmitter.defaultMaxListeners = 15;
+
 'use strict';
 import express from 'express';
 import helmet from 'helmet';
@@ -35,6 +40,7 @@ import serviciosRoutes from './routes/servicios.routes.js';
 import sheetworkRoutes from './routes/sheetwork.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
 import pdfReportsRoutes from './routes/pdfReports.routes.js';
+import cronogramaRoutes from './routes/cronograma.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -61,17 +67,9 @@ app.use(helmet());
 
 // CORS configuration: must be before routes
 const corsOptions = {
-  origin: function (origin, callback) {
-    // allow requests with no origin like Postman or server-to-server
-    if (!origin) return callback(null, true);
-    if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
-    return callback(new Error('CORS_NOT_ALLOWED'));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
+  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
   credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
@@ -80,8 +78,8 @@ app.options('*', cors(corsOptions));
 
 app.use(rateLimiter);
 app.use(compression());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(mongoSanitize());
 
@@ -93,6 +91,9 @@ app.use(morgan('combined', { stream: loggerStream }));
 // Mount generated routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+// app.use('/api/v1/equipos', equipoRoutes); // Comentar si no existe
+// app.use('/api/v1/hvequipos', hvequipoRoutes); // Comentar si no existe
+app.use('/api/v1/cronogramas', cronogramaRoutes); // Nueva ruta
 app.use('/api/v1/actividad-mtto', actividadMttoRoutes);
 app.use('/api/v1/actividad-reporte', actividadReporteRoutes);
 app.use('/api/v1/address', addressRoutes);

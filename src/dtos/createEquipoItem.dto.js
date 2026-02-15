@@ -13,7 +13,12 @@ export const createEquipoItemDto = Joi.object({
   Inventario: Joi.string().trim().optional().label('Inventario'),
   mesesMtto: Joi.array().items(Joi.string().trim()).optional().label('mesesMtto'),
   Modelo: Joi.string().trim().optional().label('Modelo'),
+  EstadoOperativo: Joi.string().trim().optional().label('EstadoOperativo'),
   tenantId: Joi.string().optional(),
+  Riesgo: Joi.string().allow('', null).optional().label('Riesgo'),
+  Invima: Joi.string().allow('', null).optional().label('Invima'),
+  ProximoMtto: Joi.string().trim().optional().label('ProximoMtto'),
+  
 }).unknown(true);
 
 

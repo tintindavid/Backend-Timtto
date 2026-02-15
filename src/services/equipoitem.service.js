@@ -117,13 +117,14 @@ export class EquipoItemService {
       const t = tenantId || payload.tenantId;
       requireTenant(t);
 
+      logger.info('Updating EquipoItem and snapshot for Report', {payload})
       // Update equipo fields (only fields provided in payload)
       const updateFields = {};
-      ['Marca','Serie','Inventario','Ubicacion','Modelo','mesesMtto','Servicio','SedeId','ItemId'].forEach((k) => {
+      ['Marca','Serie','Inventario','Ubicacion','Modelo','Riesgo','Invima','mesesMtto','Servicio','SedeId','ItemId'].forEach((k) => {
         if (typeof payload[k] !== 'undefined') updateFields[k] = payload[k];
       });
 
-      logger.info('Updating EquipoItem with fields:');  
+      logger.info('Updating EquipoItem with fields: ',updateFields);  
       logger.info(equipoId);
       const equipo = await EquipoItem.findByIdAndUpdate(equipoId, { $set: updateFields }, { new: true, runValidators: true })
         .populate('ItemId', 'Nombre ProtocoloId')
@@ -144,6 +145,8 @@ export class EquipoItemService {
         Inventario: equipo?.Inventario || '',
         Servicio: equipo?.Servicio?.nombre || '',
         Ubicacion: equipo?.Ubicacion || '',
+        Riesgo: equipo?.Riesgo || '',
+        Invima: equipo?.Invima || '',
         MesesMtto: Array.isArray(equipo?.mesesMtto) ? equipo.mesesMtto : (equipo?.Meses ? [equipo.Meses] : []),
       };
 

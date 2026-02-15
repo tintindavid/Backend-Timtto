@@ -8,8 +8,12 @@ export const updateEquipoSnapshotDto = Joi.object({
   Inventario: Joi.string().allow('').optional().label('Inventario'),
   Ubicacion: Joi.string().optional().label('Ubicacion'),
   Modelo: Joi.string().optional().label('Modelo'),
+  Riesgo: Joi.string().allow('', null).optional().label('Riesgo'),
+  Invima: Joi.string().allow('', null).optional().label('Invima'),
   mesesMtto: Joi.array().items(Joi.string()).optional().label('mesesMtto'),
   Servicio: Joi.string().hex().length(24).optional().label('Servicio'),
   SedeId: Joi.string().hex().length(24).optional().label('SedeId'),
   ItemId: Joi.string().hex().length(24).optional().label('ItemId'),
+  Invima: Joi.string().allow('', null).optional().label('Invima'),
+  Riesgo: Joi.string().allow('', null).optional().label('Riesgo'),
 }).unknown(false);
