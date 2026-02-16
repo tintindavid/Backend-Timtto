@@ -66,11 +66,14 @@ app.set('trust proxy', trustProxyValue);
 app.use(helmet());
 
 // CORS configuration: must be before routes
+const corsOrigins = process.env.CORS_ORIGIN?.split(',') || process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'];
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
+  origin: corsOrigins,
   credentials: true,
   optionsSuccessStatus: 200,
 };
+
+logger.info(`CORS enabled for origins: ${corsOrigins.join(', ')}`);
 
 app.use(cors(corsOptions));
 // allow preflight for all routes

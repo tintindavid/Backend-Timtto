@@ -30,6 +30,10 @@ MONGO_URL = ""
 # JWT secret used by the backend. Set a strong secret in Railway env.
 JWT_SECRET = ""
 
+# CORS allowed origins - comma separated list of frontend domains
+# Example: "http://localhost:5173,https://timtto.vercel.app"
+CORS_ORIGIN = ""
+
 # Optional third-party keys/placeholders
 FIREBASE_CONFIG = ""
 FIREBASE_STORAGE_BUCKET = ""
