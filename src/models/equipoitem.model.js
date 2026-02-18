@@ -31,6 +31,7 @@ const EquipoItemSchema = new Schema({
     Invima: { type: String, trim: true },
     Precio: { type: Number },
     TieneHV: { type: Boolean, default: false },
+    HVAprovada: { type: Boolean, default: false },
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

@@ -61,6 +61,18 @@ export class EquipoItemController {
       res.json(successResponse(null, 'EquipoItem eliminado exitosamente'));
     } catch (err) { next(err); }
   }
+
+  /**
+   * Obtiene equipos que tienen el mes especificado en mesesMtto, organizados por cliente > servicio > sede
+   * Ruta: GET /api/v1/equipo-item/mes/:mes
+   */
+  async getByMesMantenimiento(req, res, next) {
+    try {
+      const { mes } = req.params;
+      const data = await equipoItemService.getByMesMantenimiento(mes, req.tenantId);
+      res.json(successResponse(data, `Equipos con mantenimiento en ${mes} recuperados exitosamente`));
+    } catch (err) { next(err); }
+  }
 }
 
 export const equipoItemController = new EquipoItemController();

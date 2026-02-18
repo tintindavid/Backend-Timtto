@@ -5,19 +5,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
-
-/**
- * Mapa de mes abreviado a número (1-12)
- */
-const MESES_MAP = {
-  'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6,
-  'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12
-};
-
-/**
- * Array inverso: número a mes abreviado
- */
-const MESES_ARRAY = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 
 /**
  * Calcula el próximo mes de mantenimiento basado en el mes actual y los meses programados

@@ -1,4 +1,5 @@
 import { HVEquipo } from '../models/hvequipo.model.js';
+import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -46,7 +47,23 @@ export class HVEquipoService {
       
       const hvData = { ...data, tenantId };
       const entity = await HVEquipo.create(hvData);
-      logger.info(`HVEquipo creado: ${entity._id} (tenant: ${tenantId})`);
+      const equipo = await EquipoItem.findById(entity.EquipoId).lean();
+      //actulizar campo TieneHV en EquipoItem
+      if (equipo) {
+        await EquipoItem.findByIdAndUpdate(entity.EquipoId, { TieneHV: true });
+      }
+
+      // actualizar campor Riesgo, Invima en EquipoItem si vienen en el payload
+      if (entity && (entity.RegistroINVIMA || entity.ClasificacinRiesgo)) {
+        const updateFields = {};
+        if (entity.RegistroINVIMA) updateFields.Invima = entity.RegistroINVIMA;
+        if (entity.ClasificacinRiesgo) updateFields.Riesgo = entity.ClasificacinRiesgo;
+
+        await EquipoItem.findByIdAndUpdate(entity.EquipoId, { 
+          $set: updateFields 
+        });
+      }
+
       return entity;
     } catch (err) {
       if (err instanceof ApiError) throw err;
@@ -207,6 +224,25 @@ export class HVEquipoService {
         { $set: data },
         { new: true, runValidators: true }
       );
+
+      // si estado es Aprobada, actualizar campo HVAprobada en EquipoItem
+      if (e && data.EstadoHV === 'Aprobada') {
+        await EquipoItem.findByIdAndUpdate(e.EquipoId, { 
+          HVAprovada: true 
+        });
+      }
+
+      
+      // actualizar campor Riesgo, Invima en EquipoItem si vienen en el payload
+      if (e && (e.RegistroINVIMA || e.ClasificacinRiesgo)) {
+        const updateFields = {};
+        if (e.RegistroINVIMA) updateFields.Invima = e.RegistroINVIMA;
+        if (e.ClasificacinRiesgo) updateFields.Riesgo = e.ClasificacinRiesgo;
+
+        await EquipoItem.findByIdAndUpdate(e.EquipoId, { 
+          $set: updateFields 
+        });
+      }
       
       if (!e) throw new ApiError(404, 'HVEquipo no encontrado', 'NOT_FOUND', { id });
       logger.info(`HVEquipo actualizado: ${id}`);

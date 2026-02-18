@@ -66,10 +66,19 @@ export const downloadCronogramaPDF = async (req, res, next) => {
 
     return res.send(pdfBuffer);
   } catch (error) {
-    logger.error('Error en downloadCronogramaPDF:', {
-      error: error.message,
+    logger.error('❌ Error en downloadCronogramaPDF controller:', {
+      message: error.message,
+      statusCode: error.statusCode || 500,
+      code: error.code || 'UNKNOWN',
+      details: error.details || {},
       stack: error.stack,
       userId: req.userId,
+      tenantId: req.tenantId,
+      requestBody: {
+        hasClienteId: !!req.body?.clienteId,
+        hasFiltros: !!req.body?.filtros,
+        filtrosKeys: Object.keys(req.body?.filtros || {})
+      }
     });
     next(error);
   }

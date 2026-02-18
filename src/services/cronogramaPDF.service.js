@@ -9,8 +9,8 @@ import {
   formatPhone 
 } from '../utils/text.util.js';
 
-/**
- * Servicio para generar PDF de Cronogramas de Mantenimiento
+/*
+  Servicio para generar PDF de Cronogramas de Mantenimiento
  */
 class CronogramaPDFService {
   constructor() {
@@ -25,16 +25,35 @@ class CronogramaPDFService {
   async generatePDF(data, tenant, user) {
     try {
       logger.info('Iniciando generación de PDF de Cronograma');
-      logger.info('user recibido en generatePDF:', { user });
+      logger.info('Data recibido:', JSON.stringify({ 
+        hasCliente: !!data?.cliente, 
+        hasGrupos: !!data?.grupos,
+        isGruposArray: Array.isArray(data?.grupos),
+        gruposLength: data?.grupos?.length || 0,
+        tenant: tenant?.tenantId || tenant,
+        userId: user?._id || user?.id
+      }));
+      
       // 1. Verificar salud del microservicio
       const healthy = await this.pdfClient.healthCheck();
       if (!healthy) {
+        logger.error('Microservicio PDF no está disponible');
         throw new ApiError(503, 'Microservicio PDF no disponible', 'PDF_MICROSERVICE_OFFLINE');
       }
 
       // 2. Validar datos requeridos
       if (!data.cliente || !data.grupos || !Array.isArray(data.grupos)) {
-        throw new ApiError(400, 'Datos incompletos para generar cronograma', 'INVALID_DATA');
+        logger.error('Validación de datos fallida:', {
+          hasCliente: !!data.cliente,
+          hasGrupos: !!data.grupos,
+          isGruposArray: Array.isArray(data.grupos),
+          dataKeys: Object.keys(data || {})
+        });
+        throw new ApiError(400, 'Datos incompletos para generar cronograma', 'INVALID_DATA', {
+          hasCliente: !!data.cliente,
+          hasGrupos: !!data.grupos,
+          isArray: Array.isArray(data.grupos)
+        });
       }
 
       // 3. Generar HTML del cronograma
@@ -56,18 +75,34 @@ class CronogramaPDFService {
       logger.info('PDF de Cronograma generado exitosamente');
       return pdfBuffer;
     } catch (error) {
-      logger.error('Error generando PDF de Cronograma:', { 
-        error: error.message,
+      logger.error('❌ Error generando PDF de Cronograma:', { 
+        message: error.message,
+        code: error.code || 'UNKNOWN',
+        statusCode: error.statusCode || 500,
+        details: error.details || {},
         stack: error.stack,
       });
       
-      if (error instanceof ApiError) throw error;
+      if (error instanceof ApiError) {
+        logger.error('ApiError details:', {
+          statusCode: error.statusCode,
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+        throw error;
+      }
+      
+      logger.error('Unexpected error type:', {
+        name: error.name,
+        constructor: error.constructor.name
+      });
       
       throw new ApiError(
         500,
         'Error al generar PDF del cronograma',
         'PDF_GENERATION_ERROR',
-        { originalError: error.message }
+        { originalError: error.message, errorName: error.name }
       );
     }
   }
@@ -94,7 +129,7 @@ class CronogramaPDFService {
     const direccion = toTitleCase(cliente.Direccion);
     const ciudad = toTitleCase(cliente.Ciudad);
     const departamento = toTitleCase(cliente.Departamento);
-    const email = formatEmail(cliente.Email);
+    const email = formatEmail(cliente?.Email)||'';
     const telefono = formatPhone(cliente.TelContacto);
     const contacto = toTitleCase(cliente.UserContacto);
 
@@ -140,7 +175,7 @@ class CronogramaPDFService {
         /* Configuración de página para PDF */
         @page {
             size: A4 landscape;
-            margin: 6mm 8mm;
+            margin: 2mm 8mm;
         }
 
         @media print {
@@ -250,14 +285,14 @@ class CronogramaPDFService {
         /* Footer */
         .footer-content {
             position: fixed;
-            bottom: 6mm;
+            bottom: 4mm;
             left: 8mm;
             right: 8mm;
             display: grid;
             grid-template-columns: 1fr auto 1fr;
             gap: 10px;
             align-items: center;
-            font-size: 7px;
+            font-size: 8px;
             color: #374151;
             padding: 6px 15mm 4px 15mm;
             border-top: 2px solid #0066cc;
@@ -306,7 +341,7 @@ class CronogramaPDFService {
         }
 
         .cliente-info-item {
-            font-size: 7px;
+            font-size: 9px;
             display: flex;
             gap: 3px;
             align-items: baseline;
@@ -360,7 +395,7 @@ class CronogramaPDFService {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 12px;
-            font-size: 7px;
+            font-size: 9px;
             page-break-inside: auto;
         }
 
@@ -485,7 +520,7 @@ class CronogramaPDFService {
 
         .footer-note {
             position: fixed;
-            bottom: 2mm;
+            bottom: 1mm;
             left: 8mm;
             right: 8mm;
             margin-top: 8px;

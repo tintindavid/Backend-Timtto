@@ -164,6 +164,94 @@ export class EquipoItemService {
       throw new ApiError(500, 'Error actualizando Equipo y snapshot', 'UPDATE_SNAPSHOT_ERROR');
     }
   }
+
+  /**
+   * Obtiene equipos que tienen el mes especificado en mesesMtto, organizados por cliente > servicio > sede
+   * @param {string} mes - Mes en formato abreviado (ene, feb, mar, etc.)
+   * @param {string} tenantId - ID del tenant
+   * @returns {Promise<Object>} Equipos organizados jerárquicamente
+   */
+  async getByMesMantenimiento(mes, tenantId) {
+    try {
+      requireTenant(tenantId);
+      
+      // Buscar equipos que tengan el mes en su array mesesMtto
+      const query = applyTenantFilter({
+        mesesMtto: { $in: [mes.toLowerCase()] },
+        isDeleted: false
+      }, tenantId);
+
+      const equipos = await EquipoItem.find(query)
+        .populate('ClienteId', 'Razonsocial Nit contactEmail contactPhone')
+        .populate('Servicio', 'nombre descripcion')
+        .populate('SedeId', 'nombreSede direccion ciudad telefono')
+        .populate('ItemId', 'Nombre Descripcion Categoria')
+        .lean();
+
+      logger.info(`Equipos encontrados con mes ${mes}: ${equipos.length}`);
+
+      // Organizar por cliente > servicio > sede
+      const organizacion = {};
+
+      equipos.forEach(equipo => {
+        const clienteId = equipo.ClienteId?._id?.toString() || 'sin_cliente';
+        const servicioId = equipo.Servicio?._id?.toString() || 'sin_servicio';
+        const sedeId = equipo.SedeId?._id?.toString() || 'sin_sede';
+
+        // Inicializar cliente si no existe
+        if (!organizacion[clienteId]) {
+          organizacion[clienteId] = {
+            cliente: equipo.ClienteId || { _id: 'sin_cliente', Razonsocial: 'Sin Cliente' },
+            servicios: {}
+          };
+        }
+
+        // Inicializar servicio si no existe
+        if (!organizacion[clienteId].servicios[servicioId]) {
+          organizacion[clienteId].servicios[servicioId] = {
+            servicio: equipo.Servicio || { _id: 'sin_servicio', nombre: 'Sin Servicio' },
+            sedes: {}
+          };
+        }
+
+        // Inicializar sede si no existe
+        if (!organizacion[clienteId].servicios[servicioId].sedes[sedeId]) {
+          organizacion[clienteId].servicios[servicioId].sedes[sedeId] = {
+            sede: equipo.SedeId || { _id: 'sin_sede', nombreSede: 'Sin Sede' },
+            equipos: []
+          };
+        }
+
+        // Agregar equipo a la sede correspondiente
+        organizacion[clienteId].servicios[servicioId].sedes[sedeId].equipos.push(equipo);
+      });
+
+      // Convertir objetos a arrays para mejor presentación
+      const resultado = Object.values(organizacion).map(cliente => ({
+        cliente: cliente.cliente,
+        servicios: Object.values(cliente.servicios).map(servicio => ({
+          servicio: servicio.servicio,
+          sedes: Object.values(servicio.sedes).map(sede => ({
+            sede: sede.sede,
+            equipos: sede.equipos,
+            totalEquipos: sede.equipos.length
+          })),
+          totalEquipos: Object.values(servicio.sedes).reduce((acc, sede) => acc + sede.equipos.length, 0)
+        })),
+        totalEquipos: Object.values(cliente.servicios).reduce((acc, servicio) => 
+          acc + Object.values(servicio.sedes).reduce((acc2, sede) => acc2 + sede.equipos.length, 0), 0)
+      }));
+
+      return {
+        mes,
+        totalEquipos: equipos.length,
+        data: resultado
+      };
+    } catch (err) {
+      logger.error('Error obteniendo equipos por mes:', err);
+      throw new ApiError(500, 'Error obteniendo equipos por mes de mantenimiento', 'GET_BY_MES_ERROR');
+    }
+  }
 }
 
 export const equipoItemService = new EquipoItemService();

@@ -538,7 +538,7 @@ table.page-wrapper td {
                     <!-- MOTIVO FUERA DE SERVICIO -->
                     
 
-                    <!-- REPUESTOS -->
+                    <!-- REPUESTOS --> 
                     {{repuestos}}
 
                     <!-- FOTOS -->

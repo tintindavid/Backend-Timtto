@@ -6,12 +6,16 @@ import { createEquipoItemDto } from '../dtos/createEquipoItem.dto.js';
 import { updateEquipoItemDto } from '../dtos/updateEquipoItem.dto.js';
 import { queryEquipoItemDto } from '../dtos/queryEquipoItem.dto.js';
 import { updateEquipoSnapshotDto } from '../dtos/updateEquipoSnapshot.dto.js';
+import { queryEquipoByMesDto } from '../dtos/queryEquipoByMes.dto.js';
 
 const router = Router();
 router.use(authenticate);
 
 router.post('/', validate(createEquipoItemDto, 'body'), equipoItemController.create);
 router.get('/', validate(queryEquipoItemDto, 'query'), equipoItemController.list);
+
+// GET - Obtener equipos por mes de mantenimiento (debe ir ANTES de /:id)
+router.get('/mes/:mes', validate(queryEquipoByMesDto, 'params'), equipoItemController.getByMesMantenimiento);
 
 // GET - Obtener equipo con todas las relaciones populadas (debe ir ANTES de /:id)
 router.get('/:id/populated', equipoItemController.getByIdPopulated);
