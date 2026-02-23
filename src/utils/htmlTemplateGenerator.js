@@ -64,6 +64,7 @@ function getHTMLTemplate() {
         box-sizing: border-box;
         padding-right: 10px;
         margin-bottom: 8px;
+        font-size: 14px;
     }
 
     /* ====== TABLA ENVOLVENTE ====== */
@@ -264,6 +265,18 @@ table.page-wrapper td {
         border-radius: 6px;
         border-left: 4px solid #0074C7;
         margin-bottom: 6px;
+        font-size: 14px;
+    }
+
+    .actividad-item .label {
+        font-weight: bold;
+        color: #003B73;
+    }
+
+    .labelActividad {
+        font-weight: bold;
+        color: #003B73;
+        font-size: 14px;
     }
 
     /* ===== TABLA DE REPUESTOS ===== */
@@ -677,9 +690,9 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
                 <div class="title">Detalle de Revisión</div>
             </div>
             <div class="actividades-grid">
-                <div class="actividad-item"><strong>Falla Reportada:</strong>  <small>${report.fallaReportada ?? 'N/A'}</small></div>
-                <div class="actividad-item"><strong>Diagnóstico:</strong>  <small>${report.diagnostico ?? 'N/A'}</small></div>
-                <div class="actividad-item"><strong>Acción Tomada:</strong>  <small>${report.accionTomada ?? 'N/A'}</small></div>
+                <div class="actividad-item"><span class="label">Falla Reportada:</span>  <small>${report.fallaReportada ?? 'N/A'}</small></div>
+                <div class="actividad-item"><span class="label">Diagnóstico:</span>  <small>${report.diagnostico ?? 'N/A'}</small></div>
+                <div class="actividad-item"><span class="label">Acción Tomada:</span>  <small>${report.accionTomada ?? 'N/A'}</small></div>
             </div>
         </div>`
     }
@@ -734,8 +747,8 @@ function renderActividades(actividadesRealizadas = []) {
       const obs = a.observaciones ?? '';
 
       return obs !== ''
-        ? `<strong>${desc}</strong> : <small>${obs}</small>`
-        : `<strong>${desc}</strong>`;
+        ? `<span class="labelActividad">${desc}</span> : <small>${obs}</small>`
+        : `<span class="labelActividad">${desc}</span>`;
     };
 
     rows += `

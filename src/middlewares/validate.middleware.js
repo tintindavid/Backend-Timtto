@@ -6,7 +6,7 @@ export function validate(schema, property = 'body') {
   return (req, res, next) => {
     // Debug: log incoming value being validated
     try {
-      logger.debug && logger.debug('Validating request', { url: req.originalUrl, method: req.method, property, valuePreview: Object.keys(req[property] || {}).slice(0, 10) });
+      logger.debug && logger.debug('Validating request', { url: req.originalUrl, method: req.method, property, valuePreview: Object.keys(req[property] || {}).slice(0, 100) });
     } catch (e) { /* ignore logging errors */ }
     const { error, value } = schema.validate(req[property], { abortEarly: false });
     if (error) {
