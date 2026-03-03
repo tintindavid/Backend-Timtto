@@ -7,3 +7,4 @@ export const queryItemsDto = Joi.object({
   order: Joi.string().valid('asc','desc').default('desc'),
   search: Joi.string().optional(),
 });
+

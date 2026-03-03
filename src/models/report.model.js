@@ -58,7 +58,7 @@ const ReportSchema = new Schema({
     ReportPDF: { type: String,  trim: true },  // Path to generated PDF
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
     /* Tipo de mantenimiento es un Enum */
-    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true },
+    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true, default: 'Preventivo' },
 
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },

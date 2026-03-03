@@ -220,6 +220,7 @@ export class OTService {
             FechaCreacion: new Date(),
             orden: ot._id,
             equipoSnapshot,
+            tipoMtto: ot.TipoServicio || 'Preventivo',
             ...(body.reportPayload || {})
           };
 

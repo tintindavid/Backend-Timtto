@@ -23,6 +23,7 @@ const SheetWorkSchema = new Schema({
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
 }, {
   timestamps: true,
   collection: 'sheet-works'
