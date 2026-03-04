@@ -60,11 +60,22 @@ export class ReportService {
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
       if (search) {
         const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        query.$or = [
+          { consecutivo: rx }, 
+          { estado: rx }, 
+          { 'equipoSnapshot.ItemText': rx },
+          { 'equipoSnapshot.Marca': rx },
+          { 'equipoSnapshot.Modelo': rx }
+        ];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([
-        Report.find(query).sort(sort).skip(skip).limit(limit).lean(),
+        Report.find(query)
+          .populate('ResponsableMtto', 'firstName lastName email')
+          .populate('ClienteId', 'Razonsocial Nit')
+          .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'Nombre ProtocoloId' } })
+          .populate('orden', 'Consecutivo TipoServicio')
+          .sort(sort).skip(skip).limit(limit).lean(),
         Report.countDocuments(query),
       ]);
       return {

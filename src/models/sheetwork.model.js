@@ -17,6 +17,7 @@ const SheetWorkSchema = new Schema({
   fullNameResponsable: { type: String,  trim: true },
   cargoResponsable: { type: String,  trim: true },
   firmaResponsableFile: { type: String,  trim: true },
+  observaciones: { type: String, trim: true },
   reports: [
     { type: Schema.Types.ObjectId, ref: 'Report' }
   ],

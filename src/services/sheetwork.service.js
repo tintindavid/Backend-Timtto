@@ -120,8 +120,12 @@ export class SheetWorkService {
         query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
+
+      // hojas de trabajo populadas
       const [data, total] = await Promise.all([
-        SheetWork.find(query).sort(sort).skip(skip).limit(limit).lean(),
+        SheetWork.find(query).sort(sort).skip(skip).limit(limit).lean()
+        .populate('reports')
+        .populate('clienteId'),
         SheetWork.countDocuments(query),
       ]);
       return {

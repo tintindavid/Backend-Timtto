@@ -12,6 +12,10 @@ router.use(authenticate);
 router.post('/', validate(createSheetWorkDto, 'body'), sheetWorkController.create);
 router.get('/ot/:otId', sheetWorkController.listByOt);
 router.get('/', validate(querySheetWorkDto, 'query'), sheetWorkController.list);
+
+// Ruta para generar PDF (debe ir ANTES de /:id para evitar conflictos)
+router.get('/:id/pdf', sheetWorkController.generatePDF);
+
 router.get('/:id', sheetWorkController.getById);
 router.put('/:id', validate(updateSheetWorkDto, 'body'), sheetWorkController.update);
 router.patch('/:id', validate(updateSheetWorkDto, 'body'), sheetWorkController.update);

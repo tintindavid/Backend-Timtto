@@ -1,5 +1,9 @@
 import { sheetWorkService } from '../services/sheetwork.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
+import SheetWorkPDFService from '../services/sheetworkPDF.service.js';
+import { logger } from '../config/logger.config.js';
+
+const pdfService = new SheetWorkPDFService();
 
 export class SheetWorkController {
   async create(req, res, next) {
@@ -45,6 +49,32 @@ export class SheetWorkController {
       await sheetWorkService.delete(req.params.id, req.tenantId);
       res.json(successResponse(null, 'SheetWork eliminado exitosamente'));
     } catch (err) { next(err); }
+  }
+
+  /**
+   * Genera PDF de la hoja de trabajo
+   * GET /api/v1/sheet-works/:id/pdf
+   */
+  async generatePDF(req, res, next) {
+    try {
+      const { id } = req.params;
+      const tenantId = req.tenantId;
+
+      logger.info('Solicitud de generación de PDF de Hoja de Trabajo', { id, tenantId });
+
+      const pdfBuffer = await pdfService.generatePDF(id, tenantId);
+
+      // Configurar headers para visualización en navegador
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="hoja-trabajo-${id}.pdf"`,
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
   }
 }
 
