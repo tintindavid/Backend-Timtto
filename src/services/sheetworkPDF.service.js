@@ -58,17 +58,61 @@ class SheetWorkPDFService {
         throw new ApiError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
       }
 
+      console.log('tenantData: ', tenant);
       // 4. Generar HTML de la hoja de trabajo
       const html = this.generateHTML(sheetWork, tenant);
 
       // 5. Configurar opciones del PDF
-      const pdfOptions = {
-        format: 'A4',
-        landscape: false,
-        printBackground: true,
-        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
-        displayHeaderFooter: false,
-      };
+    const pdfOptions = {
+    format: 'A4',
+    landscape: false,
+    printBackground: true,
+    margin: {
+        top:    '0mm',
+        right:  '0mm',
+        bottom: '18mm',   // ← espacio para el footer en cada página
+        left:   '0mm',
+    },
+    displayHeaderFooter: true,
+    headerTemplate: '<span></span>',   // vacío — el header ya está en el HTML
+    footerTemplate: `
+        <div style="
+        width: 100%;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 7px;
+        color: #6C7480;
+        padding: 3mm 8mm 2mm;
+        border-top: 1px solid #DCDCE1;
+        box-sizing: border-box;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        ">
+        <!-- Línea azul inferior -->
+        <div style="
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 3px;
+            background: #0056B3;
+        "></div>
+
+        <!-- Contacto del tenant -->
+        <div style="line-height: 1.6;">
+            <div>Ciudad: ${tenant.ciudad} - ${tenant.departamento}</div>
+            <div>Dirección: ${tenant.direccion}</div>
+            <div>${tenant.telefono ? `Tel: ${tenant.telefono}` : ''} ${tenant.email ? `| Email: ${tenant.email}` : ''}</div>
+        </div>
+
+        <!-- Número de página (clase especial de Puppeteer) -->
+        <div style="font-size: 7.5px; font-weight: 700; color: #0056B3;">
+            &nbsp;&nbsp;
+            Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+        </div>
+        </div>
+    `,
+    };
+
 
       logger.info('Generando PDF de Hoja de Trabajo con PDFMicroserviceClient');
 
@@ -289,23 +333,6 @@ class SheetWorkPDFService {
       </td>
     </tr>
   </tbody>
-
-  <!-- FOOTER QUE SE REPITE EN CADA PÁGINA -->
-  <tfoot>
-    <tr>
-      <td>
-        <footer class="footer">
-          <div class="footer-inner">
-            <div class="footer-contact">
-              <div>${data.tenantDireccion}</div>
-              <div>${data.tenantContacto}</div>
-            </div>
-            <div class="footer-page">Hoja de Trabajo - ${data.numeroHoja}</div>
-          </div>
-        </footer>
-      </td>
-    </tr>
-  </tfoot>
 
 </table>
 
@@ -529,16 +556,19 @@ class SheetWorkPDFService {
     @page {
       size: A4 portrait; 
       margin: 0;
+      margin-bottom: 18mm; /* espacio para el footer en cada página */
     }
 
     @media print {
       html, body { 
         margin: 0; 
-        padding: 0;
+        padding: 0 0 25mm 0; /* ← espacio para el footer en cada página impresa */
         width: 100%;
         height: 100%;
+        padding-bottom: 45mm; /* espacio para el footer fijo */
       }
-      
+    
+
       .page-wrapper thead {
         display: table-header-group;
       }
@@ -691,7 +721,12 @@ class SheetWorkPDFService {
        CONTENIDO
     ───────────────────────────────────────── */
     .content {
-      padding: 5mm 15mm 22mm;
+      padding: 5mm 15mm 0;  /* sin padding-bottom aquí */
+    }
+
+    /* Agrega esto nuevo */
+    body {
+        padding-bottom: 25mm; /* espacio reservado para el footer fijo en TODAS las páginas */
     }
 
     /* ─────────────────────────────────────────
@@ -701,7 +736,7 @@ class SheetWorkPDFService {
       display: flex;
       align-items: center;
       margin-bottom: 6px;
-      margin-top: 8px;
+      margin-top: 6px;
     }
     .section-header .bar-accent {
       width: 4px;
@@ -766,6 +801,7 @@ class SheetWorkPDFService {
       width: 100%;
       border-collapse: collapse;
       font-size: 8.5px;
+      margin-bottom: 0; /* quitar el margin artificial */
     }
     .equipment-table thead tr {
       background: var(--primary);
@@ -866,42 +902,6 @@ class SheetWorkPDFService {
       font-size: 7px;
       color: var(--gray);
       margin-top: 1px;
-    }
-
-    /* ─────────────────────────────────────────
-       PIE DE PÁGINA
-    ───────────────────────────────────────── */
-    .footer {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 4mm 15mm 3mm;
-      border-top: 1px solid var(--border);
-      background: var(--white);
-      z-index: 10;
-    }
-    .footer::after {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 3px;
-      background: var(--primary);
-    }
-    .footer-inner {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .footer-contact {
-      font-size: 7px;
-      color: var(--gray);
-      line-height: 1.6;
-    }
-    .footer-page {
-      font-size: 7.5px;
-      font-weight: 700;
-      color: var(--primary);
     }
 
     /* ─────────────────────────────────────────
