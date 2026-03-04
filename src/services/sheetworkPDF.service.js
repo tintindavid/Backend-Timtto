@@ -64,7 +64,7 @@ class SheetWorkPDFService {
       // 5. Configurar opciones del PDF
       const pdfOptions = {
         format: 'A4',
-        landscape: true,
+        landscape: false,
         printBackground: true,
         margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
         displayHeaderFooter: false,
@@ -118,174 +118,196 @@ class SheetWorkPDFService {
 </head>
 <body>
 
-<div class="page">
+<!-- TABLA ENVOLVENTE PARA REPETIR HEADER Y FOOTER -->
+<table class="page-wrapper">
+  
+  <!-- HEADER QUE SE REPITE EN CADA PÁGINA -->
+  <thead>
+    <tr>
+      <td>
+        <header class="header">
+          <div class="header-inner">
+            <!-- Logo -->
+            <div class="header-logo">
+              ${data.logoUrl ? `<img src="${data.logoUrl}" alt="Logo ${data.tenantName}" />` : '<div class="header-logo-placeholder"></div>'}
+            </div>
 
-  <!-- CABECERA -->
-  <header class="header">
-    <div class="header-inner">
-      <!-- Logo -->
-      <div class="header-logo">
-        ${data.logoUrl ? `<img src="${data.logoUrl}" alt="Logo ${data.tenantName}" />` : '<div class="header-logo-placeholder"></div>'}
-      </div>
+            <!-- Empresa / Título -->
+            <div class="header-center">
+              <div class="header-company">${data.tenantName}</div>
+              <div class="header-nit">NIT: ${data.tenantNit}</div>
+              <div class="header-title">HOJA DE TRABAJO</div>
+            </div>
 
-      <!-- Empresa / Título -->
-      <div class="header-center">
-        <div class="header-company">${data.tenantName}</div>
-        <div class="header-nit">NIT: ${data.tenantNit}</div>
-        <div class="header-title">HOJA DE TRABAJO</div>
-      </div>
-
-      <!-- Caja info -->
-      <div class="header-info-box">
-        <div class="numero">N°: ${data.numeroHoja}</div>
-        <div class="fecha">Fecha: ${data.fecha}</div>
-        <span class="estado-badge ${data.estadoClass}">${data.estadoLabel}</span>
-      </div>
-    </div>
-  </header>
+            <!-- Caja info -->
+            <div class="header-info-box">
+              <div class="numero">N°: ${data.numeroHoja}</div>
+              <div class="fecha">Fecha: ${data.fecha}</div>
+              <span class="estado-badge ${data.estadoClass}">${data.estadoLabel}</span>
+            </div>
+          </div>
+        </header>
+      </td>
+    </tr>
+  </thead>
 
   <!-- CONTENIDO PRINCIPAL -->
-  <main class="content">
+  <tbody>
+    <tr>
+      <td>
+        <main class="content">
 
-    <!-- INFORMACIÓN DEL CLIENTE -->
-    <div class="section-header">
-      <div class="bar-accent"></div>
-      <div class="bar-bg"><span>INFORMACIÓN DEL CLIENTE</span></div>
-    </div>
+          <!-- INFORMACIÓN DEL CLIENTE -->
+          <div class="section-header">
+            <div class="bar-accent"></div>
+            <div class="bar-bg"><span>INFORMACIÓN DEL CLIENTE</span></div>
+          </div>
 
-    <div class="client-card">
-      <div class="client-row">
-        <div class="client-cell">
-          <div class="client-label">Razón Social</div>
-          <div class="client-value">${data.cliente.razonSocial}</div>
-        </div>
-        <div class="client-cell">
-          <div class="client-label">NIT</div>
-          <div class="client-value">${data.cliente.nit}</div>
-        </div>
-        <div class="client-cell">
-          <div class="client-label">Ciudad</div>
-          <div class="client-value">${data.cliente.ciudad}</div>
-        </div>
-      </div>
-      <div class="client-row">
-        <div class="client-cell">
-          <div class="client-label">Dirección</div>
-          <div class="client-value">${data.cliente.direccion}</div>
-        </div>
-        <div class="client-cell">
-          <div class="client-label">Departamento</div>
-          <div class="client-value">${data.cliente.departamento}</div>
-        </div>
-        <div class="client-cell">
-          <div class="client-label">Teléfono</div>
-          <div class="client-value">${data.cliente.telefono}</div>
-        </div>
-      </div>
-      ${data.cliente.email ? `
-      <div class="client-row">
-        <div class="client-cell">
-          <div class="client-label">Email</div>
-          <div class="client-value">${data.cliente.email}</div>
-        </div>
-      </div>
-      ` : ''}
-    </div>
+          <div class="client-card">
+            <div class="client-row">
+              <div class="client-cell">
+                <div class="client-label">Razón Social</div>
+                <div class="client-value">${data.cliente.razonSocial}</div>
+              </div>
+              <div class="client-cell">
+                <div class="client-label">NIT</div>
+                <div class="client-value">${data.cliente.nit}</div>
+              </div>
+              <div class="client-cell">
+                <div class="client-label">Ciudad</div>
+                <div class="client-value">${data.cliente.ciudad}</div>
+              </div>
+            </div>
+            <div class="client-row">
+              <div class="client-cell">
+                <div class="client-label">Dirección</div>
+                <div class="client-value">${data.cliente.direccion}</div>
+              </div>
+              <div class="client-cell">
+                <div class="client-label">Departamento</div>
+                <div class="client-value">${data.cliente.departamento}</div>
+              </div>
+              <div class="client-cell">
+                <div class="client-label">Teléfono</div>
+                <div class="client-value">${data.cliente.telefono}</div>
+              </div>
+            </div>
+            ${data.cliente.email ? `
+            <div class="client-row">
+              <div class="client-cell">
+                <div class="client-label">Email</div>
+                <div class="client-value">${data.cliente.email}</div>
+              </div>
+            </div>
+            ` : ''}
+          </div>
 
-    <!-- EQUIPOS PROCESADOS -->
-    <div class="section-header mt-section">
-      <div class="bar-accent"></div>
-      <div class="bar-bg"><span>EQUIPOS PROCESADOS (${data.totalEquipos})</span></div>
-    </div>
+          <!-- EQUIPOS PROCESADOS -->
+          <div class="section-header mt-section">
+            <div class="bar-accent"></div>
+            <div class="bar-bg"><span>EQUIPOS PROCESADOS (${data.totalEquipos})</span></div>
+          </div>
 
-    <table class="equipment-table">
-      <thead>
-        <tr>
-          <th style="width:4%">#</th>
-          <th style="width:6%">Reporte</th>
-          <th style="width:19%">Equipo</th>
-          <th style="width:10%">Marca</th>
-          <th style="width:10%">Modelo</th>
-          <th style="width:9%">Serie</th>
-          <th style="width:8%">Inventario</th>
-          <th style="width:14%">Ubicación</th>
-          <th style="width:10%">Estado</th>
-          <th style="width:10%">Tipo Mtto</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.equipos.map((equipo, index) => `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${equipo.consecutivo}</td>
-          <td class="equipo-name">${equipo.nombre}</td>
-          <td>${equipo.marca}</td>
-          <td>${equipo.modelo}</td>
-          <td>${equipo.serie}</td>
-          <td>${equipo.inventario}</td>
-          <td>${equipo.servicio!=='' ? `${equipo.servicio} - ${equipo.ubicacion}` : equipo.ubicacion}</td>
-          <td>${equipo.estadoOperativo}</td>
-          <td>${equipo.tipoMtto}</td>
-        </tr>
-        `).join('')}
-      </tbody>
-    </table>
+          <table class="equipment-table">
+            <thead>
+              <tr>
+                <th style="width:4%">#</th>
+                <th style="width:6%">Reporte</th>
+                <th style="width:19%">Equipo</th>
+                <th style="width:10%">Marca</th>
+                <th style="width:10%">Modelo</th>
+                <th style="width:9%">Serie</th>
+                <th style="width:8%">Inventario</th>
+                <th style="width:14%">Ubicación</th>
+                <th style="width:10%">Estado</th>
+                <th style="width:10%">Tipo Mtto</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.equipos.map((equipo, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${equipo.consecutivo}</td>
+                <td class="equipo-name">${equipo.nombre}</td>
+                <td>${equipo.marca}</td>
+                <td>${equipo.modelo}</td>
+                <td>${equipo.serie}</td>
+                <td>${equipo.inventario}</td>
+                <td>${equipo.servicio!=='' ? `${equipo.servicio} - ${equipo.ubicacion}` : equipo.ubicacion}</td>
+                <td>${equipo.estadoOperativo}</td>
+                <td>${equipo.tipoMtto}</td>
+              </tr>
+              `).join('')}
+            </tbody>
+          </table>
 
-    <!-- OBSERVACIONES -->
-    ${data.observaciones ? `
-    <div class="section-header mt-section">
-      <div class="bar-accent"></div>
-      <div class="bar-bg"><span>OBSERVACIONES</span></div>
-    </div>
-    <div class="obs-box">${data.observaciones}</div>
-    ` : ''}
+          <!-- OBSERVACIONES -->
+          ${data.observaciones ? `
+          <div class="section-header mt-section">
+            <div class="bar-accent"></div>
+            <div class="bar-bg"><span>OBSERVACIONES</span></div>
+          </div>
+          <div class="obs-box">${data.observaciones}</div>
+          ` : ''}
 
-    <!-- FIRMAS -->
-    ${data.tieneFirmas ? `
-    <div class="section-header mt-section">
-      <div class="bar-accent"></div>
-      <div class="bar-bg"><span>FIRMAS</span></div>
-    </div>
+          <!-- FIRMAS -->
+          
+          ${data.tieneFirmas ? `
+          <div class="section-header mt-section"
+            style="margin-bottom: 8px;"
+          >
+            <div class="bar-accent"></div>
+            <div class="bar-bg"><span>FIRMAS</span></div>
+          </div>
 
-    <div class="firmas-row">
-      ${data.firmaResponsable.imagen ? `
-      <div class="firma-card">
-        <div class="firma-img-area">
-          <img src="${data.firmaResponsable.imagen}" alt="Firma responsable" />
-        </div>
-        <div class="firma-line"></div>
-        <div class="firma-nombre">${data.firmaResponsable.nombre}</div>
-        <div class="firma-cargo">${data.firmaResponsable.cargo}</div>
-      </div>
-      ` : ''}
+          <div class="firmas-row">
+            ${data.firmaResponsable.imagen ? `
+            <div class="firma-card">
+              <div class="firma-img-area">
+                <img src="${data.firmaResponsable.imagen}" alt="Firma responsable" />
+              </div>
+              <div class="firma-line"></div>
+              <div class="firma-nombre">${data.firmaResponsable.nombre}</div>
+              <div class="firma-cargo">${data.firmaResponsable.cargo}</div>
+            </div>
+            ` : ''}
 
-      ${data.firmaCliente.imagen ? `
-      <div class="firma-card">
-        <div class="firma-img-area">
-          <img src="${data.firmaCliente.imagen}" alt="Firma cliente" />
-        </div>
-        <div class="firma-line"></div>
-        <div class="firma-nombre">${data.firmaCliente.nombre}</div>
-        <div class="firma-cargo">${data.firmaCliente.cargo}</div>
-      </div>
-      ` : ''}
-    </div>
-    ` : ''}
+            ${data.firmaCliente.imagen ? `
+            <div class="firma-card">
+              <div class="firma-img-area">
+                <img src="${data.firmaCliente.imagen}" alt="Firma cliente" />
+              </div>
+              <div class="firma-line"></div>
+              <div class="firma-nombre">${data.firmaCliente.nombre}</div>
+              <div class="firma-cargo">${data.firmaCliente.cargo}</div>
+            </div>
+            ` : ''}
+          </div>
+          ` : ''}
 
-  </main>
+        </main>
+      </td>
+    </tr>
+  </tbody>
 
-  <!-- PIE DE PÁGINA -->
-  <footer class="footer">
-    <div class="footer-inner">
-      <div class="footer-contact">
-        <div>${data.tenantDireccion}</div>
-        <div>${data.tenantContacto}</div>
-      </div>
-      <div class="footer-page">Hoja de Trabajo - ${data.numeroHoja}</div>
-    </div>
-  </footer>
+  <!-- FOOTER QUE SE REPITE EN CADA PÁGINA -->
+  <tfoot>
+    <tr>
+      <td>
+        <footer class="footer">
+          <div class="footer-inner">
+            <div class="footer-contact">
+              <div>${data.tenantDireccion}</div>
+              <div>${data.tenantContacto}</div>
+            </div>
+            <div class="footer-page">Hoja de Trabajo - ${data.numeroHoja}</div>
+          </div>
+        </footer>
+      </td>
+    </tr>
+  </tfoot>
 
-</div>
+</table>
 
 </body>
 </html>`;
@@ -497,8 +519,8 @@ class SheetWorkPDFService {
       font-size: 10px;
       color: var(--dark);
       background: #fff;
-      width: 210mm;
-      min-height: 297mm;
+      margin: 0;
+      padding: 0;
     }
 
     /* ─────────────────────────────────────────
@@ -507,23 +529,58 @@ class SheetWorkPDFService {
     @page {
       size: A4 portrait; 
       margin: 0;
-
     }
+
     @media print {
-      body { width: 210mm; }
-      .page-break { page-break-before: always; }
+      html, body { 
+        margin: 0; 
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+      
+      .page-wrapper thead {
+        display: table-header-group;
+      }
+
+      .page-wrapper tfoot {
+        display: table-footer-group;
+      }
+
+      .page-wrapper tbody {
+        display: table-row-group;
+      }
+      
+      .footer {
+        position: fixed;
+        bottom: 0;
+      }
     }
 
     /* ─────────────────────────────────────────
-       PÁGINA
+       TABLA ENVOLVENTE PARA REPETIR HEADER/FOOTER
     ───────────────────────────────────────── */
-    .page {
-      width: 210mm;
-      min-height: 297mm;
-      padding: 0 0 20mm 0;
-      display: flex;
-      flex-direction: column;
-      position: relative;
+    table.page-wrapper {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table.page-wrapper thead {
+      display: table-header-group; /* Se repite en cada página */
+    }
+
+    table.page-wrapper tbody {
+      display: table-row-group;
+    }
+
+    table.page-wrapper tfoot {
+      display: table-footer-group; /* Se repite en cada página */
+    }
+
+    table.page-wrapper td {
+      border: none;
+      padding: 0;
+      vertical-align: top;
     }
 
     /* ─────────────────────────────────────────
@@ -533,6 +590,7 @@ class SheetWorkPDFService {
       position: relative;
       padding: 10mm 15mm 6mm 15mm;
       border-bottom: 3px solid var(--primary);
+      margin-bottom: 4mm;
     }
 
     .header::before {
@@ -633,8 +691,7 @@ class SheetWorkPDFService {
        CONTENIDO
     ───────────────────────────────────────── */
     .content {
-      padding: 7mm 15mm 0;
-      flex: 1;
+      padding: 5mm 15mm 22mm;
     }
 
     /* ─────────────────────────────────────────
@@ -819,8 +876,10 @@ class SheetWorkPDFService {
       bottom: 0;
       left: 0;
       right: 0;
-      padding: 3px 15mm 5mm;
+      padding: 4mm 15mm 3mm;
       border-top: 1px solid var(--border);
+      background: var(--white);
+      z-index: 10;
     }
     .footer::after {
       content: '';
@@ -832,7 +891,7 @@ class SheetWorkPDFService {
     .footer-inner {
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
     }
     .footer-contact {
       font-size: 7px;
@@ -848,7 +907,18 @@ class SheetWorkPDFService {
     /* ─────────────────────────────────────────
        UTILIDADES
     ───────────────────────────────────────── */
-    .mt-section { margin-top: 6mm; }
+    .mt-section { 
+      margin-top: 6mm; 
+      page-break-inside: avoid;
+    }
+    
+    .section-header {
+      page-break-after: avoid;
+    }
+    
+    .client-card, .obs-box, .firmas-row {
+      page-break-inside: avoid;
+    }
     `;
   }
 }
