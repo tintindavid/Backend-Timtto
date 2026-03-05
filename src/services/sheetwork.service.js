@@ -52,6 +52,13 @@ export class SheetWorkService {
         }
       }
 
+      // si firmaFile existe entonces el estado de la hoja de trabajo es "Firmada", de lo contrario "Borrador"
+      if (data.firmaFile) {
+        data.estado = 'Firmada';
+      } else {
+        data.estado = 'Borrador';
+      }
+   
       const entity = await SheetWork.create(data);
 
       // despues de crear la hoja de trabajo, marcar los reportes listados como cerrados y vincular hojaDeTrabajo
@@ -115,10 +122,19 @@ export class SheetWorkService {
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+      
+      // Búsqueda en campos relevantes de SheetWork
       if (search) {
         const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        query.$or = [
+          { numeroHoja: rx },
+          { personaRecibe: rx },
+          { fullNameResponsable: rx },
+          { cargoResponsable: rx },
+          { observaciones: rx }
+        ];
       }
+      
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
 
       // hojas de trabajo populadas

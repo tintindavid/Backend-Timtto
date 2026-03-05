@@ -23,7 +23,6 @@ class SheetWorkPDFService {
    */
   async generatePDF(sheetWorkId, tenantId) {
     try {
-      logger.info('Iniciando generación de PDF de Hoja de Trabajo', { sheetWorkId, tenantId });
 
       // 1. Verificar salud del microservicio
       const healthy = await this.pdfClient.healthCheck();
@@ -58,7 +57,6 @@ class SheetWorkPDFService {
         throw new ApiError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
       }
 
-      console.log('tenantData: ', tenant);
       // 4. Generar HTML de la hoja de trabajo
       const html = this.generateHTML(sheetWork, tenant);
 
@@ -103,6 +101,11 @@ class SheetWorkPDFService {
             <div>Dirección: ${tenant.direccion}</div>
             <div>${tenant.telefono ? `Tel: ${tenant.telefono}` : ''} ${tenant.email ? `| Email: ${tenant.email}` : ''}</div>
         </div>
+        <!-- lETRA MENUDA DE DESCARGO DE RESPONSABILIDAD CON SALTO DE LINEA-->
+        <div style="font-size: 5px; color: #999; max-width: 50%; text-align: right; line-height: 1.2;">
+            <text>Con la firma del presente documento se deja constancia de que los equipos aquí relacionados fueron atendidos y entregados a satisfacción.</text>
+            <text>Los informes técnicos detallados forman parte integral del servicio prestado y estarán disponibles previa solicitud.</text>
+        </div>
 
         <!-- Número de página (clase especial de Puppeteer) -->
         <div style="font-size: 7.5px; font-weight: 700; color: #0056B3;">
@@ -112,9 +115,6 @@ class SheetWorkPDFService {
         </div>
     `,
     };
-
-
-      logger.info('Generando PDF de Hoja de Trabajo con PDFMicroserviceClient');
 
       // 6. Generar PDF usando el cliente
       const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions);
@@ -249,7 +249,7 @@ class SheetWorkPDFService {
           <!-- EQUIPOS PROCESADOS -->
           <div class="section-header mt-section">
             <div class="bar-accent"></div>
-            <div class="bar-bg"><span>EQUIPOS PROCESADOS (${data.totalEquipos})</span></div>
+            <div class="bar-bg"><span>EQUIPOS EJECUTADOS (${data.totalEquipos})</span></div>
           </div>
 
           <table class="equipment-table">

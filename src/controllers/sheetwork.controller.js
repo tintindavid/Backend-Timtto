@@ -62,12 +62,29 @@ export class SheetWorkController {
 
       logger.info('Solicitud de generación de PDF de Hoja de Trabajo', { id, tenantId });
 
+      // Obtener datos del sheetwork para construir el nombre del archivo
+      const sheetWork = await sheetWorkService.getById(id, tenantId);
+      
       const pdfBuffer = await pdfService.generatePDF(id, tenantId);
 
-      // Configurar headers para visualización en navegador
+      // Construir nombre del archivo: HT-{consecutivo}-{cliente}.pdf
+      const consecutivo = sheetWork.numeroHoja || 'SN';
+      const clienteNombre = sheetWork.clienteId?.Razonsocial || 'Cliente';
+      
+      // Sanitizar nombre del archivo (remover caracteres especiales)
+      const sanitizedCliente = clienteNombre
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+        .replace(/[^a-zA-Z0-9-_]/g, '-')  // Reemplazar caracteres especiales con guión
+        .replace(/-+/g, '-')               // Eliminar guiones múltiples
+        .substring(0, 50);                 // Limitar longitud
+      
+      const filename = `HT-${consecutivo}-${sanitizedCliente}.pdf`;
+
+      // Configurar headers para descarga con nombre personalizado
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="hoja-trabajo-${id}.pdf"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': pdfBuffer.length,
       });
 

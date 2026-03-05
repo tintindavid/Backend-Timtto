@@ -18,6 +18,7 @@ const SheetWorkSchema = new Schema({
   cargoResponsable: { type: String,  trim: true },
   firmaResponsableFile: { type: String,  trim: true },
   observaciones: { type: String, trim: true },
+  estado: { type: String, enum: ['Borrador', 'Firmada'], default: 'Borrador' },
   reports: [
     { type: Schema.Types.ObjectId, ref: 'Report' }
   ],
