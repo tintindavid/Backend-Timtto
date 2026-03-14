@@ -51,8 +51,9 @@ export default class BulkPDFGenerator {
   generateFileName(report, index = 0) {
     const numeroReporte = (report.consecutivo || report._id || `report_${index}`).toString();
     const safe = numeroReporte.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const timestamp = Date.now();
-    return `${safe}_${timestamp}.pdf`;
+    const item= (report.equipoSnapshot.ItemText.toUpperCase()).replace(/[^a-zA-Z0-9-_\.]/g, '_');
+    const inventario = (report.equipoSnapshot.Inventario)
+    return `${safe} ${item} ${inventario}.pdf`;
   }
 
   printSummary(results, zipSize) {
