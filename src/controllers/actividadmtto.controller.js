@@ -38,6 +38,17 @@ export class ActividadMttoController {
       res.json(successResponse(null, 'ActividadMtto eliminado exitosamente'));
     } catch (err) { next(err); }
   }
+
+  async searchByName(req, res, next) {
+    try {
+      const { q } = req.query;
+      if (!q || q.trim() === '') {
+        return res.status(400).json({ success: false, message: 'El parámetro de búsqueda "q" es requerido' });
+      }
+      const data = await actividadMttoService.searchByName(q.trim(), req.tenantId);
+      res.json(successResponse(data, `Búsqueda completada: ${data.length} resultados`));
+    } catch (err) { next(err); }
+  }
 }
 
 export const actividadMttoController = new ActividadMttoController();

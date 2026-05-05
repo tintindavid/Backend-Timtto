@@ -80,6 +80,29 @@ export class ActividadMttoService {
       throw new ApiError(500, 'Error eliminando ActividadMtto', 'DELETE_ERROR');
     }
   }
+
+  /**
+   * Busca actividades cuyo campo Nombre contenga el texto indicado (case-insensitive).
+   * @param {string} nombre - Texto a buscar
+   * @param {string} tenantId - Tenant del usuario autenticado
+   * @returns {Promise<Array>} Lista de actividades coincidentes
+   */
+  async searchByName(nombre, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const query = applyTenantFilter(
+        { isDeleted: false, Nombre: new RegExp(nombre, 'i') },
+        tenantId
+      );
+      const data = await ActividadMtto.find(query).sort({ Nombre: 1 }).lean();
+      logger.info(`Búsqueda de actividadMtto por nombre "${nombre}": ${data.length} resultados`);
+      return data;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error buscando actividadMtto por nombre:', err);
+      throw new ApiError(500, 'Error buscando ActividadMtto', 'SEARCH_ERROR');
+    }
+  }
 }
 
 export const actividadMttoService = new ActividadMttoService();

@@ -11,6 +11,7 @@ router.use(authenticate);
 
 router.post('/', validate(createActividadMttoDto, 'body'), actividadMttoController.create);
 router.get('/', validate(queryActividadMttoDto, 'query'), actividadMttoController.list);
+router.get('/search', actividadMttoController.searchByName);
 router.get('/:id', actividadMttoController.getById);
 router.put('/:id', validate(updateActividadMttoDto, 'body'), actividadMttoController.update);
 router.patch('/:id', validate(updateActividadMttoDto, 'body'), actividadMttoController.update);
