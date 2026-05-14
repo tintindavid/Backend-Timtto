@@ -17,6 +17,7 @@ router.patch('/:id', uploadLogo, handleMulterError, customerController.update);
 
 // Rutas sin archivos
 router.get('/', validate(queryCustomerDto, 'query'), customerController.list);
+router.get('/:id/inventario', customerController.downloadInventario);
 router.get('/:id', customerController.getById);
 router.delete('/:id', customerController.delete);
 
