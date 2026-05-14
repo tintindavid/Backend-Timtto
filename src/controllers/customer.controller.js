@@ -1,6 +1,8 @@
 import { logger } from '../config/logger.config.js';
 import { customerService } from '../services/customer.service.js';
+import { inventarioExportService } from '../services/inventarioExport.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
+import { ApiError } from '../utils/apiError.util.js';
 
 export class CustomerController {
   async create(req, res, next) {
@@ -48,6 +50,37 @@ export class CustomerController {
     try {
       await customerService.delete(req.params.id, req.tenantId);
       res.json(successResponse(null, 'Customer eliminado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  async downloadInventario(req, res, next) {
+    try {
+      const { id } = req.params;
+      const formato = req.query.formato || 'excel';
+
+      if (!['excel', 'pdf'].includes(formato)) {
+        return next(new ApiError(400, "El parámetro 'formato' debe ser 'excel' o 'pdf'", 'INVALID_FORMAT'));
+      }
+
+      if (!['admin', 'technician'].includes(req.user?.role)) {
+        return next(new ApiError(403, 'No tienes permiso para descargar inventarios', 'FORBIDDEN'));
+      }
+
+      if (formato === 'excel') {
+        const buffer = await inventarioExportService.generateExcel(id, req.tenantId);
+        const filename = `inventario_${id}_${Date.now()}.xlsx`;
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(Buffer.from(buffer));
+      }
+
+      if (formato === 'pdf') {
+        const buffer = await inventarioExportService.generatePDF(id, req.tenantId);
+        const filename = `inventario_${id}_${Date.now()}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(buffer);
+      }
     } catch (err) { next(err); }
   }
 }
