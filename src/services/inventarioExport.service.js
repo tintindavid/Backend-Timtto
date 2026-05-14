@@ -3,19 +3,20 @@
 import ExcelJS from 'exceljs';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { Tenant } from '../models/tenant.model.js';
+import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import PDFMicroserviceClient from './pdfMicroserviceClient.js';
 
 const COLUMNS = [
-  { key: 'item',       header: 'Ítem',                   width: 10 },
-  { key: 'Marca',      header: 'Marca',                  width: 18 },
+  { key: 'item',       header: 'Ítem',                   width: 24 },
+  { key: 'Marca',      header: 'Marca',                  width: 19 },
   { key: 'Modelo',     header: 'Modelo',                 width: 18 },
-  { key: 'Serie',      header: 'Serie',                  width: 18 },
+  { key: 'Serie',      header: 'Serie',                  width: 20 },
   { key: 'Inventario', header: 'Inventario',             width: 16 },
   { key: 'Ubicacion',  header: 'Ubicación',              width: 20 },
-  { key: 'Riesgo',     header: 'Clasificación Riesgo',   width: 22 },
+  { key: 'Riesgo',     header: 'Clas. Riesgo',           width: 5  },
   { key: 'Invima',     header: 'Reg. INVIMA',            width: 18 },
   { key: 'Estado',     header: 'Estado',                 width: 14 },
 ];
@@ -42,7 +43,12 @@ export class InventarioExportService {
 
     const tenant = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
 
-    return { equipos, tenant };
+    const customer = await Customer.findOne({ _id: clienteId, tenantId, isDeleted: false }).lean();
+    if (!customer) {
+      throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND');
+    }
+
+    return { equipos, tenant, customer };
   }
 
   #groupByServicio(equipos) {
@@ -77,7 +83,7 @@ export class InventarioExportService {
   // ---------------------------------------------------------------------------
 
   async generateExcel(clienteId, tenantId) {
-    const { equipos, tenant } = await this.#fetchData(clienteId, tenantId);
+    const { equipos, tenant, customer } = await this.#fetchData(clienteId, tenantId);
 
     if (!equipos.length) {
       throw new ApiError(404, 'El cliente no tiene equipos activos', 'NO_EQUIPOS');
@@ -99,15 +105,43 @@ export class InventarioExportService {
       style: { alignment: { wrapText: true, vertical: 'top' } },
     }));
 
-    // --- Row 1: institutional header (merged, tenant name) ---
-    ws.mergeCells(1, 1, 2, colCount);
-    const titleCell = ws.getCell('A1');
-    titleCell.value = tenant?.name || 'Inventario de Equipos';
+    // --- Rows 1-2: three-section institutional header ---
+    // Left (cols 1-2): logo area + tenant name desde la columna B y C para evitar solaparse con el logo
+    ws.mergeCells(1, 2, 2, 3);
+    const logoCell = ws.getCell('B1');
+    logoCell.value = [
+        tenant?.name || '',
+        tenant.telefono ? tenant.telefono : '',
+        tenant.nit ? `${tenant.nit}` : '',
+        tenant.ciudad ? `${tenant.ciudad}` + (tenant.direccion ? `, ${tenant.direccion}` : '') : '',
+    ].filter(Boolean).join('\n');
+    logoCell.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
+    logoCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003366' } };
+    logoCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+    // Center (cols 3-6): document title desde la columna D y F para dar espacio al logo y nombre del tenant
+    ws.mergeCells(1, 4, 2, 6);
+    const titleCell = ws.getCell(1, 4);
+    titleCell.value = 'Inventario de Equipos';
     titleCell.font  = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
     titleCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003366' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    ws.getRow(1).height = 32;
-    ws.getRow(2).height = 20;
+
+    // Right (cols 7-9): customer data
+    ws.mergeCells(1, 7, 2, colCount);
+    const customerHeaderCell = ws.getCell(1, 7);
+    customerHeaderCell.value = [
+      customer?.Razonsocial || '',
+      customer?.Ciudad      ? `Ciudad: ${customer.Ciudad}` : '',
+      customer?.Direccion   ? `Dir: ${customer.Direccion}` : '',
+      customer?.TelContacto ? `Tel: ${customer.TelContacto}` : '',
+    ].filter(Boolean).join('\n');
+    customerHeaderCell.font  = { size: 8, color: { argb: 'FFFFFFFF' } };
+    customerHeaderCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003366' } };
+    customerHeaderCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+
+    ws.getRow(1).height = 40;
+    ws.getRow(2).height = 4;
 
     // --- Attempt to embed logo ---
     if (tenant?.logoUrl) {
@@ -158,6 +192,7 @@ export class InventarioExportService {
       ws.getRow(nextRowNum).height = 18;
       ws.getRow(nextRowNum).commit();
 
+
       // Equipment rows
       for (const equipo of group.equipos) {
         const row = ws.addRow({
@@ -190,19 +225,22 @@ export class InventarioExportService {
   // ---------------------------------------------------------------------------
 
   async generatePDF(clienteId, tenantId) {
+
     const healthy = await this.pdfClient.healthCheck();
     if (!healthy) {
       throw new ApiError(503, 'Microservicio PDF no disponible', 'PDF_MICROSERVICE_OFFLINE');
     }
 
-    const { equipos, tenant } = await this.#fetchData(clienteId, tenantId);
+    const { equipos, tenant, customer } = await this.#fetchData(clienteId, tenantId );
 
+    //imprimo el customer completo para verificar que se esta trayendo toda la informacion necesaria para el pdf
+    logger.info(`Customer found:  ${JSON.stringify(customer)}`);
     if (!equipos.length) {
       throw new ApiError(404, 'El cliente no tiene equipos activos', 'NO_EQUIPOS');
     }
 
     const groups = this.#groupByServicio(equipos);
-    const html   = this.#buildPDFHtml(groups, tenant);
+    const html   = this.#buildPDFHtml(groups, tenant, customer);
 
     const pdfOptions = {
       format: 'A4',
@@ -236,8 +274,9 @@ export class InventarioExportService {
       </div>`;
   }
 
-  #buildPDFHtml(groups, tenant) {
+  #buildPDFHtml(groups, tenant, customer) {
     const tenantName = tenant?.name || 'Inventario de Equipos';
+    const esc = v => String(v || '').replace(/[<>"'&]/g, c => ({ '<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;' }[c]));
 
     // Sanitize tenant name and logo to avoid XSS in generated HTML
     const safeName = tenantName.replace(/[<>"'&]/g, c => ({ '<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;' }[c]));
@@ -252,7 +291,6 @@ export class InventarioExportService {
     const groupsHtml = groups.map(group => {
       const safeSvc = group.servicioNombre.replace(/[<>"'&]/g, c => ({ '<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;' }[c]));
       const rows = group.equipos.map(e => {
-        const esc = v => String(v || '').replace(/[<>"'&]/g, c => ({ '<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;' }[c]));
         return `<tr>
           <td>${esc(e.item)}</td><td>${esc(e.Marca)}</td><td>${esc(e.Modelo)}</td>
           <td>${esc(e.Serie)}</td><td>${esc(e.Inventario)}</td><td>${esc(e.Ubicacion)}</td>
@@ -288,22 +326,31 @@ export class InventarioExportService {
   tr:nth-child(even) td { background: #f7f9fb; }
   .svc-hdr td { background: #d9d9d9; font-weight: bold; font-size: 9px; padding: 4px 8px; color: #333; }
   .spacer td  { height: 8px; background: transparent !important; }
-  col.c-item   { width: 7%;  }
+  col.c-item   { width: 16%;  }
   col.c-marca  { width: 10%; }
   col.c-modelo { width: 10%; }
   col.c-serie  { width: 10%; }
   col.c-inv    { width: 10%; }
-  col.c-ubic   { width: 15%; }
-  col.c-riesgo { width: 14%; }
+  col.c-ubic   { width: 12%; }
+  col.c-riesgo { width: 8%; }
   col.c-invima { width: 12%; }
   col.c-estado { width: 12%; }
 </style>
 </head>
 <body>
-  <div class="page-header">
+
+  <div class="page-header">   
     ${logoHtml}
     <h1>${safeName} — Inventario de Equipos</h1>
+    <div style="flex: 1;">
+        <strong>Cliente:</strong> ${esc(customer?.Razonsocial) || 'N/A'}<br/>
+        <strong>Email:</strong> ${esc(customer?.Email) || 'N/A'}<br/>
+        <strong>Teléfono:</strong> ${esc(customer?.TelContacto) || 'N/A'}<br/>
+        <strong>Dirección:</strong> ${esc(customer?.Ciudad) || 'N/A'}
+    </div>
+
   </div>
+
   <table>
     <colgroup>
       <col class="c-item"/><col class="c-marca"/><col class="c-modelo"/><col class="c-serie"/>
@@ -312,7 +359,7 @@ export class InventarioExportService {
     <thead>
       <tr>
         <th>Ítem</th><th>Marca</th><th>Modelo</th><th>Serie</th>
-        <th>Inventario</th><th>Ubicación</th><th>Clasificación Riesgo</th>
+        <th>Inventario</th><th>Ubicación</th><th>Clas. Riesgo</th>
         <th>Reg. INVIMA</th><th>Estado</th>
       </tr>
     </thead>
