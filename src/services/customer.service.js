@@ -72,7 +72,7 @@ export class CustomerService {
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
       if (search) {
         const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        query.$or = [{ Razonsocial: rx }, { Ciudad: rx }, { Email: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([
