@@ -10,7 +10,7 @@ const ReportSchema = new Schema({
     ClienteId: { type: Schema.Types.ObjectId, ref: 'Customer',  trim: true },
     /* Consecutivo automatico del reporte */
     consecutivo: { type: String,  trim: true },
-    duracion: { type: Number,  trim: true },
+    duracion: { type: Number,  trim: true, default: 45 }, // Duración en minutos
     Equipo: { type: Schema.Types.ObjectId, ref: 'EquipoItem',  trim: true },
     /* Estado del equipo al finalizar la revision, es un Enum */
     EstadoOperativo: { type: String, enum: ['Operativo', 'Fuera de Servicio', 'En Mantenimiento', 'Espera de Repuestos', 'En Reparacion'],  trim: true },
