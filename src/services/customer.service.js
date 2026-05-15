@@ -91,6 +91,25 @@ export class CustomerService {
     }
   }
 
+  async exportAll(filters = {}, tenantId) {
+    try {
+      const { search } = filters;
+      const query = applyTenantFilter({ isDeleted: false }, tenantId);
+      if (search) {
+        const rx = new RegExp(search, 'i');
+        query.$or = [
+          { Razonsocial: rx },
+          { Email: rx },
+          { Ciudad: rx },
+        ];
+      }
+      return await Customer.find(query).sort({ Razonsocial: 1 }).lean();
+    } catch (err) {
+      logger.error('Error exportando customers:', err);
+      throw new ApiError(500, 'Error exportando Customers', 'EXPORT_ERROR');
+    }
+  }
+
   async getById(id, tenantId) {
     try {
       const e = await Customer.findOne(applyTenantFilter({ _id: id }, tenantId));

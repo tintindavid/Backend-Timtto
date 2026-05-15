@@ -4,6 +4,38 @@ import { inventarioExportService } from '../services/inventarioExport.service.js
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
 
+function escapeCSV(value) {
+  const str = String(value ?? '');
+  const dangerous = ['=', '+', '-', '@'];
+  const needsQuote =
+    str.includes(',') ||
+    str.includes('"') ||
+    str.includes('\n') ||
+    str.includes('\r') ||
+    dangerous.some(c => str.startsWith(c));
+  if (needsQuote) return '"' + str.replace(/"/g, '""') + '"';
+  return str;
+}
+
+function toCSV(customers) {
+  const headers = [
+    'Razón Social', 'NIT', 'Email', 'Ciudad', 'Departamento',
+    'Dirección', 'Teléfono', 'Contacto', 'Fecha Creación',
+  ];
+  const rows = customers.map(c => [
+    c.Razonsocial,
+    c.Nit,
+    c.Email,
+    c.Ciudad,
+    c.Departamento,
+    c.Direccion,
+    c.TelContacto,
+    c.UserContacto,
+    c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-CO') : '',
+  ].map(escapeCSV).join(','));
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
 export class CustomerController {
   async create(req, res, next) {
     try {
@@ -82,6 +114,31 @@ export class CustomerController {
         return res.send(buffer);
       }
     } catch (err) { next(err); }
+  }
+
+  async exportCSV(req, res, next) {
+    try {
+      const allowed = ['admin', 'technician'];
+      if (!allowed.includes(req.user?.role)) {
+        throw new ApiError(403, 'No tiene permisos para exportar clientes', 'FORBIDDEN');
+      }
+
+      const { search } = req.query;
+      const customers = await customerService.exportAll({ search }, req.tenantId);
+
+      const csv = toCSV(customers);
+      const bom = '\uFEFF';
+      const timestamp = new Date().toISOString().slice(0, 10);
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="clientes_${req.tenantId}_${timestamp}.csv"`
+      );
+      res.send(bom + csv);
+    } catch (err) {
+      next(err);
+    }
   }
 }
 
