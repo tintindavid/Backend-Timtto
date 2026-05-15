@@ -1,5 +1,7 @@
 import cronogramaPDFService from '../services/cronogramaPDF.service.js';
 import { Tenant } from '../models/tenant.model.js';
+import { Customer } from '../models/customer.model.js';
+import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 import { logger } from '../config/logger.config.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -10,60 +12,90 @@ import { ApiError } from '../utils/apiError.util.js';
  */
 export const downloadCronogramaPDF = async (req, res, next) => {
   try {
-    const { cliente, grupos, filtros } = req.body;
+    const { clienteId, filtros = {} } = req.body;
     const userId = req.userId;
+    const tenantId = req.headers['x-tenant-id'];
 
-    logger.info('user de request:',{userId})
+    if (!tenantId) {
+      throw new ApiError(400, 'Falta el header x-tenant-id', 'MISSING_TENANT_HEADER');
+    }
 
-    // Validar datos requeridos
-    if (!cliente || !grupos) {
-      throw new ApiError(400, 'Faltan datos requeridos (cliente, grupos)', 'MISSING_DATA');
+    // Obtener cliente de la DB
+    const cliente = await Customer.findOne({ _id: clienteId, tenantId }).lean();
+    if (!cliente) {
+      throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND');
     }
 
     // Obtener información completa del tenant
-    const tenantData = await Tenant.findOne({ 
-      tenantId: cliente.tenantId, 
-      isDeleted: false 
-    }).lean();
-
-    // Obtener información del usuario
-    const userData = await User.findById(userId).lean();
-
+    const tenantData = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
     if (!tenantData) {
       throw new ApiError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
     }
 
+    // Obtener información del usuario
+    const userData = await User.findById(userId).lean();
+
+    // Construir query de EquipoItem con los filtros recibidos
+    const { sedeIds, servicioIds, meses, ubicaciones, estado } = filtros;
+    const equipoQuery = {
+      ClienteId: clienteId,
+      ...(sedeIds?.length && { SedeId: { $in: sedeIds } }),
+      ...(servicioIds?.length && { Servicio: { $in: servicioIds } }),
+      ...(meses?.length && { mesesMtto: { $in: meses } }),
+      ...(ubicaciones?.length && { Ubicacion: { $in: ubicaciones } }),
+      ...(estado && { Estado: estado }),
+    };
+
+    const equipos = await EquipoItem.find(equipoQuery)
+      .populate('ItemId', 'Nombre')
+      .populate('SedeId', 'nombreSede')
+      .populate('Servicio', 'nombre')
+      .lean();
+
+    if (!equipos.length) {
+      throw new ApiError(404, 'No se encontraron equipos con los filtros especificados', 'NO_EQUIPOS');
+    }
+
+    // Agrupar equipos en memoria por servicio/sede
+    const gruposMap = {};
+    for (const equipo of equipos) {
+      const servicioNombre = equipo.Servicio?.nombre || 'Sin Servicio';
+      const sedeNombre = equipo.SedeId?.nombreSede || 'Sin Sede';
+      const key = `${servicioNombre}|${sedeNombre}`;
+      if (!gruposMap[key]) {
+        gruposMap[key] = { servicio: servicioNombre, sede: sedeNombre, equipos: [] };
+      }
+      gruposMap[key].equipos.push(equipo);
+    }
+    const grupos = Object.values(gruposMap);
+
     logger.info('Generando PDF de Cronograma', {
-      tenantId: cliente.tenantId,
+      tenantId,
+      clienteId,
+      cantidadEquipos: equipos.length,
       cantidadGrupos: grupos.length,
-      userId: userId,
+      userId,
     });
 
     // Generar PDF
     const pdfBuffer = await cronogramaPDFService.generatePDF(
-      {
-        cliente,
-        grupos,
-        filtros,
-      },
-      tenantData, 
+      { cliente, grupos, filtros },
+      tenantData,
       userData
     );
 
-    // Configurar headers para descarga (MOVER ANTES DEL LOG)
     const filename = `Cronograma_${cliente.Razonsocial?.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
 
     logger.info('PDF de Cronograma generado exitosamente', {
-      tenantId: cliente.tenantId,
+      tenantId,
       filename,
       size: pdfBuffer.length,
-      userId: userId,
+      userId,
     });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', pdfBuffer.length);
-
     return res.send(pdfBuffer);
   } catch (error) {
     logger.error('❌ Error en downloadCronogramaPDF controller:', {
@@ -73,12 +105,12 @@ export const downloadCronogramaPDF = async (req, res, next) => {
       details: error.details || {},
       stack: error.stack,
       userId: req.userId,
-      tenantId: req.tenantId,
+      tenantId: req.headers['x-tenant-id'],
       requestBody: {
         hasClienteId: !!req.body?.clienteId,
         hasFiltros: !!req.body?.filtros,
-        filtrosKeys: Object.keys(req.body?.filtros || {})
-      }
+        filtrosKeys: Object.keys(req.body?.filtros || {}),
+      },
     });
     next(error);
   }
