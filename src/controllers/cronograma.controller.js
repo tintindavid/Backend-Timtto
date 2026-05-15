@@ -1,7 +1,5 @@
 import cronogramaPDFService from '../services/cronogramaPDF.service.js';
 import { Tenant } from '../models/tenant.model.js';
-import { Customer } from '../models/customer.model.js';
-import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 import { logger } from '../config/logger.config.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -12,18 +10,12 @@ import { ApiError } from '../utils/apiError.util.js';
  */
 export const downloadCronogramaPDF = async (req, res, next) => {
   try {
-    const { clienteId, filtros = {} } = req.body;
+    const { cliente, grupos, filtros = {} } = req.body;
     const userId = req.userId;
     const tenantId = req.headers['x-tenant-id'];
 
     if (!tenantId) {
       throw new ApiError(400, 'Falta el header x-tenant-id', 'MISSING_TENANT_HEADER');
-    }
-
-    // Obtener cliente de la DB
-    const cliente = await Customer.findOne({ _id: clienteId, tenantId }).lean();
-    if (!cliente) {
-      throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND');
     }
 
     // Obtener información completa del tenant
@@ -35,44 +27,9 @@ export const downloadCronogramaPDF = async (req, res, next) => {
     // Obtener información del usuario
     const userData = await User.findById(userId).lean();
 
-    // Construir query de EquipoItem con los filtros recibidos
-    const { sedeIds, servicioIds, meses, ubicaciones, estado } = filtros;
-    const equipoQuery = {
-      ClienteId: clienteId,
-      ...(sedeIds?.length && { SedeId: { $in: sedeIds } }),
-      ...(servicioIds?.length && { Servicio: { $in: servicioIds } }),
-      ...(meses?.length && { mesesMtto: { $in: meses } }),
-      ...(ubicaciones?.length && { Ubicacion: { $in: ubicaciones } }),
-      ...(estado && { Estado: estado }),
-    };
-
-    const equipos = await EquipoItem.find(equipoQuery)
-      .populate('ItemId', 'Nombre')
-      .populate('SedeId', 'nombreSede')
-      .populate('Servicio', 'nombre')
-      .lean();
-
-    if (!equipos.length) {
-      throw new ApiError(404, 'No se encontraron equipos con los filtros especificados', 'NO_EQUIPOS');
-    }
-
-    // Agrupar equipos en memoria por servicio/sede
-    const gruposMap = {};
-    for (const equipo of equipos) {
-      const servicioNombre = equipo.Servicio?.nombre || 'Sin Servicio';
-      const sedeNombre = equipo.SedeId?.nombreSede || 'Sin Sede';
-      const key = `${servicioNombre}|${sedeNombre}`;
-      if (!gruposMap[key]) {
-        gruposMap[key] = { servicio: servicioNombre, sede: sedeNombre, equipos: [] };
-      }
-      gruposMap[key].equipos.push(equipo);
-    }
-    const grupos = Object.values(gruposMap);
-
     logger.info('Generando PDF de Cronograma', {
       tenantId,
-      clienteId,
-      cantidadEquipos: equipos.length,
+      clienteId: cliente?._id,
       cantidadGrupos: grupos.length,
       userId,
     });
@@ -107,9 +64,10 @@ export const downloadCronogramaPDF = async (req, res, next) => {
       userId: req.userId,
       tenantId: req.headers['x-tenant-id'],
       requestBody: {
-        hasClienteId: !!req.body?.clienteId,
+        hasCliente: !!req.body?.cliente,
+        hasGrupos: !!req.body?.grupos,
+        gruposLength: req.body?.grupos?.length ?? 0,
         hasFiltros: !!req.body?.filtros,
-        filtrosKeys: Object.keys(req.body?.filtros || {}),
       },
     });
     next(error);
