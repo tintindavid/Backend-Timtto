@@ -2,6 +2,7 @@ import Joi from 'joi';
 
 export const createRepuestosDto = Joi.object({
   tenantId: Joi.string().optional(),
+  ClienteId: Joi.string().hex().length(24).optional().label('ClienteId'),
   nombre: Joi.string().required().label('nombre'),
   Cantidad: Joi.alternatives().try(Joi.string(), Joi.number()).required().label('Cantidad'),
   CantidadInstalacion: Joi.number().optional().label('CantidadInstalacion'),
@@ -18,6 +19,7 @@ export const createRepuestosDto = Joi.object({
   origenRepuesto: Joi.string().allow('').optional().label('origenRepuesto'),
   PrecioRepuesto: Joi.number().optional().label('PrecioRepuesto'),
   Prioridad: Joi.string().optional().label('Prioridad'),
+  InventarioItemId: Joi.string().hex().length(24).optional().label('InventarioItemId'),
   ReporteInstalacionId: Joi.string().hex().length(24).optional().label('ReporteInstalacionId'),
   ReporteSolicitudId: Joi.string().hex().length(24).optional().label('ReporteSolicitudId'),
   ResponsableInstalacion: Joi.string().hex().length(24).optional().label('ResponsableInstalacion'),

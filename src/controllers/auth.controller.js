@@ -56,7 +56,9 @@ export class AuthController {
     try {
       const userId = req.user?.userId;
       if (!userId) throw new ApiError(401, 'No autenticado', 'NO_TOKEN_PROVIDED');
-      const user = await userService.getById(userId);
+      const tenantId = req.user?.tenantId || req.tenantId;
+      if (!tenantId) throw new ApiError(401, 'Token inválido: falta tenant', 'INVALID_TOKEN');
+      const user = await userService.getById(userId, tenantId);
       res.json(successResponse(user, 'Usuario actual'));
     } catch (error) {
       next(error);

@@ -6,4 +6,5 @@ export const queryRepuestoTrazabilidadDto = Joi.object({
   sortBy: Joi.string().default('createdAt'),
   order: Joi.string().valid('asc','desc').default('desc'),
   search: Joi.string().optional(),
+  solicitudId: Joi.string().hex().length(24).optional().label('solicitudId'),
 });

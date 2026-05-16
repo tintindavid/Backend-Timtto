@@ -7,11 +7,13 @@ import { updateRepuestosDto } from '../dtos/updateRepuestos.dto.js';
 import { queryRepuestosDto } from '../dtos/queryRepuestos.dto.js';
 import { paramsRepuestosByReportDto } from '../dtos/paramsRepuestosByReport.dto.js';
 import { paramsRepuestosByEquipoDto } from '../dtos/paramsRepuestosByEquipo.dto.js';
+import { createOtFromSolicitudesDto } from '../dtos/createOtFromSolicitudes.dto.js';
 
 const router = Router();
 router.use(authenticate);
 
 router.post('/', validate(createRepuestosDto, 'body'), repuestosController.create);
+router.post('/ot-from-solicitudes', validate(createOtFromSolicitudesDto, 'body'), repuestosController.createOtFromSolicitudes);
 router.get('/', validate(queryRepuestosDto, 'query'), repuestosController.list);
 router.get('/equipo/:equipoId', validate(paramsRepuestosByEquipoDto, 'params'), validate(queryRepuestosDto, 'query'), repuestosController.listByEquipo);
 router.get('/reporte/:reportId', validate(paramsRepuestosByReportDto, 'params'), validate(queryRepuestosDto, 'query'), repuestosController.listByReport);
