@@ -37,6 +37,15 @@ export class RepuestosController {
     } catch (err) { next(err); }
   }
 
+  async listByEquipoAll(req, res, next) { //Lista todos los repuestos asociados a un equipo sin importar el estado
+    try {
+      const { equipoId } = req.params;
+      const { page, limit, sortBy, order } = req.query;
+      const result = await repuestosService.listByEquipo(equipoId, null, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      res.json(successResponse(result.data, 'Repuestos por equipo recuperados exitosamente', 200, result.pagination));
+    } catch (err) { next(err); }
+  }
+
   async listByReport(req, res, next) {
     try {
       const { reportId } = req.params;

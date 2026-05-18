@@ -54,7 +54,7 @@ export class RepuestosService {
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([
         Repuestos.find(query)
-          .populate('ClienteId', 'Razonsocial')
+          .populate('ClienteId', 'Razonsocial') 
           .populate('EquipoId', 'item Marca Modelo Serie Inventario')
           .populate('ResponsableSolicitud', 'firstName lastName email')
           .populate('OrdenId', 'Consecutivo _id')

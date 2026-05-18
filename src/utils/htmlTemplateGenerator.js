@@ -482,11 +482,11 @@ table.page-wrapper td {
                             </div>
                             <div class="info-item">
                                 <span class="label">Ciudad:</span>
-                                <span class="value">{{clienteCiudad}}</span>
+                                <span class="value">{{clienteCiudad}} - {{clienteDireccion}}</span>
                             </div>
                             <div class="info-item">
-                                <span class="label">Dirección:</span>
-                                <span class="value">{{clienteDireccion}}</span>
+                                <span class="label">Sede:</span>
+                                <span class="value">{{sedeCliente}}</span>
                             </div>
                             <div class="info-item">
                                 <span class="label">Teléfono:</span>
@@ -638,6 +638,7 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
     clienteDireccion: report.Equipo?.SedeId?.direccion ||  report.ClienteId?.Direccion  || 'N/A',
     clienteTelefono: report.Equipo?.SedeId?.telefono ||  report.ClienteId?.TelContacto  || 'N/A',
     clienteContacto: report.Equipo?.SedeId?.contact || report.ClienteId?.UserContacto || 'N/A',
+    sedeCliente: report.equipoSnapshot?.Sede ?? 'N/A',
     equipoNombre: report.equipoSnapshot?.ItemText ?? 'N/A',
     equipoMarca: report.equipoSnapshot?.Marca ?? 'N/A',
     equipoModelo: report.equipoSnapshot?.Modelo ?? 'N/A',
