@@ -1,6 +1,9 @@
 import { OT } from '../models/ot.model.js';
 import { Report } from '../models/report.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
+import { Repuestos } from '../models/repuestos.model.js';
+import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
+import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -132,17 +135,75 @@ export class OTService {
   }
 
   async update(id, data, tenantId) {
+    const session = await OT.startSession();
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
-      const e = await OT.findOneAndUpdate(applyTenantFilter({ _id: id }, t), { $set: data }, { new: true, runValidators: true });
-      if (!e) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
+
+      let updatedOt = null;
+      await session.withTransaction(async () => {
+        // Wrap completion side effects in one transaction to avoid partial sync states.
+        const currentOt = await OT.findOne(applyTenantFilter({ _id: id }, t)).session(session);
+        if (!currentOt) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
+
+        updatedOt = await OT.findOneAndUpdate(
+          applyTenantFilter({ _id: id }, t),
+          { $set: data },
+          { new: true, runValidators: true, session }
+        );
+
+        const isCompleting = currentOt.EstadoOt !== 'Completado' && data.EstadoOt === 'Completado';
+        if (!isCompleting) return;
+
+        const repuestos = await Repuestos.find(
+          applyTenantFilter({ OrdenId: currentOt._id, EstadoSolicitud: 'En Proceso' }, t)
+        ).session(session);
+
+        for (const repuesto of repuestos) {
+          const qty = Number(repuesto.CantidadInstalacion || 0);
+          if (repuesto.InventarioItemId && qty > 0) {
+            // Atomic decrement with stock guard; fails transaction if stock is insufficient.
+            const inv = await InventarioRepuesto.findOneAndUpdate(
+              applyTenantFilter({ _id: repuesto.InventarioItemId, stockActual: { $gte: qty } }, t),
+              { $inc: { stockActual: -qty } },
+              { new: true, session }
+            );
+            if (!inv) {
+              throw new ApiError(400, 'Insufficient stock', 'INSUFFICIENT_STOCK', {
+                inventarioItemId: repuesto.InventarioItemId,
+                required: qty,
+              });
+            }
+          }
+
+          const previousStatus = repuesto.EstadoSolicitud || 'En Proceso';
+          repuesto.EstadoAnterior = previousStatus;
+          repuesto.EstadoSolicitud = 'Instalado';
+          repuesto.FechaInstalacion = repuesto.FechaInstalacion || new Date();
+          await repuesto.save({ session });
+
+          await RepuestoTrazabilidad.create([{
+            tenantId: t,
+            SolicitudRepuestoId: repuesto._id,
+            Status: 'Instalado',
+            EstadoActual: 'Instalado',
+            EstadoA: 'Instalado',
+            EstadoAnterior: previousStatus,
+            EstadoNuevo: 'Instalado',
+            FechaHoraCambio: new Date(),
+            Comentarios: `Automatic: OT ${String(currentOt._id)} completed`,
+          }], { session });
+        }
+      });
+
       logger.info('OT actualizado: ' + id);
-      return e;
+      return updatedOt;
     } catch (err) {
       if (err instanceof ApiError) throw err;
       logger.error('Error actualizando ot:', err);
       throw new ApiError(500, 'Error actualizando OT', 'UPDATE_ERROR');
+    } finally {
+      await session.endSession();
     }
   }
 

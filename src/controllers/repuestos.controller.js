@@ -24,12 +24,24 @@ export class RepuestosController {
     } catch (err) { next(err); }
   }
 
+  //Lista los repuestos asociados a un equipo con estado diferente a instalado o rechazado
   async listByEquipo(req, res, next) {
     try {
       const { equipoId } = req.params;
       const { page, limit, sortBy, order } = req.query;
-      const estado = req.query.estado;
-      const result = await repuestosService.listByEquipo(equipoId, estado, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+        const { estado } = req.query;
+        // Si no se especifica estado, excluir 'Instalado' y 'Rechazado' por defecto
+        const estadoFilter = estado ? (Array.isArray(estado) ? estado : [estado]) : ['Instalado', 'Rechazado'];
+        const result = await repuestosService.listByEquipo(equipoId, estadoFilter, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      res.json(successResponse(result.data, 'Repuestos por equipo recuperados exitosamente', 200, result.pagination));
+    } catch (err) { next(err); }
+  }
+
+  async listByEquipoAll(req, res, next) { //Lista todos los repuestos asociados a un equipo sin importar el estado
+    try {
+      const { equipoId } = req.params;
+      const { page, limit, sortBy, order } = req.query;
+      const result = await repuestosService.listByEquipo(equipoId, null, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
       res.json(successResponse(result.data, 'Repuestos por equipo recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
@@ -47,6 +59,13 @@ export class RepuestosController {
     try {
       const data = await repuestosService.update(req.params.id, req.body, req.tenantId);
       res.json(successResponse(data, 'Repuestos actualizado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  async createOtFromSolicitudes(req, res, next) {
+    try {
+      const data = await repuestosService.createOtFromSolicitudes(req.body, req.tenantId);
+      res.status(201).json(successResponse(data, 'OT creada desde solicitudes de repuestos', 201));
     } catch (err) { next(err); }
   }
 

@@ -35,6 +35,7 @@ import protocoloActividadRoutes from './routes/protocoloactividad.routes.js';
 import protocoloMttoRoutes from './routes/protocolomtto.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import repuestosRoutes from './routes/repuestos.routes.js';
+import inventarioRepuestoRoutes from './routes/inventarioRepuesto.routes.js';
 import repuestoTrazabilidadRoutes from './routes/repuestotrazabilidad.routes.js';
 import sedesRoutes from './routes/sedes.routes.js';
 import serviciosRoutes from './routes/servicios.routes.js';
@@ -116,6 +117,7 @@ app.use('/api/v1/reports', reportRoutes);
 // Alias in Spanish for backwards compatibility / frontend convenience
 app.use('/api/v1/reportes', reportRoutes);
 app.use('/api/v1/repuestos', repuestosRoutes);
+app.use('/api/v1/inventario-repuestos', inventarioRepuestoRoutes);
 app.use('/api/v1/repuesto-trazabilidad', repuestoTrazabilidadRoutes);
 app.use('/api/v1/sedes', sedesRoutes);
 app.use('/api/v1/servicios', serviciosRoutes);

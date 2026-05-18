@@ -92,6 +92,38 @@ export async function generateSinglePDF(req, res, next) {
   } catch (err) { next(err); }
 }
 
+export async function downloadReportPDF(req, res, next) {
+  try {
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+
+    const tenantData = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
+    if (!tenantData) return res.status(404).json(errorResponse('Tenant no encontrado', 'TENANT_NOT_FOUND'));
+
+    const report = await Report.findOne(applyTenantFilter({ _id: id, isDeleted: false }, tenantId))
+      .populate('ClienteId')
+      .populate({ path: 'Equipo', populate: { path: 'SedeId' } })
+      .populate('orden', 'Consecutivo TipoServicio')
+      .populate('hojaDeTrabajo', 'personaRecibe cargoRecibe firmaResponsableFile firmaFile cargoResponsable fullNameResponsable')
+      .lean();
+    if (!report) return res.status(404).json(errorResponse('Reporte no encontrado', 'NOT_FOUND'));
+
+    const repuestos = await Repuestos.find({ $or: [{ ReporteSolicitudId: report._id }, { ReporteInstalacionId: report._id }] }).lean();
+    const fullReport = { ...report, repuestos };
+
+    const html = generateHTMLFromReport(fullReport, tenantData, getHTMLTemplate());
+    const pdfBuffer = await new PDFMicroserviceClient().generatePDF(html);
+
+    const consecutivo = report.consecutivo || '';
+    const itemText = report.equipoSnapshot?.ItemText || '';
+    const fileName = encodeURIComponent(`${consecutivo} ${itemText}.pdf`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${fileName}`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    return res.send(pdfBuffer);
+  } catch (err) { next(err); }
+}
+
 export async function checkMicroserviceHealth(_req, res, next) {
   try {
     const client = new PDFMicroserviceClient();

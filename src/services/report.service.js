@@ -199,7 +199,8 @@ export class ReportService {
   async getById(id, tenantId) {
     try {
       const e = await Report.findOne(applyTenantFilter({ _id: id }, tenantId))
-        .populate('ClienteId', 'Razonsocial')
+        .populate('ResponsableMtto', 'firstName lastName email role')
+        .populate('ClienteId', 'Razonsocial UserContacto TelContacto Direccion Departamento Ciudad Nit ')
         .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'Nombre ProtocoloId ProtocoloId' } })
         .populate('orden', 'Consecutivo')
         .lean();

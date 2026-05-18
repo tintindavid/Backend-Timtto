@@ -22,10 +22,13 @@ export class RepuestoTrazabilidadService {
     try {
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
-      const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+      const { solicitudId, ...restFilters } = filters;
+      const queryFilters = { ...restFilters, isDeleted: false };
+      if (solicitudId) queryFilters.SolicitudRepuestoId = solicitudId;
+      const query = applyTenantFilter(queryFilters, tenantId);
       if (search) {
         const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        query.$or = [{ EstadoAnterior: rx }, { EstadoNuevo: rx }, { Comentarios: rx }, { Status: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([

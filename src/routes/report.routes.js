@@ -7,6 +7,7 @@ import { updateReportDto } from '../dtos/updateReport.dto.js';
 import { processReportDto } from '../dtos/processReport.dto.js';
 import { queryReportDto } from '../dtos/queryReport.dto.js';
 import { paramsReportByOtDto } from '../dtos/paramsReportByOt.dto.js';
+import { downloadReportPDF } from '../controllers/pdfReports.controller.js';
 
 const router = Router();
 router.use(authenticate);
@@ -20,6 +21,7 @@ router.get('/ot/:otId', validate(paramsReportByOtDto, 'params'), validate(queryR
 // GET - Listar reports por Equipo (debe ir ANTES de /:id)
 router.get('/equipo/:equipoId', validate(queryReportDto, 'query'), reportController.listByEquipo);
 
+router.get('/:id/pdf', downloadReportPDF);
 router.get('/:id', reportController.getById);
 router.put('/:reporteId/procesar', validate(processReportDto, 'body'), reportController.procesar);
 router.put('/:id', validate(updateReportDto, 'body'), reportController.update);
