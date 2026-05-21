@@ -14,6 +14,7 @@ const userSchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'technician', 'user'], default: 'technician' },
+    roleId: { type: Schema.Types.ObjectId, ref: 'Role', default: null },
     phone: { type: String, trim: true },
     city: { type: String, trim: true },
     registroInvima: { type: String, trim: true },

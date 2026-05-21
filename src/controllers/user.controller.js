@@ -55,6 +55,15 @@ export class UserController {
       next(error);
     }
   }
+
+  async assignRole(req, res, next) {
+    try {
+      const data = await userService.assignRole(req.params.id, req.body.roleId, req.tenantId);
+      res.json(successResponse(data, 'Rol asignado exitosamente'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const userController = new UserController();

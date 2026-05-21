@@ -11,7 +11,7 @@ export class AuthController {
     try {
       const body = { ...req.body, tenantId: req.tenantId || req.body.tenantId };
       const user = await userService.create(body);
-      const token = signToken({ userId: user._id, role: user.role, tenantId: user.tenantId });
+      const token = signToken({ userId: user._id, role: user.role, roleId: user.roleId || null, tenantId: user.tenantId });
       res.status(201).json(successResponse({ user, token }, 'Usuario registrado exitosamente', 201));
     } catch (error) {
       next(error);
@@ -32,7 +32,7 @@ export class AuthController {
         logger.debug && logger.debug('AuthController.login: tenant list failed', { err: String(te) });
       }
       const user = await userService.login(email, password, tenantId);
-      const token = signToken({ userId: user._id, role: user.role, tenantId: user.tenantId });
+      const token = signToken({ userId: user._id, role: user.role, roleId: user.roleId || null, tenantId: user.tenantId });
       res.json(successResponse({ user: user.toJSON(), token }, 'Login exitoso'));
     } catch (error) {
       logger.error('Login error', { error: error && error.message ? error.message : error });
@@ -45,7 +45,7 @@ export class AuthController {
       const { token } = req.body;
       if (!token) throw new ApiError(400, 'Token requerido', 'MISSING_TOKEN');
       const payload = verifyToken(token);
-      const newToken = signToken({ userId: payload.userId, role: payload.role });
+      const newToken = signToken({ userId: payload.userId, role: payload.role, roleId: payload.roleId || null, tenantId: payload.tenantId });
       res.json(successResponse({ token: newToken }, 'Token refrescado'));
     } catch (error) {
       next(error);

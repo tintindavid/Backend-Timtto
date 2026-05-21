@@ -19,6 +19,8 @@ import { errorHandler } from './middlewares/error.middleware.js';
 import { tenantResolver } from './middlewares/tenant.middleware.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import roleRoutes from './routes/role.routes.js';
+import permissionsRoutes from './routes/permissions.routes.js';
 import actividadMttoRoutes from './routes/actividadmtto.routes.js';
 import actividadReporteRoutes from './routes/actividadreporte.routes.js';
 import addressRoutes from './routes/address.routes.js';
@@ -96,6 +98,8 @@ app.use(morgan('combined', { stream: loggerStream }));
 // Mount generated routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/roles', roleRoutes);
+app.use('/api/v1/permissions', permissionsRoutes);
 // app.use('/api/v1/equipos', equipoRoutes); // Comentar si no existe
 // app.use('/api/v1/hvequipos', hvequipoRoutes); // Comentar si no existe
 app.use('/api/v1/cronogramas', cronogramaRoutes); // Nueva ruta

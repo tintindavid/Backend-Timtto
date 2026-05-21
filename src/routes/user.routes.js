@@ -6,6 +6,7 @@ import { validate } from '../middlewares/validate.middleware.js';
 import { createUserDto } from '../dtos/createUser.dto.js';
 import { updateUserDto } from '../dtos/updateUser.dto.js';
 import { queryUserDto } from '../dtos/queryUser.dto.js';
+import { assignUserRoleDto } from '../dtos/assignUserRole.dto.js';
 
 const router = Router();
 
@@ -26,6 +27,9 @@ router.put('/:id', validate(updateUserDto, 'body'), userController.update);
 
 // PATCH - Update (partial)
 router.patch('/:id', validate(updateUserDto, 'body'), userController.update);
+
+// PATCH - Assign role
+router.patch('/:id/role', validate(assignUserRoleDto, 'body'), userController.assignRole);
 
 // DELETE - Soft Delete
 router.delete('/:id', userController.delete);

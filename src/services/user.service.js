@@ -1,5 +1,6 @@
 'use strict';
 import { User } from '../models/user.model.js';
+import { Role } from '../models/role.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { hashPassword, comparePassword } from '../utils/password.util.js';
@@ -10,6 +11,11 @@ export class UserService {
     try {
       const tenantId = data.tenantId;
       requireTenant(tenantId);
+
+      if (data.roleId) {
+        const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
+        if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
 
       const exists = await User.findOne({ tenantId, email: data.email });
       if (exists) throw new ApiError(409, 'El email ya está registrado para este tenant', 'EMAIL_ALREADY_EXISTS', { email: data.email });
@@ -112,6 +118,11 @@ export class UserService {
       const tenantId = data.tenantId || data._tenantId;
       requireTenant(tenantId);
 
+      if (data.roleId) {
+        const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
+        if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
+
       const user = await User.findOneAndUpdate({ _id: id, tenantId }, { $set: data }, { new: true, runValidators: true });
       if (!user) throw new ApiError(404, 'Usuario no encontrado', 'NOT_FOUND', { userId: id });
       logger.info(`User actualizado: ${id}`);
@@ -133,6 +144,29 @@ export class UserService {
       if (error instanceof ApiError) throw error;
       logger.error('Error eliminando user:', error);
       throw new ApiError(500, 'Error eliminando usuario', 'DELETE_ERROR');
+    }
+  }
+
+  async assignRole(userId, roleId, tenantId) {
+    try {
+      requireTenant(tenantId);
+
+      const role = await Role.findOne({ _id: roleId, tenantId, isDeleted: false });
+      if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId });
+
+      const user = await User.findOneAndUpdate(
+        { _id: userId, tenantId },
+        { $set: { roleId } },
+        { new: true, runValidators: true }
+      );
+
+      if (!user) throw new ApiError(404, 'Usuario no encontrado', 'USER_NOT_FOUND', { userId });
+
+      return user.toJSON();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error asignando rol al user:', error);
+      throw new ApiError(500, 'Error asignando rol al usuario', 'ASSIGN_ROLE_ERROR');
     }
   }
 }

@@ -7,6 +7,7 @@ export const createUserDto = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
   role: Joi.string().valid('admin', 'technician', 'user').default('technician'),
+  roleId: Joi.string().hex().length(24).optional().allow(null),
   phone: Joi.string().optional(),
   city: Joi.string().optional(),
   registroInvima: Joi.string().optional(),
