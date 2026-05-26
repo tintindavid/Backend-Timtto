@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.0.0...v1.1.0) (2026-05-26)
+
+
+### Features
+
+* **reports:** add verificationParam capture and PDF section (SCRUM-5) ([842b1c2](https://github.com/tintindavid/Backend-Timtto/commit/842b1c25765cf755bec23e8788fca32eb56705ca))
+
 # 1.0.0 (2026-05-26)
 
 
