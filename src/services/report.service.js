@@ -593,6 +593,68 @@ export class ReportService {
     });
     return updated.evidencias;
   }
+
+  /**
+   * Replace the entire verificationParam[] array on a Report atomically.
+   * Strips fully-empty rows server-side (empty when no magnitud, no patron,
+   * and both numeric values are null). Trims string fields.
+   *
+   * @param {string} reporteId
+   * @param {string} tenantId
+   * @param {Array<Object>} verificationParam - rows from the request body
+   * @returns {Promise<Object>} the updated Report
+   */
+  async updateVerificationParams(reporteId, tenantId, verificationParam) {
+    requireTenant(tenantId);
+
+    const incoming = Array.isArray(verificationParam) ? verificationParam : [];
+
+    const sanitized = incoming
+      .map((row) => ({
+        magnitud: typeof row.magnitud === 'string' ? row.magnitud.trim() : '',
+        unidad: typeof row.unidad === 'string' ? row.unidad.trim() : '',
+        valorReferencia:
+          row.valorReferencia === undefined || row.valorReferencia === null
+            ? null
+            : Number(row.valorReferencia),
+        valorMedido:
+          row.valorMedido === undefined || row.valorMedido === null
+            ? null
+            : Number(row.valorMedido),
+        patron: typeof row.patron === 'string' ? row.patron.trim() : '',
+      }))
+      .filter(
+        (row) =>
+          row.magnitud !== '' ||
+          row.patron !== '' ||
+          row.valorReferencia !== null ||
+          row.valorMedido !== null
+      );
+
+    try {
+      const updated = await Report.findOneAndUpdate(
+        applyTenantFilter({ _id: reporteId }, tenantId),
+        { $set: { verificationParam: sanitized } },
+        { new: true, runValidators: true }
+      );
+
+      if (!updated) {
+        throw new ApiError(404, 'Report not found', 'REPORT_NOT_FOUND', { id: reporteId });
+      }
+
+      logger.info('[REPORT_VERIFICATION_PARAMS] updated', {
+        tenantId,
+        reporteId,
+        rowCount: sanitized.length,
+      });
+
+      return updated;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error updating verificationParam:', err);
+      throw new ApiError(500, 'Error updating verification parameters', 'VERIFICATION_PARAMS_UPDATE_ERROR');
+    }
+  }
 }
 
 export const reportService = new ReportService();

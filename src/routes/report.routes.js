@@ -8,6 +8,7 @@ import { updateReportDto } from '../dtos/updateReport.dto.js';
 import { processReportDto } from '../dtos/processReport.dto.js';
 import { queryReportDto } from '../dtos/queryReport.dto.js';
 import { paramsReportByOtDto } from '../dtos/paramsReportByOt.dto.js';
+import { updateVerificationParamsDto } from '../dtos/updateVerificationParams.dto.js';
 import { downloadReportPDF } from '../controllers/pdfReports.controller.js';
 
 const router = Router();
@@ -40,6 +41,13 @@ router.patch(
 router.delete(
   '/:reporteId/evidencias/:evidenciaId',
   (req, res, next) => reportController.deleteEvidencia(req, res, next)
+);
+
+// Verification parameters endpoint (registered before generic /:id to avoid route shadowing)
+router.patch(
+  '/:reporteId/verification-params',
+  validate(updateVerificationParamsDto, 'body'),
+  (req, res, next) => reportController.updateVerificationParams(req, res, next)
 );
 
 router.put('/:id', validate(updateReportDto, 'body'), reportController.update);

@@ -115,6 +115,19 @@ export class ReportController {
       res.json(successResponse({ evidencias }, 'Evidence updated successfully'));
     } catch (err) { next(err); }
   }
+
+  async updateVerificationParams(req, res, next) {
+    try {
+      const { reporteId } = req.params;
+      const { verificationParam } = req.body || {};
+      const report = await reportService.updateVerificationParams(
+        reporteId,
+        req.tenantId,
+        verificationParam
+      );
+      res.json(successResponse(report, 'Verification parameters updated successfully'));
+    } catch (err) { next(err); }
+  }
 }
 
 export const reportController = new ReportController();
