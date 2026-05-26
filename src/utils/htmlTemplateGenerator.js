@@ -320,6 +320,39 @@ table.page-wrapper td {
         object-fit: cover;
     }
 
+    /* ===== EVIDENCIAS (2-column grid for PDF) ===== */
+    .evidencias-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6mm;
+        margin-top: 10px;
+    }
+
+    .evidencia-item {
+        page-break-inside: avoid;
+        text-align: center;
+        border: 1px solid #d0d7e2;
+        border-radius: 6px;
+        padding: 4mm;
+        background: #fff;
+    }
+
+    .evidencia-item img {
+        width: 60mm;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        border-radius: 4px;
+    }
+
+    .evidencia-caption {
+        margin-top: 3mm;
+        font-size: 11px;
+        color: #4a4a4a;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+    }
+
     /* ===== OBSERVACIONES ===== */
     .observaciones-box {
         margin-top: 10px;
@@ -551,11 +584,14 @@ table.page-wrapper td {
                     <!-- MOTIVO FUERA DE SERVICIO -->
                     
 
-                    <!-- REPUESTOS --> 
+                    <!-- REPUESTOS -->
                     {{repuestos}}
 
+                    <!-- EVIDENCIAS -->
+                    {{evidencias}}
+
                     <!-- FOTOS -->
-                    
+
 
                     <!-- OBSERVACIONES -->
                     <div class="section">
@@ -659,6 +695,32 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
   if (Array.isArray(report.repuestos) && report.repuestos.length) {
     repuestosHtml = `<div class="section"><div class="section-header"><div class="title">Repuestos</div></div><table class="repuestos-table"><thead><tr><th>Nombre</th><th>Cantidad</th><th>Instalación</th><th>Observación</th></tr></thead><tbody>${report.repuestos.map(r => `<tr><td>${r.nombre ?? 'N/A'}</td><td>${r.Cantidad ?? r.CantidadInstalacion ?? 'N/A'}</td><td>${r.FechaInstalacion ? formatDate(r.FechaInstalacion) : 'N/A'}</td><td>${r.observacion ?? ''}</td></tr>`).join('')}</tbody></table></div>`;
   }
+
+  // evidencias (2-column thumbnail grid). Caption renders only when descripcion is set;
+  // the filename is never surfaced in the PDF.
+  let evidenciasHtml = '';
+  if (Array.isArray(report.evidencias) && report.evidencias.length) {
+    const escapeHtml = (s) =>
+      String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    const items = report.evidencias
+      .map((e) => {
+        const url = e?.url || '';
+        if (!url) return '';
+        const descripcion = (e?.descripcion || '').toString().trim();
+        const altText = descripcion ? escapeHtml(descripcion) : '';
+        const captionHtml = descripcion
+          ? `<div class="evidencia-caption">${escapeHtml(descripcion)}</div>`
+          : '';
+        return `<div class="evidencia-item"><img src="${url}" alt="${altText}" />${captionHtml}</div>`;
+      })
+      .join('');
+    evidenciasHtml = `<div class="section"><div class="section-header"><div class="title">Evidencias</div></div><div class="evidencias-grid">${items}</div></div>`;
+  }
   //Firma responsable
   let firmaResponsableHtml = '';
   if (report.hojaDeTrabajo?.firmaResponsableFile) {
@@ -718,6 +780,7 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
 
     html = html.replace(/\{\{actividades\}\}/g, actividades);
     html = html.replace(/\{\{repuestos\}\}/g, repuestosHtml);
+    html = html.replace(/\{\{evidencias\}\}/g, evidenciasHtml);
     html = html.replace(/\{\{firmaResponsable\}\}/g, firmaResponsableHtml);
     html = html.replace(/\{\{firmaCliente\}\}/g, firmaClienteHtml);
     html = html.replace(/\{\{logoTenant\}\}/g, LogoTenant);

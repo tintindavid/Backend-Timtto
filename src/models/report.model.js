@@ -1,7 +1,24 @@
 import mongoose from 'mongoose';
 import { type } from 'os';
+import {
+  MAX_EVIDENCES,
+  ALLOWED_EVIDENCE_MIME,
+  MAX_EVIDENCE_DESCRIPTION_LENGTH,
+} from '../constants/evidence.constants.js';
 
 const { Schema, model } = mongoose;
+
+const EvidenciaSchema = new Schema({
+  url: { type: String, required: true, trim: true },
+  storagePath: { type: String, required: true, trim: true },
+  nombre: { type: String, required: true, trim: true },
+  tipo: { type: String, enum: ['imagen'], default: 'imagen' },
+  mimetype: { type: String, required: true, enum: ALLOWED_EVIDENCE_MIME },
+  size: { type: Number, required: true, min: 0 },
+  descripcion: { type: String, trim: true, default: '', maxlength: MAX_EVIDENCE_DESCRIPTION_LENGTH },
+  fechaSubida: { type: Date, default: Date.now },
+  uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+}, { _id: true });
 
 const ReportSchema = new Schema({
     tenantId: { type: String, required: true },
@@ -56,6 +73,14 @@ const ReportSchema = new Schema({
     estadoOperativo: { type: String,  enum: ['Operativo', 'Fuera de Servicio', 'En Mantenimiento', 'Espera de Repuestos', 'En Reparacion'], trim: true
     },
     ReportPDF: { type: String,  trim: true },  // Path to generated PDF
+    evidencias: {
+      type: [EvidenciaSchema],
+      default: [],
+      validate: {
+        validator: (arr) => !arr || arr.length <= MAX_EVIDENCES,
+        message: `A report can have at most ${MAX_EVIDENCES} evidences`,
+      },
+    },
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
     /* Tipo de mantenimiento es un Enum */
     tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true, default: 'Preventivo' },
