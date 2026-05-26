@@ -5,8 +5,21 @@ import {
   ALLOWED_EVIDENCE_MIME,
   MAX_EVIDENCE_DESCRIPTION_LENGTH,
 } from '../constants/evidence.constants.js';
+import {
+  MAX_MAGNITUD_LENGTH,
+  MAX_UNIDAD_LENGTH,
+  MAX_PATRON_LENGTH,
+} from '../constants/verificationParam.constants.js';
 
 const { Schema, model } = mongoose;
+
+const VerificationParamSchema = new Schema({
+  magnitud: { type: String, trim: true, maxlength: MAX_MAGNITUD_LENGTH, default: '' },
+  unidad: { type: String, trim: true, maxlength: MAX_UNIDAD_LENGTH, default: '' },
+  valorReferencia: { type: Number, default: null },
+  valorMedido: { type: Number, default: null },
+  patron: { type: String, trim: true, maxlength: MAX_PATRON_LENGTH, default: '' },
+}, { _id: true });
 
 const EvidenciaSchema = new Schema({
   url: { type: String, required: true, trim: true },
@@ -81,6 +94,7 @@ const ReportSchema = new Schema({
         message: `A report can have at most ${MAX_EVIDENCES} evidences`,
       },
     },
+    verificationParam: { type: [VerificationParamSchema], default: [] },
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
     /* Tipo de mantenimiento es un Enum */
     tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true, default: 'Preventivo' },

@@ -298,6 +298,50 @@ table.page-wrapper td {
         border-bottom: 1px solid #ddd;
     }
 
+    /* ===== TABLA DE VERIFICACION DE PARAMETROS ===== */
+    .verification-params-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 14px;
+        table-layout: fixed;
+        page-break-inside: auto;
+    }
+
+    .verification-params-table thead {
+        display: table-header-group;
+    }
+
+    .verification-params-table tr {
+        page-break-inside: avoid;
+    }
+
+    .verification-params-table th,
+    .verification-params-table td {
+        font-size: 14px;
+        padding: 8px 10px;
+        text-align: center;
+        vertical-align: middle;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .verification-params-table th {
+        background: #003B73;
+        color: white;
+    }
+
+    .verification-params-table td {
+        border-bottom: 1px solid #ddd;
+    }
+
+    /* Column widths: keep numeric columns narrow so Magnitud and Patrón have room */
+    .verification-params-table col.col-magnitud { width: 27%; }
+    .verification-params-table col.col-unidad   { width: 10%; }
+    .verification-params-table col.col-vref     { width: 12%; }
+    .verification-params-table col.col-vmed     { width: 12%; }
+    .verification-params-table col.col-patron   { width: 39%; }
+
     /* ===== FOTOS ===== */
     .fotos-grid {
         display: flex;
@@ -587,6 +631,9 @@ table.page-wrapper td {
                     <!-- REPUESTOS -->
                     {{repuestos}}
 
+                    <!-- VERIFICACION DE PARAMETROS -->
+                    {{verificationParams}}
+
                     <!-- EVIDENCIAS -->
                     {{evidencias}}
 
@@ -721,6 +768,10 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
       .join('');
     evidenciasHtml = `<div class="section"><div class="section-header"><div class="title">Evidencias</div></div><div class="evidencias-grid">${items}</div></div>`;
   }
+
+  // Verificacion de parametros. Section renders only when at least one row has a measured value.
+  const verificationParamsHtml = renderVerificationParamsSection(report.verificationParam);
+
   //Firma responsable
   let firmaResponsableHtml = '';
   if (report.hojaDeTrabajo?.firmaResponsableFile) {
@@ -781,6 +832,7 @@ function generateHTMLFromReport(report = {}, tenantData={}, template = getHTMLTe
     html = html.replace(/\{\{actividades\}\}/g, actividades);
     html = html.replace(/\{\{repuestos\}\}/g, repuestosHtml);
     html = html.replace(/\{\{evidencias\}\}/g, evidenciasHtml);
+    html = html.replace(/\{\{verificationParams\}\}/g, verificationParamsHtml);
     html = html.replace(/\{\{firmaResponsable\}\}/g, firmaResponsableHtml);
     html = html.replace(/\{\{firmaCliente\}\}/g, firmaClienteHtml);
     html = html.replace(/\{\{logoTenant\}\}/g, LogoTenant);
@@ -837,4 +889,42 @@ function renderActividades(actividadesRealizadas = []) {
       </table>
     </div>
   `;
+}
+
+function escapeHtmlText(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatNumberCell(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString('es-CO') : '';
+}
+
+function renderVerificationParamsSection(verificationParam = []) {
+  if (!Array.isArray(verificationParam) || verificationParam.length === 0) return '';
+
+  const hasMeasurement = verificationParam.some(
+    (row) => row && row.valorMedido !== null && row.valorMedido !== undefined
+  );
+  if (!hasMeasurement) return '';
+
+  const rows = verificationParam
+    .map((row) => {
+      const magnitud = escapeHtmlText(row?.magnitud);
+      const unidad = escapeHtmlText(row?.unidad);
+      const vRef = formatNumberCell(row?.valorReferencia);
+      const vMed = formatNumberCell(row?.valorMedido);
+      const patron = escapeHtmlText(row?.patron);
+      return `<tr><td>${magnitud}</td><td>${unidad}</td><td>${vRef}</td><td>${vMed}</td><td>${patron}</td></tr>`;
+    })
+    .join('');
+
+  return `<div class="section"><div class="section-header"><div class="title">Verificación de Parámetros</div></div><table class="verification-params-table"><colgroup><col class="col-magnitud"/><col class="col-unidad"/><col class="col-vref"/><col class="col-vmed"/><col class="col-patron"/></colgroup><thead><tr><th>Magnitud</th><th>Unidad</th><th>V. Ref</th><th>V. Medido</th><th>Patrón</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
