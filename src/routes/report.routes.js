@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { reportController } from '../controllers/report.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
+import { uploadEvidencias, handleMulterError } from '../middlewares/upload.middleware.js';
 import { createReportDto } from '../dtos/createReport.dto.js';
 import { updateReportDto } from '../dtos/updateReport.dto.js';
 import { processReportDto } from '../dtos/processReport.dto.js';
@@ -24,6 +25,23 @@ router.get('/equipo/:equipoId', validate(queryReportDto, 'query'), reportControl
 router.get('/:id/pdf', downloadReportPDF);
 router.get('/:id', reportController.getById);
 router.put('/:reporteId/procesar', validate(processReportDto, 'body'), reportController.procesar);
+
+// Evidence endpoints (registered before generic /:id to avoid route shadowing)
+router.post(
+  '/:reporteId/evidencias',
+  uploadEvidencias,
+  handleMulterError,
+  (req, res, next) => reportController.uploadEvidencias(req, res, next)
+);
+router.patch(
+  '/:reporteId/evidencias/:evidenciaId',
+  (req, res, next) => reportController.updateEvidencia(req, res, next)
+);
+router.delete(
+  '/:reporteId/evidencias/:evidenciaId',
+  (req, res, next) => reportController.deleteEvidencia(req, res, next)
+);
+
 router.put('/:id', validate(updateReportDto, 'body'), reportController.update);
 router.patch('/:id', validate(updateReportDto, 'body'), reportController.update);
 router.delete('/:id', reportController.delete);

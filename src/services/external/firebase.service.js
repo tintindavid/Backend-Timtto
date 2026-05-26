@@ -224,6 +224,76 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Uploads a report evidence image to Firebase Storage.
+   * @param {Buffer} fileBuffer - File buffer
+   * @param {string} originalName - Original filename
+   * @param {string} mimetype - File MIME type (must be image/jpeg or image/png)
+   * @param {string} folder - Target folder (default: reportes/evidencias)
+   * @returns {Promise<{ url: string, storagePath: string }>}
+   */
+  async uploadEvidencia(fileBuffer, originalName, mimetype, folder = 'reportes/evidencias') {
+    try {
+      const storage = getFirebaseStorage();
+
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      if (!allowedTypes.includes(mimetype)) {
+        throw new ApiError(400, 'Only JPEG or PNG images are allowed', 'INVALID_FILE_TYPE');
+      }
+
+      const maxSize = 5 * 1024 * 1024;
+      if (fileBuffer.length > maxSize) {
+        throw new ApiError(400, 'File is too large. Max 5MB.', 'FILE_TOO_LARGE');
+      }
+
+      const extension = path.extname(originalName) || (mimetype === 'image/png' ? '.png' : '.jpg');
+      const storagePath = `${folder}/${uuidv4()}${extension}`;
+      const storageRef = ref(storage, storagePath);
+
+      const metadata = {
+        contentType: mimetype,
+        customMetadata: {
+          originalName,
+          uploadedAt: new Date().toISOString(),
+        },
+      };
+
+      await uploadBytes(storageRef, fileBuffer, metadata);
+      const url = await getDownloadURL(storageRef);
+
+      logger.info('Evidence uploaded to Firebase Storage', { storagePath });
+      return { url, storagePath };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error uploading evidence to Firebase Storage:', error);
+      throw new ApiError(500, 'Error uploading evidence to storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
+   * Deletes a file from Firebase Storage by its stored path.
+   * Best-effort: never throws on missing file; logs warning instead.
+   * @param {string} storagePath - Path stored on the document (e.g. reportes/evidencias/uuid.jpg)
+   */
+  async deleteByPath(storagePath) {
+    try {
+      if (!storagePath) {
+        logger.warn('deleteByPath called with empty storagePath');
+        return;
+      }
+      const storage = getFirebaseStorage();
+      const fileRef = ref(storage, storagePath);
+      await deleteObject(fileRef);
+      logger.info('File deleted from Firebase Storage', { storagePath });
+    } catch (error) {
+      if (error?.code === 'storage/object-not-found') {
+        logger.warn('File no longer exists in Firebase Storage', { storagePath });
+        return;
+      }
+      logger.error('Error deleting file from Firebase Storage:', { storagePath, error });
+    }
+  }
+
+  /**
    * Obtiene información de un archivo en Storage
    * @param {string} fileUrl - URL pública del archivo
    * @returns {Promise<object>} Metadata del archivo

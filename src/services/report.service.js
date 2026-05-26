@@ -6,6 +6,13 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
+import { firebaseStorageService } from './external/firebase.service.js';
+import {
+  MAX_EVIDENCES,
+  ALLOWED_EVIDENCE_MIME,
+  EVIDENCE_STORAGE_FOLDER,
+  MAX_EVIDENCE_DESCRIPTION_LENGTH,
+} from '../constants/evidence.constants.js';
 
 /**
  * Calcula el próximo mes de mantenimiento basado en el mes actual y los meses programados
@@ -378,6 +385,213 @@ export class ReportService {
       logger.error('Error procesando report:', err);
       throw new ApiError(500, 'Error procesando Report', 'PROCESS_ERROR');
     }
+  }
+
+  /**
+   * Uploads 1..N evidence images to a report. Enforces the 3-image cap
+   * atomically (re-checks length after Firebase uploads, before persisting)
+   * and rolls back already-uploaded blobs on any failure.
+   *
+   * @param {string} reporteId
+   * @param {string} tenantId
+   * @param {Array<{ buffer: Buffer, originalname: string, mimetype: string, size: number }>} files - Multer files
+   * @param {string} [userId]
+   * @param {string[]} [descripciones] - Parallel array of optional descriptions; values are trimmed and clipped to MAX_EVIDENCE_DESCRIPTION_LENGTH
+   * @returns {Promise<Array>} updated evidencias array
+   */
+  async addEvidencias(reporteId, tenantId, files, userId, descripciones = []) {
+    requireTenant(tenantId);
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new ApiError(400, 'No files provided', 'INVALID_PARAMS');
+    }
+
+    for (const f of files) {
+      if (!ALLOWED_EVIDENCE_MIME.includes(f.mimetype)) {
+        throw new ApiError(400, 'Only JPEG or PNG images are allowed', 'INVALID_FILE_TYPE');
+      }
+    }
+
+    const normalizedDescs = files.map((_, i) => {
+      const raw = descripciones?.[i];
+      if (typeof raw !== 'string') return '';
+      const trimmed = raw.trim();
+      if (trimmed.length > MAX_EVIDENCE_DESCRIPTION_LENGTH) {
+        throw new ApiError(
+          400,
+          `Description is too long (max ${MAX_EVIDENCE_DESCRIPTION_LENGTH} characters)`,
+          'DESCRIPTION_TOO_LONG'
+        );
+      }
+      return trimmed;
+    });
+
+    const report = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId));
+    if (!report) {
+      throw new ApiError(404, 'Report not found', 'REPORT_NOT_FOUND', { id: reporteId });
+    }
+
+    const existing = Array.isArray(report.evidencias) ? report.evidencias.length : 0;
+    if (existing + files.length > MAX_EVIDENCES) {
+      throw new ApiError(
+        400,
+        `A report can have at most ${MAX_EVIDENCES} evidences (existing: ${existing}, attempted: ${files.length})`,
+        'EVIDENCE_LIMIT_EXCEEDED'
+      );
+    }
+
+    let uploaded = [];
+    try {
+      const results = await Promise.allSettled(
+        files.map((f) =>
+          firebaseStorageService.uploadEvidencia(
+            f.buffer,
+            f.originalname,
+            f.mimetype,
+            EVIDENCE_STORAGE_FOLDER
+          )
+        )
+      );
+
+      uploaded = results
+        .filter((r) => r.status === 'fulfilled')
+        .map((r) => r.value);
+
+      const firstFailure = results.find((r) => r.status === 'rejected');
+      if (firstFailure) {
+        const reason = firstFailure.reason;
+        throw reason instanceof ApiError ? reason : new Error(reason?.message || 'Upload failed');
+      }
+
+      const subdocs = uploaded.map((u, i) => ({
+        url: u.url,
+        storagePath: u.storagePath,
+        nombre: files[i].originalname,
+        tipo: 'imagen',
+        mimetype: files[i].mimetype,
+        size: files[i].size,
+        descripcion: normalizedDescs[i] || '',
+        fechaSubida: new Date(),
+        uploadedBy: userId || undefined,
+      }));
+
+      const updated = await Report.findOneAndUpdate(
+        applyTenantFilter(
+          { _id: reporteId, $expr: { $lte: [{ $size: { $ifNull: ['$evidencias', []] } }, MAX_EVIDENCES - files.length] } },
+          tenantId
+        ),
+        { $push: { evidencias: { $each: subdocs } } },
+        { new: true, runValidators: true }
+      );
+
+      if (!updated) {
+        await Promise.all(uploaded.map((u) => firebaseStorageService.deleteByPath(u.storagePath)));
+        throw new ApiError(
+          400,
+          `A report can have at most ${MAX_EVIDENCES} evidences`,
+          'EVIDENCE_LIMIT_EXCEEDED'
+        );
+      }
+
+      logger.info('[REPORT_EVIDENCE] uploaded', {
+        tenantId,
+        reporteId,
+        count: files.length,
+      });
+      return updated.evidencias;
+    } catch (err) {
+      if (uploaded.length) {
+        await Promise.all(
+          uploaded.map((u) => firebaseStorageService.deleteByPath(u.storagePath))
+        ).catch(() => {});
+      }
+      if (err instanceof ApiError) throw err;
+      logger.error('Error uploading evidences:', err);
+      throw new ApiError(500, 'Error uploading evidences', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
+   * Removes one evidence from a report (DB + Firebase Storage best-effort).
+   * @param {string} reporteId
+   * @param {string} tenantId
+   * @param {string} evidenciaId
+   * @returns {Promise<Array>} updated evidencias array
+   */
+  async removeEvidencia(reporteId, tenantId, evidenciaId) {
+    requireTenant(tenantId);
+
+    const report = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId));
+    if (!report) {
+      throw new ApiError(404, 'Report not found', 'REPORT_NOT_FOUND', { id: reporteId });
+    }
+
+    const evidencia = report.evidencias?.id?.(evidenciaId);
+    if (!evidencia) {
+      throw new ApiError(404, 'Evidence not found', 'EVIDENCE_NOT_FOUND', { id: evidenciaId });
+    }
+
+    const storagePath = evidencia.storagePath;
+
+    const updated = await Report.findOneAndUpdate(
+      applyTenantFilter({ _id: reporteId }, tenantId),
+      { $pull: { evidencias: { _id: evidenciaId } } },
+      { new: true }
+    );
+
+    if (storagePath) {
+      await firebaseStorageService.deleteByPath(storagePath);
+    }
+
+    logger.info('[REPORT_EVIDENCE] deleted', {
+      tenantId,
+      reporteId,
+      evidenciaId,
+    });
+    return updated.evidencias;
+  }
+
+  /**
+   * Updates the descripcion of a single evidence subdocument.
+   * @param {string} reporteId
+   * @param {string} tenantId
+   * @param {string} evidenciaId
+   * @param {string} descripcion - May be empty string to clear the caption.
+   * @returns {Promise<Array>} updated evidencias array
+   */
+  async updateEvidenciaDescripcion(reporteId, tenantId, evidenciaId, descripcion) {
+    requireTenant(tenantId);
+
+    const value = typeof descripcion === 'string' ? descripcion.trim() : '';
+    if (value.length > MAX_EVIDENCE_DESCRIPTION_LENGTH) {
+      throw new ApiError(
+        400,
+        `Description is too long (max ${MAX_EVIDENCE_DESCRIPTION_LENGTH} characters)`,
+        'DESCRIPTION_TOO_LONG'
+      );
+    }
+
+    const report = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId));
+    if (!report) {
+      throw new ApiError(404, 'Report not found', 'REPORT_NOT_FOUND', { id: reporteId });
+    }
+
+    const evidencia = report.evidencias?.id?.(evidenciaId);
+    if (!evidencia) {
+      throw new ApiError(404, 'Evidence not found', 'EVIDENCE_NOT_FOUND', { id: evidenciaId });
+    }
+
+    const updated = await Report.findOneAndUpdate(
+      applyTenantFilter({ _id: reporteId, 'evidencias._id': evidenciaId }, tenantId),
+      { $set: { 'evidencias.$.descripcion': value } },
+      { new: true, runValidators: true }
+    );
+
+    logger.info('[REPORT_EVIDENCE] description updated', {
+      tenantId,
+      reporteId,
+      evidenciaId,
+    });
+    return updated.evidencias;
   }
 }
 
