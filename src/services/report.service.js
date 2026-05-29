@@ -7,6 +7,7 @@ import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
+import { ticketService } from './ticket.service.js';
 import {
   MAX_EVIDENCES,
   ALLOWED_EVIDENCE_MIME,
@@ -226,11 +227,32 @@ export class ReportService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, tenantId, panelUser = null) {
     try {
+      // Capture pre-update state so we can detect transitions for the ticket
+      // cascade (design D14: cross-collection cascades live in services).
+      const previous = await Report.findById(id).lean();
       const e = await Report.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id });
       logger.info('Report actualizado: ' + id);
+
+      // Ticket cascade: report transitioning into Cerrado / Cancelado closes
+      // the associated ticket (only when the report is isFromTicket=true).
+      try {
+        const wasClosed = previous && (previous.estado === 'Cerrado' || previous.estado === 'Cancelado');
+        if (!wasClosed && e.isFromTicket && e.ticket) {
+          if (e.estado === 'Cerrado') {
+            await ticketService.closeFromReport(e, panelUser);
+          } else if (e.estado === 'Cancelado') {
+            await ticketService.cancelFromReport(e, panelUser);
+          }
+        }
+      } catch (cascadeErr) {
+        // Cascade failure is logged but does not roll back the report update —
+        // the panel can retry the cascade explicitly.
+        logger.error('Ticket cascade failed on report update', { err: String(cascadeErr) });
+      }
+
       return e;
     } catch (err) {
       if (err instanceof ApiError) throw err;
@@ -251,10 +273,13 @@ export class ReportService {
     }
   }
 
-  async procesar(reporteId, data, tenantId) {
+  async procesar(reporteId, data, tenantId, panelUser = null) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
+
+      // Capture previous estado for transition detection (ticket cascade D14).
+      const previous = await Report.findOne(applyTenantFilter({ _id: reporteId }, t)).lean();
 
       // Sanitize incoming payload: only allow fields that exist in schema and map actividadesRealizadas
       const allowed = {};
@@ -377,6 +402,21 @@ export class ReportService {
         else if (closed > 0) nuevoEstado = 'En Progreso';
 
         otUpdated = await OT.findOneAndUpdate(applyTenantFilter({ _id: ordenId }, t), { $set: { Avance: avance, EstadoOt: nuevoEstado } }, { new: true });
+      }
+
+      // Ticket cascade (D14): on transition Cerrado / Cancelado close the
+      // associated ticket. Only fires when the report is isFromTicket=true.
+      try {
+        const wasClosed = previous && (previous.estado === 'Cerrado' || previous.estado === 'Cancelado');
+        if (!wasClosed && updated && updated.isFromTicket && updated.ticket) {
+          if (updated.estado === 'Cerrado') {
+            await ticketService.closeFromReport(updated, panelUser);
+          } else if (updated.estado === 'Cancelado') {
+            await ticketService.cancelFromReport(updated, panelUser);
+          }
+        }
+      } catch (cascadeErr) {
+        logger.error('Ticket cascade failed on report procesar', { err: String(cascadeErr) });
       }
 
       logger.info('Report procesado: ' + reporteId);

@@ -8,4 +8,6 @@ export const queryEquipoItemDto = Joi.object({
   search: Joi.string().optional(),
   Cliente: Joi.string().hex().length(24).optional(),
   ClienteId: Joi.string().hex().length(24).optional(),
+  SedeId: Joi.string().hex().length(24).optional(),
+  Servicio: Joi.string().hex().length(24).optional(),
 });

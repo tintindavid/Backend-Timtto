@@ -43,6 +43,9 @@ import sheetworkRoutes from './routes/sheetwork.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
 import pdfReportsRoutes from './routes/pdfReports.routes.js';
 import cronogramaRoutes from './routes/cronograma.routes.js';
+import ticketRoutes from './routes/ticket.routes.js';
+import serviceQrRoutes from './routes/serviceQr.routes.js';
+import publicTicketRoutes from './routes/publicTicket.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -128,6 +131,16 @@ app.use('/api/v1/worksheets', sheetworkRoutes);
 app.use('/api/v1/tenants', tenantRoutes);
 // PDF reports (bulk/single)
 app.use('/api/v1/pdf-reports', pdfReportsRoutes);
+
+// Ticket por Área module — panel endpoints
+app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/service-qrs', serviceQrRoutes);
+
+// Ticket por Área module — public (QR-gated) endpoints.
+// Mounted OUTSIDE /api/v1 per spec; uses publicAuth.middleware + dedicated
+// rate limiters. tenantResolver runs on all routes but is bypassed for
+// /public/* since publicAuth attaches req.tenantId from the sessionToken.
+app.use('/public/tickets', publicTicketRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));

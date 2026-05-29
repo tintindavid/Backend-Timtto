@@ -96,8 +96,16 @@ const ReportSchema = new Schema({
     },
     verificationParam: { type: [VerificationParamSchema], default: [] },
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
-    /* Tipo de mantenimiento es un Enum */
-    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true, default: 'Preventivo' },
+    /* Tipo de mantenimiento es un Enum.
+       'Diagnostico' (ASCII) is added per design D10 to support reports
+       created from the ticket-area flow (isFromTicket=true). */
+    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Diagnostico'], trim: true, default: 'Preventivo' },
+
+    /* Ticket-area integration: reports created from a ticket carry the ticket
+       reference and the isFromTicket=true flag. Cascades (close/cancel) live
+       in report.service.js per design D14. */
+    ticket: { type: Schema.Types.ObjectId, ref: 'Ticket', default: null, index: true },
+    isFromTicket: { type: Boolean, default: false, index: true },
 
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
@@ -110,6 +118,7 @@ const ReportSchema = new Schema({
 // Indexes (tenant-aware)
 ReportSchema.index({ tenantId: 1, isDeleted: 1 });
 ReportSchema.index({ tenantId: 1, createdAt: -1 });
+ReportSchema.index({ tenantId: 1, isFromTicket: 1, ticket: 1 });
 
 // Exclude sensitive fields
 ReportSchema.set('toJSON', {

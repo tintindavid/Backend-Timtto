@@ -9,8 +9,12 @@ const OTSchema = new Schema({
     EstadoOt: { type: String, required: true, trim: true },
     FechaCreacion: { type: Date, required: true, trim: true },
     Norden: { type: String, required: true, trim: true },
-    /* Tipo de servicio de mantenimiento es un Enum */
-    TipoServicio: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Instalación', 'Proactivo','Diagnóstico'], required: true, trim: true },
+    /* Tipo de servicio de mantenimiento es un Enum.
+       Note: 'Diagnóstico' (with tilde) is retained transiently for migration
+       compatibility; production data is normalized to 'Diagnostico' via
+       src/scripts/migrate-ot-tipo-servicio.js (design D10). New writes use the
+       ASCII form 'Diagnostico'. */
+    TipoServicio: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Instalación', 'Proactivo', 'Diagnostico', 'Diagnóstico'], required: true, trim: true },
     Avance: { type: Number,  trim: true },
     EstadoText: { type: String,  trim: true },
     numeroOt: { type: Number,  trim: true },
@@ -19,12 +23,18 @@ const OTSchema = new Schema({
     ResponsableId: { type: Schema.Types.ObjectId, ref: 'User'  ,  trim: true },
     tenantId: { type: String, required: true },
     reportes: [
-      { 
-        type: Schema.Types.ObjectId, 
+      {
+        type: Schema.Types.ObjectId,
         ref: 'Report',
         autopopulate: true,
       }
     ],
+    /* Ticket-area integration (design D11/D12/D19).
+       isFromTicket=true marks OTs whose lifecycle is driven by tickets;
+       certain operations (addReport, removeReport, changeTipoServicio) are
+       rejected by the service layer when this flag is true. */
+    isFromTicket: { type: Boolean, default: false, index: true },
+    ticketIds: [{ type: Schema.Types.ObjectId, ref: 'Ticket' }],
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
@@ -37,6 +47,7 @@ const OTSchema = new Schema({
 // Indexes (tenant-aware)
 OTSchema.index({ tenantId: 1, isDeleted: 1 });
 OTSchema.index({ tenantId: 1, createdAt: -1 });
+OTSchema.index({ tenantId: 1, isFromTicket: 1 });
 
 // Exclude sensitive fields
 OTSchema.set('toJSON', {

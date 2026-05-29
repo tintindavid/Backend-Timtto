@@ -51,14 +51,14 @@ export class ReportController {
       const reporteId = req.params.reporteId;
       const payload = req.body;
       console.log('Payload procesar report:', payload);
-      const result = await reportService.procesar(reporteId, payload, req.tenantId);
+      const result = await reportService.procesar(reporteId, payload, req.tenantId, req.user);
       res.json(successResponse(result, 'Report procesado y OT notificada exitosamente'));
     } catch (err) { next(err); }
   }
 
   async update(req, res, next) {
     try {
-      const data = await reportService.update(req.params.id, req.body, req.tenantId);
+      const data = await reportService.update(req.params.id, req.body, req.tenantId, req.user);
       res.json(successResponse(data, 'Report actualizado exitosamente'));
     } catch (err) { next(err); }
   }

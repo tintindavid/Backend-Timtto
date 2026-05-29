@@ -4,6 +4,7 @@ import { logger } from '../config/logger.config.js';
 import { requireTenant } from '../utils/tenant.util.js';
 import { Report } from '../models/report.model.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
+import { ticketService } from './ticket.service.js';
 
 export class EquipoItemService {
   async create(data, tenantId) {
@@ -100,8 +101,22 @@ export class EquipoItemService {
     }
   }
 
-  async delete(id) {
+  async delete(id, tenantId = null, panelUser = null) {
     try {
+      // Resolve tenantId from the equipo if not supplied (backwards compat).
+      const existing = await EquipoItem.findById(id).lean();
+      if (!existing) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
+      const t = tenantId || existing.tenantId;
+
+      // Ticket cascade (design D20): cancel pendiente tickets referencing
+      // this equipo BEFORE the soft-delete is persisted, so the operation
+      // is observable as a single user-perceived event.
+      try {
+        await ticketService.cancelOnEquipmentDelete(existing._id, t, panelUser);
+      } catch (cascadeErr) {
+        logger.error('Ticket cascade (equipo soft-delete) failed', { err: String(cascadeErr) });
+      }
+
       const e = await EquipoItem.findByIdAndUpdate(id, { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       logger.info('EquipoItem eliminado (soft): ' + id);

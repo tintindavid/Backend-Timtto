@@ -6,9 +6,13 @@ import { env } from './config/env.js';
 import { connect } from './config/database.js';
 import { logger } from './config/logger.config.js';
 import { initializeFirebase } from './config/firebase.config.js';
+import { assertJwtConfig } from './config/jwt.config.js';
 
 async function start() {
   try {
+    // Fail fast on misconfigured JWT secrets (JWT_SECRET === JWT_PUBLIC_SECRET).
+    // Throwing here exits the process before any port binding.
+    assertJwtConfig();
     await connect();
     
     // Inicializar Firebase

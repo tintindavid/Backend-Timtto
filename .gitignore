@@ -11,3 +11,8 @@ yarn-error.log*
 .DS_Store
 coverage/
 .idea/
+
+# Runtime-generated QR code PNGs (D1/Q2 — server-generated per ServiceQr).
+# Never commit these: they encode public URLs for the tenant's service entry
+# points and grow unbounded.
+uploads/
