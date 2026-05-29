@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.1.0...v1.2.0) (2026-05-29)
+
+
+### Features
+
+* **services:** expand cantidad servicio in select ([3730700](https://github.com/tintindavid/Backend-Timtto/commit/37307003b98a717f8e4481e369230e742a50e98a))
+
 # [1.1.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.0.0...v1.1.0) (2026-05-26)
 
 
