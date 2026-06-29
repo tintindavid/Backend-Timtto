@@ -16,32 +16,27 @@ path = "."
 start = "node --enable-source-maps src/server.js"
 build = "npm ci && npm run build"
 
-# Recommended environment variables (placeholders). Set these in Railway UI.
-[env]
-# Port the app listens on (Railway will typically override this automatically)
-PORT = "3000"
-NODE_ENV = "production"
-
-# MongoDB connection strings (support both common names used by projects)
-# Set either MONGO_URI or MONGO_URL in Railway variables to your connection string.
-MONGO_URI = ""
-MONGO_URL = ""
-
-# JWT secret used by the backend. Set a strong secret in Railway env.
-JWT_SECRET = ""
-
-# CORS allowed origins - comma separated list of frontend domains
-# Example: "http://localhost:5173,https://timtto.vercel.app"
-CORS_ORIGIN = ""
-
-# Optional third-party keys/placeholders
-FIREBASE_CONFIG = ""
-FIREBASE_STORAGE_BUCKET = ""
-
-# Other suggestions: SENTRY_DSN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc.
-
-# Notes:
-# - After creating the Railway project, go to the project Settings -> Variables
-#   and add values for MONGO_URI (or MONGO_URL), JWT_SECRET and any other secrets used by the app.
-# - Railway provides plugin variables when you add a MongoDB plugin; you can map
-#   that plugin variable to MONGO_URI or MONGO_URL in the Railway UI.
+# DO NOT declare environment variables in this file.
+# Empty placeholders like `KEY = ""` are interpreted by Railway's BuildKit-based
+# nixpacks as secret references with empty IDs and break the build with:
+#   "secret ID missing for \"\" environment variable"
+#
+# Required environment variables (set them in Railway → Service → Variables):
+#
+#   MONGO_URI                  MongoDB connection string (or MONGO_URL)
+#   JWT_SECRET                 Panel token signing secret
+#   JWT_PUBLIC_SECRET          Public-portal sessionToken signing secret.
+#                              MUST differ from JWT_SECRET. Server refuses to
+#                              start otherwise (see src/config/jwt.config.js).
+#   JWT_EXPIRES_IN             e.g. "7d"
+#   JWT_PUBLIC_EXPIRES_IN      e.g. "2h"
+#   PUBLIC_APP_BASE_URL        e.g. "https://app.timtto.com" — used to build the
+#                              landing URL printed in QR PNGs.
+#   CORS_ORIGIN                Comma-separated list of allowed frontend origins
+#   NODE_ENV                   "production"
+#
+# Optional: FIREBASE_CONFIG, FIREBASE_STORAGE_BUCKET, SENTRY_DSN,
+#           QR_IMAGE_STORAGE_PATH, RATE_LIMIT_*, LOG_LEVEL,
+#           PDF_SERVICE_URL, PDF_MICROSERVICE_TIMEOUT.
+#
+# Railway provides PORT automatically; do not override here.
