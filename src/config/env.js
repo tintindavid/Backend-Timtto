@@ -8,6 +8,13 @@ export const env = {
   MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/timtto',
   JWT_SECRET: process.env.JWT_SECRET || 'replace_with_secure_secret',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  // Public sessionToken (QR-gated /public/tickets/*) — MUST differ from JWT_SECRET.
+  // The startup assertion in config/jwt.config.js refuses to boot if they match.
+  JWT_PUBLIC_SECRET: process.env.JWT_PUBLIC_SECRET || '',
+  JWT_PUBLIC_EXPIRES_IN: process.env.JWT_PUBLIC_EXPIRES_IN || '2h',
+  // QR PNG persistence
+  QR_IMAGE_STORAGE_PATH: process.env.QR_IMAGE_STORAGE_PATH || 'uploads/qr',
+  PUBLIC_APP_BASE_URL: process.env.PUBLIC_APP_BASE_URL || 'http://localhost:5173',
   // CORS origins: allow frontend dev server in development
   CORS_ORIGINS: (() => {
     const fromEnv = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
