@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/tintindavid/Backend-Timtto/compare/v1.3.0...v1.3.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **railway:** remove empty env placeholders that broke buildkit secret mounting ([5d0d2dd](https://github.com/tintindavid/Backend-Timtto/commit/5d0d2dd7bb37f6cc9fa5c96b4eb316140b5e83e1))
+
 # [1.3.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.2.0...v1.3.0) (2026-06-29)
 
 
