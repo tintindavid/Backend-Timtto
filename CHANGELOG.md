@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.2.0...v1.3.0) (2026-06-29)
+
+
+### Features
+
+* **services:** add ticket services module ([24a3904](https://github.com/tintindavid/Backend-Timtto/commit/24a3904b31899769b87eba645abe9661e8f49811))
+
 # [1.2.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.1.0...v1.2.0) (2026-05-29)
 
 
