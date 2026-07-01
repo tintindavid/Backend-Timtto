@@ -1,3 +1,27 @@
+# [2.0.0] — saas-security-baseline (E0) (2026-07-01)
+
+### BREAKING CHANGES
+
+* **auth:** `POST /api/v1/auth/register` is retired. The route remains registered but now returns `410 Gone`. Consumers must migrate to `POST /api/v1/users` (authenticated, admin role required). Use the `seed-platform-superadmin.js` script for bootstrapping.
+* **tenants:** `POST /api/v1/tenants` now requires `authenticate + requireSuperAdmin`. Previously it was a public endpoint.
+* **tenants:** `GET /api/v1/tenants` now requires `authenticate + requireSuperAdmin`. Previously any authenticated user could list all tenants.
+* **tenants:** `DELETE /api/v1/tenants/:id` now requires `requireSuperAdmin`. Previously any authenticated user could delete tenants.
+* **tenant.middleware:** `tenantId` from `req.body` is no longer read. Clients relying on `body.tenantId` as a fallback must migrate to the `x-tenant-id` header.
+* **superadmin:** SuperAdmin identification is now exclusively `req.user.role === 'superadmin'`. JWTs with the old `tenantId='superadmin'|'SUPERADMIN'` sentinel must be refreshed after running `migrate-superadmin-users.js`.
+
+### Features
+
+* **auth:** `POST /api/v1/auth/refresh-token` now preserves `tenantId` in the new JWT payload (previously lost on refresh).
+* **user.role:** enum extended with `'superadmin'`. SuperAdmins carry `tenantId='__platform__'`.
+* **tenant.model:** `tenantId` field now applies `lowercase: true` at schema level — case-insensitive lookups replaced by exact match on a normalized value.
+* **tenant.routes:** all legacy `/api/v1/tenants/*` responses include `Deprecation: true`, `Sunset` and `Link` headers pointing to the future `/api/v1/platform/tenants` (E1).
+* **middlewares:** new `requireTenantMatch` middleware — allows `GET /:id` and `PUT /:id` only to the owning tenant or a superadmin.
+* **scripts:** one-off migration scripts `migrate-superadmin-users.js` and `normalize-tenant-ids.js` added to `scripts/`.
+* **scripts:** idempotent `seed-platform-superadmin.js` added to `scripts/`.
+* **tests:** isolation test suite added to `tests/isolation/` covering customers, equipoitems, ots, reports, and users.
+
+---
+
 # [1.3.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.2.0...v1.3.0) (2026-06-29)
 
 

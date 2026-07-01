@@ -4,7 +4,7 @@ const { Schema, model } = mongoose;
 
 const TenantSchema = new Schema(
   {
-    tenantId: { type: String, required: true, unique: true, trim: true },
+    tenantId: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
     name: { type: String, required: true, trim: true },
     slogan:{type:String, trim:true, default:null},
     direccion: { type: String, trim: true, default: null },

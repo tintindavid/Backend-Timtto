@@ -56,12 +56,38 @@ Estructura del proyecto
   - `app.js` — configuración Express (middlewares, rutas)
   - `server.js` — entrypoint y conexión a MongoDB
 
+Scripts de plataforma (one-off / migrations)
+--------------------------------------------
+
+Run from `TimttoApp/`:
+
+```bash
+# 1. Migrate legacy sentinel users (tenantId='superadmin'|'SUPERADMIN') to role='superadmin', tenantId='__platform__'
+MONGO_URI=mongodb://... node scripts/migrate-superadmin-users.js
+
+# 2. Normalize all tenantId fields to lowercase in every collection
+MONGO_URI=mongodb://... node scripts/normalize-tenant-ids.js
+
+# 3. Seed the first platform SuperAdmin (idempotent)
+MONGO_URI=mongodb://... \
+SEED_SUPERADMIN_EMAIL=ops@timtto.com \
+SEED_SUPERADMIN_PASSWORD=ChangeMe123! \
+node scripts/seed-platform-superadmin.js
+```
+
+Run order for a fresh deployment:
+  1. `migrate-superadmin-users.js` — must run before `normalize-tenant-ids.js`
+  2. `normalize-tenant-ids.js`
+  3. `seed-platform-superadmin.js`
+
+All scripts are idempotent and require `MONGO_URI` to be set. Verify on staging first.
+
 Endpoints principales
 --------------------
 - Autenticación
-  - `POST /api/v1/auth/register` — registrar usuario
+  - POST /api/v1/auth/register — RETIRADO (E0). Responde 410 Gone. Usar POST /api/v1/users (autenticado).
   - `POST /api/v1/auth/login` — login, devuelve JWT
-  - `POST /api/v1/auth/refresh-token` — refrescar token
+  - `POST /api/v1/auth/refresh-token` — refrescar token (preserva userId, role, tenantId)
   - `GET  /api/v1/auth/me` — obtener usuario actual (protegido)
 
 - Usuarios

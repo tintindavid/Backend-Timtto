@@ -6,14 +6,14 @@ const { Schema, model } = mongoose;
 
 const userSchema = new Schema(
   {
-    tenantId: { type: String, required: true },
+    tenantId: { type: String, required: true, index: true },
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
     fullName: { type: String, trim: true },
     username: { type: String, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'technician', 'user'], default: 'technician' },
+    role: { type: String, enum: ['admin', 'technician', 'user', 'superadmin'], default: 'technician' },
     phone: { type: String, trim: true },
     city: { type: String, trim: true },
     registroInvima: { type: String, trim: true },
@@ -66,9 +66,10 @@ userSchema.set('toJSON', {
   },
 });
 
-// Default query to exclude soft-deleted
+// Default query to exclude soft-deleted (opt-out with { includeDeleted: true })
 userSchema.pre(/^find/, function (next) {
-  this.where({ isDeleted: false });
+  const opts = this.getOptions ? this.getOptions() : {};
+  if (!opts.includeDeleted) this.where({ isDeleted: false });
   next();
 });
 
