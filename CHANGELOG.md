@@ -1,3 +1,24 @@
+# [Unreleased] — saas-platform-tenant-lifecycle (E1)
+
+### Features
+
+* **platform/tenants:** New endpoints `POST|GET|PUT|PATCH|DELETE /api/v1/platform/tenants/*` for SuperAdmin tenant lifecycle management (create with first admin, list, detail with counters, update metadata, suspend, reactivate, soft-delete).
+* **my-tenant:** New `GET /api/v1/my-tenant` (any authenticated user) and `PUT /api/v1/my-tenant` (admin role only) replace the legitimate use of `GET /api/v1/tenants/:id`.
+* **user.model:** Added `mustChangePassword: Boolean (default: false)` — activated for first-admin users created via onboarding wizard; E2 will enforce rotation on next login.
+* **tenant.middleware:** `ENFORCE_TENANT_STATUS` feature flag (env var, default `false`) — when `true`, `tenantResolver` blocks requests to non-platform routes with 403 `TENANT_SUSPENDED` or `TENANT_CLOSED` for inactive tenants.
+* **requireRole:** New `requireRole(...roles)` middleware factory for role-based access control on individual routes.
+* **temporaryPassword:** New `generateTemporaryPassword(length)` util — cryptographically secure, ≥12 chars, guarantees uppercase + lowercase + digit + symbol.
+
+### BREAKING (delayed — follow-up PR)
+
+* **tenants legacy:** `/api/v1/tenants/*` routes will change from `Deprecation` headers to `410 Gone` at the end of the 30-day grace period from E0 merge. **No action required in this release.**
+
+### Deployment note
+
+**Deploy `ENFORCE_TENANT_STATUS=false` (default).** Activate to `true` only after 7-day observation window with no incidents. See ADR-012 in `constitution.md`.
+
+---
+
 ## [2.0.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.0.0...v2.0.1) (2026-07-02)
 
 

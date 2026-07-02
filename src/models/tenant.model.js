@@ -44,8 +44,11 @@ TenantSchema.set('toJSON', {
   },
 });
 
+// Default: exclude soft-deleted documents.
+// Opt out via .setOptions({ includeDeleted: true }) for platform / superadmin queries.
 TenantSchema.pre(/^find/, function (next) {
-  this.where({ isDeleted: false });
+  const opts = this.getOptions ? this.getOptions() : {};
+  if (!opts.includeDeleted) this.where({ isDeleted: false });
   next();
 });
 

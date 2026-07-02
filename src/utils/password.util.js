@@ -9,6 +9,5 @@ export async function hashPassword(password) {
 
 /* compara una contraseña sin hash con una contraseña con hash */
 export async function comparePassword(password, hash) {
-  console.log('Comparando contraseña con hash:', { password, hash });
   return bcrypt.compare(password, hash);
 }

@@ -28,6 +28,9 @@ export const env = {
   RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX || 100),
   LOG_LEVEL: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
   SENTRY_DSN: process.env.SENTRY_DSN || '',
+  // Feature flag: when true, tenantResolver blocks requests for suspended/closed tenants.
+  // Deploy with false, activate after 7-day observation window (design D3).
+  ENFORCE_TENANT_STATUS: process.env.ENFORCE_TENANT_STATUS === 'true',
   // Microservicio PDF
   PDF_SERVICE_URL: process.env.PDF_SERVICE_URL || 'https://html-to-pdf-service-production-a1f8.up.railway.app',
   PDF_MICROSERVICE_TIMEOUT: Number(process.env.PDF_MICROSERVICE_TIMEOUT || 30000),
