@@ -30,11 +30,7 @@ export class TenantService {
   }
 
   static async getByTenantId(tenantId) {
-    // Búsqueda case-insensitive usando regex
-    logger.info('Buscando tenant por tenantId', { tenantId });
-    const tenant = await Tenant.findOne({ 
-      tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') }
-    }).lean();
+    const tenant = await Tenant.findOne({ tenantId }).lean();
     if (!tenant) throw new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND');
     return tenant;
   }
@@ -67,31 +63,25 @@ export class TenantService {
    * @param {object} logoFile - Archivo del logo nuevo (opcional) { buffer, originalname, mimetype }
    */
   static async update(tenantId, payload, logoFile = null) {
-    // Obtener tenant actual para verificar si tiene logo previo
-    const currentTenant = await Tenant.findOne({ 
-      tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') } 
-    });
+    const currentTenant = await Tenant.findOne({ tenantId });
     if (!currentTenant) throw new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND');
-    
-    // Si se proporciona un nuevo logo
+
     if (logoFile && logoFile.buffer) {
       logger.info('Reemplazando logo de tenant en Firebase Storage...');
       const oldLogoUrl = currentTenant.logoUrl;
-      
-      // Subir nuevo logo y eliminar el anterior
       const newLogoUrl = await firebaseStorageService.replaceLogo(
         oldLogoUrl,
         logoFile.buffer,
         logoFile.originalname,
-        logoFile.mimetype
+        logoFile.mimetype,
       );
       payload.logoUrl = newLogoUrl;
     }
-    
+
     const tenant = await Tenant.findOneAndUpdate(
-      { tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') } },
+      { tenantId },
       { $set: payload },
-      { new: true }
+      { new: true },
     ).lean();
     if (!tenant) throw new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND');
     return tenant;
@@ -102,35 +92,27 @@ export class TenantService {
    * @param {string} tenantId - ID del tenant
    */
   static async softDelete(tenantId) {
-    // Obtener tenant antes de eliminarlo para limpiar el logo
-    const tenant = await Tenant.findOne({ 
-      tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') } 
-    });
+    const tenant = await Tenant.findOne({ tenantId }).setOptions({ includeDeleted: false });
     if (!tenant) throw new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND');
-    
-    // Soft delete del tenant
+
     const deletedTenant = await Tenant.findOneAndUpdate(
-      { tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') } },
+      { tenantId },
       { isDeleted: true, deletedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
-    
-    // Eliminar logo de Firebase Storage (en background)
+
     if (tenant.logoUrl) {
-      firebaseStorageService.deleteLogo(tenant.logoUrl).catch(err => {
+      firebaseStorageService.deleteLogo(tenant.logoUrl).catch((err) => {
         logger.error('Error eliminando logo al borrar tenant:', err);
       });
     }
-    
+
     return deletedTenant;
   }
 
   static async exists(tenantId) {
     if (!tenantId) return false;
-    return Tenant.exists({ 
-      tenantId: { $regex: new RegExp(`^${tenantId}$`, 'i') },
-      isDeleted: false 
-    });
+    return Tenant.exists({ tenantId });
   }
 
   /**
