@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.0.0...v2.0.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **security:** allow '__platform__' sentinel through tenantResolver ([45d4fcc](https://github.com/tintindavid/Backend-Timtto/commit/45d4fccab6fd2dd68e0f9c1401c31afc887d70c3))
+
 # [2.0.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.3.1...v2.0.0) (2026-07-02)
 
 
