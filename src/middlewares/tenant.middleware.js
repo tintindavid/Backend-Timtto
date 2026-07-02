@@ -43,6 +43,16 @@ export async function tenantResolver(req, res, next) {
       return next();
     }
 
+    // Platform sentinel — used before req.user exists (e.g., SuperAdmin login).
+    // '__platform__' is reserved by the DTO and has no matching Tenant document,
+    // so bypass the DB lookup. Downstream services filter by tenantId anyway,
+    // so a non-superadmin sending this header will only see empty results.
+    if (tenantId === '__platform__') {
+      req.tenantId = tenantId;
+      req.tenant = { tenantId, status: 'active' };
+      return next();
+    }
+
     // Single query — the spec mandates exactly one DB call per request.
     const tenant = await Tenant.findOne(
       { tenantId },
