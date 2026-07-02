@@ -1,3 +1,27 @@
+# [Unreleased] — saas-platform-support-tools (E2)
+
+### Features
+
+* **platform/users:** New `GET /api/v1/platform/users` (paginated cross-tenant user list, filters: tenantId, role, email) and `POST /api/v1/platform/users/:userId/reset-password` (generates cryptographically secure temp password, sets `mustChangePassword=true`, returns plain password ONE TIME). Requires `authenticate + requireSuperAdmin`.
+* **platform/audit-log:** New `GET /api/v1/platform/audit-log` (paginated, filters: actorUserId, action, targetTenantId, from/to). New `PlatformAuditLog` collection with 2-year TTL index.
+* **platform/view-as:** New `POST /api/v1/platform/view-as` (validates tenant, returns info for frontend banner) and `DELETE /api/v1/platform/view-as` (signals exit). Audit entries written post-response.
+* **auth/change-password:** New `POST /api/v1/auth/change-password` (authenticated, body: `{ currentPassword, newPassword }`). Verifies current password, clears `mustChangePassword`, returns fresh JWT.
+* **auth/login:** Response now includes `mustChangePassword: boolean` so the frontend can redirect immediately after login.
+* **auditPlatformAction middleware:** Global post-response middleware that writes `PlatformAuditLog` entries for all successful mutations on `/api/v1/platform/*`. Fail-silent (errors logged, never thrown). Captures before/after document snapshots.
+* **enforceReadOnlyForSuperadmin middleware:** Global guard that blocks POST/PUT/PATCH/DELETE from `role='superadmin'` on any domain route outside `/platform/*` and `/auth/*`. Bypassed by env flag `SUPERADMIN_READONLY=off` for development.
+* **enforceMustChangePassword middleware:** Global guard that returns 428 `MUST_CHANGE_PASSWORD` for authenticated users with `mustChangePassword=true` on any route except `/auth/change-password`, `/auth/logout`, `/auth/refresh-token`.
+
+### BREAKING (internal — no external API contract change)
+
+* **superadmin role:** Users with `role='superadmin'` can no longer execute POST/PUT/PATCH/DELETE on domain routes (customers, OTs, reports, equipos, etc.). All SuperAdmin writes must go through `/api/v1/platform/*` endpoints. This is enforced by `enforceReadOnlyForSuperadmin` middleware.
+  - Mitigation: set `SUPERADMIN_READONLY=off` in `.env` if internal scripts rely on the old behaviour (temporary, fix scripts to use platform endpoints).
+
+### Deployment note
+
+**Deploy with `SUPERADMIN_READONLY=strict` (default).** Verify no internal tooling uses superadmin for domain writes before activating in production. See ADR-013 in `constitution.md`.
+
+---
+
 # [2.1.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.0.1...v2.1.0) (2026-07-02)
 
 

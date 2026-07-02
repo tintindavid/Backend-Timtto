@@ -3,6 +3,7 @@ import { userService } from '../services/user.service.js';
 import { signToken, verifyToken } from '../utils/jwt.util.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { logger } from '../config/logger.config.js';
 
 export class AuthController {
   /**
@@ -28,9 +29,52 @@ export class AuthController {
       const tenantId = req.tenantId;
       const user = await userService.login(email, password, tenantId);
       const token = signToken({ userId: user._id, role: user.role, tenantId: user.tenantId });
-      res.json(successResponse({ user: user.toJSON(), token }, 'Login exitoso'));
+      // Include mustChangePassword so the frontend can redirect immediately after login.
+      res.json(
+        successResponse(
+          { user: user.toJSON(), token, mustChangePassword: user.mustChangePassword === true },
+          'Login exitoso',
+        ),
+      );
     } catch (error) {
       next(error);
+    }
+  }
+
+  /**
+   * POST /api/v1/auth/change-password
+   * Authenticated: requires valid JWT (via authenticate middleware).
+   * Body: { currentPassword, newPassword }
+   *
+   * Verifies the current password, hashes the new one, clears mustChangePassword.
+   * Returns a refreshed JWT so the client does not need to re-login.
+   */
+  async changePassword(req, res, next) {
+    try {
+      const userId = req.user?.userId;
+      const tenantId = req.user?.tenantId || req.tenantId;
+
+      if (!userId) throw new ApiError(401, 'No autenticado', 'NO_TOKEN_PROVIDED');
+      if (!tenantId) throw new ApiError(401, 'Token inválido: falta tenant', 'INVALID_TOKEN');
+
+      const { currentPassword, newPassword } = req.body;
+
+      const updatedUser = await userService.changePassword(userId, tenantId, currentPassword, newPassword);
+
+      // Issue a fresh token with the same payload (mustChangePassword cleared).
+      const newToken = signToken({
+        userId: updatedUser._id || userId,
+        role: updatedUser.role,
+        tenantId: updatedUser.tenantId || tenantId,
+      });
+
+      logger.info('AuthController: password changed', { userId });
+
+      return res.status(200).json(
+        successResponse({ token: newToken }, 'Contraseña actualizada correctamente'),
+      );
+    } catch (error) {
+      return next(error);
     }
   }
 
