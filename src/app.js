@@ -46,6 +46,8 @@ import cronogramaRoutes from './routes/cronograma.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
 import serviceQrRoutes from './routes/serviceQr.routes.js';
 import publicTicketRoutes from './routes/publicTicket.routes.js';
+import platformTenantRoutes from './routes/platformTenant.routes.js';
+import myTenantRoutes from './routes/myTenant.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -127,7 +129,14 @@ app.use('/api/v1/servicios', serviciosRoutes);
 app.use('/api/v1/sheetwork', sheetworkRoutes);
 // Alias for english/plural endpoint used by frontend
 app.use('/api/v1/worksheets', sheetworkRoutes);
-// Tenant management
+// Platform console — SuperAdmin lifecycle management.
+// Registered BEFORE /tenants (legacy) and before any future status-enforcement middleware.
+app.use('/api/v1/platform/tenants', platformTenantRoutes);
+
+// My-tenant — scoped to the authenticated user's own tenant (replaces legacy GET /tenants/:id).
+app.use('/api/v1/my-tenant', myTenantRoutes);
+
+// Tenant management (legacy — Deprecation headers active; Sunset scheduled per E1 PR note)
 app.use('/api/v1/tenants', tenantRoutes);
 // PDF reports (bulk/single)
 app.use('/api/v1/pdf-reports', pdfReportsRoutes);

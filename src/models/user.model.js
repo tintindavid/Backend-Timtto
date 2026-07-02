@@ -21,6 +21,9 @@ const userSchema = new Schema(
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
     fileFirma: { type: String, trim: true },
+    // Set to true when the user must rotate their password on next login.
+    // Activated by E1 onboarding (temp passwords) and E2 SuperAdmin reset.
+    mustChangePassword: { type: Boolean, default: false },
   },
   {
     timestamps: true,

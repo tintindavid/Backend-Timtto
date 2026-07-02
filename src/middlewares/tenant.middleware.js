@@ -1,5 +1,6 @@
 import { ApiError } from '../utils/apiError.util.js';
 import { Tenant } from '../models/tenant.model.js';
+import { env } from '../config/env.js';
 
 /**
  * tenantResolver — resolves and validates the tenantId for every request.
@@ -65,6 +66,25 @@ export async function tenantResolver(req, res, next) {
 
     req.tenantId = tenant.tenantId;
     req.tenant = { tenantId: tenant.tenantId, status: tenant.status };
+
+    // Enforcement of Tenant.status (design D3).
+    // Activated via env.ENFORCE_TENANT_STATUS=true after a 7-day observation window.
+    // Routes under /api/v1/platform/* are always exempt (SuperAdmin must be able to
+    // reactivate tenants from the platform console).
+    if (
+      env.ENFORCE_TENANT_STATUS &&
+      tenant.status !== 'active' &&
+      !req.path.startsWith('/api/v1/platform/')
+    ) {
+      const code = `TENANT_${tenant.status.toUpperCase()}`;
+      const messages = {
+        suspended: 'Tu organización está temporalmente suspendida. Contacta a TIMTTO.',
+        closed: 'Tu organización ha sido cerrada. Contacta a TIMTTO.',
+      };
+      const message = messages[tenant.status] || 'Tu organización no está activa.';
+      return next(new ApiError(403, message, code));
+    }
+
     return next();
   } catch (err) {
     return next(new ApiError(500, 'Error resolviendo tenant', 'TENANT_RESOLUTION_FAILED'));
