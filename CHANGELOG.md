@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.0.1...v2.1.0) (2026-07-02)
+
+
+### Features
+
+* **platform:** tenant lifecycle console + status enforcement (E1) ([d5d18f3](https://github.com/tintindavid/Backend-Timtto/commit/d5d18f3ebabd15b130236fbbadb39b0b211d239b))
+
 # [Unreleased] — saas-platform-tenant-lifecycle (E1)
 
 ### Features
