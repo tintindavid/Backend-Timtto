@@ -135,6 +135,46 @@ export class UserService {
       throw new ApiError(500, 'Error eliminando usuario', 'DELETE_ERROR');
     }
   }
+
+  /**
+   * Changes the authenticated user's own password.
+   *
+   * Verifies currentPassword against the stored bcrypt hash, then assigns
+   * newPassword (the pre-save hook re-hashes it) and clears mustChangePassword.
+   *
+   * @param {string} userId        - MongoDB _id from JWT
+   * @param {string} tenantId      - from JWT (used to scope the user lookup)
+   * @param {string} currentPassword - plain-text current password to verify
+   * @param {string} newPassword     - plain-text new password to set
+   * @returns {object} Updated user document (toJSON, no password)
+   */
+  async changePassword(userId, tenantId, currentPassword, newPassword) {
+    try {
+      requireTenant(tenantId);
+
+      // Fetch with password field (excluded from normal queries via toJSON).
+      const user = await User.findOne({ _id: userId, tenantId });
+      if (!user) throw new ApiError(404, 'Usuario no encontrado', 'NOT_FOUND', { userId });
+
+      const match = await comparePassword(currentPassword, user.password);
+      if (!match) {
+        throw new ApiError(401, 'La contraseña actual no es correcta', 'INVALID_CURRENT_PASSWORD');
+      }
+
+      // Assign plain — pre-save hook hashes automatically.
+      user.password = newPassword;
+      user.mustChangePassword = false;
+
+      await user.save();
+
+      logger.info(`UserService: password changed for user ${userId}`);
+      return user.toJSON();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error cambiando contraseña:', error);
+      throw new ApiError(500, 'Error cambiando contraseña', 'CHANGE_PASSWORD_ERROR');
+    }
+  }
 }
 
 export const userService = new UserService();
