@@ -1,3 +1,28 @@
+# [2.0.0](https://github.com/tintindavid/Backend-Timtto/compare/v1.3.1...v2.0.0) (2026-07-02)
+
+
+* feat(security)!: cross-tenant isolation baseline (E0) ([c8dfb70](https://github.com/tintindavid/Backend-Timtto/commit/c8dfb707ced244993e9fd259b238fdd184e6bd8d))
+
+
+### BREAKING CHANGES
+
+* POST /api/v1/auth/register retirada (retorna 410 Gone).
+Migrar a POST /api/v1/users (autenticado como admin del tenant) o al
+seed script para el bootstrap del primer admin.
+* POST /api/v1/tenants ahora requiere role='superadmin'.
+Antes era público, permitiendo signup no autenticado.
+* PUT/DELETE /api/v1/tenants/:id ahora exigen match del
+tenant propio o role='superadmin'. Antes cualquier usuario autenticado
+podía modificar/eliminar cualquier tenant (IDOR cross-tenant).
+* Users con tenantId='superadmin'|'SUPERADMIN' ya no son
+reconocidos como SuperAdmin. Correr scripts/migrate-superadmin-users.js
+en staging + producción antes del deploy.
+
+Ref: openspec/changes/saas-security-baseline
+Ref: ai-specs/changes/saas-evolution/{00-discovery,01-brainstorming,02-gap-analysis,03-roadmap}.md
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
 # [2.0.0] — saas-security-baseline (E0) (2026-07-01)
 
 ### BREAKING CHANGES
