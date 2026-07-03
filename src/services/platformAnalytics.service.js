@@ -144,7 +144,7 @@ export class PlatformAnalyticsService {
             as: 'tenant',
           },
         },
-        { $unwind: { path: '$tenant', preserveNullAndEmpty: false } },
+        { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: false } },
         {
           $project: {
             _id: 0,
