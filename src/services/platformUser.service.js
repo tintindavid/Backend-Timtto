@@ -92,15 +92,23 @@ export class PlatformUserService {
       targetTenantId: user.tenantId,
     });
 
-    const emailResult = await emailService.sendPasswordResetEmail({
-      to: user.email,
-      firstName: user.firstName || 'Usuario',
-      temporaryPassword,
-      loginUrl: env.PUBLIC_APP_URL + '/login',
-    });
+    // Fire-and-forget the email so the HTTP response is not blocked by the
+    // SMTP round-trip (~1-10s to Resend). Design D4/D8: `emailSent` is
+    // best-effort intent, not delivery confirmation. Failures are logged
+    // inside the email service; the defensive modal keeps the password
+    // visible so the operator can share manually if the email never arrives.
+    emailService
+      .sendPasswordResetEmail({
+        to: user.email,
+        firstName: user.firstName || 'Usuario',
+        temporaryPassword,
+        loginUrl: env.PUBLIC_APP_URL + '/login',
+      })
+      .catch((err) => logger.error('platformUser: unhandled email error', { targetUserId: userId, error: err.message }));
 
     // Return safe user representation (toJSON removes password).
-    return { user: user.toJSON(), temporaryPassword, emailSent: emailResult.sent === true };
+    // emailSent reflects the flag being on — actual delivery is tracked in Resend dashboard.
+    return { user: user.toJSON(), temporaryPassword, emailSent: env.NOTIFICATIONS_ENABLED === true };
   }
 }
 
