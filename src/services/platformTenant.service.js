@@ -6,8 +6,10 @@ import { HVEquipo } from '../models/hvequipo.model.js';
 import { OT } from '../models/ot.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
+import { emailService } from './external/email.service.js';
 import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
 import { logger } from '../config/logger.config.js';
+import { env } from '../config/env.js';
 
 // OT statuses counted as "open" per domain spec §Requirement: Detalle con contadores
 const OPEN_OT_STATUSES = ['Pendiente', 'Abierto', 'En Progreso'];
@@ -195,10 +197,20 @@ export class PlatformTenantService {
         adminEmail: createdAdmin.email,
       });
 
+      const emailResult = await emailService.sendWelcomeEmail({
+        to: createdAdmin.email,
+        tenantName: createdTenant.name,
+        tenantId: createdTenant.tenantId,
+        adminFirstName: createdAdmin.firstName,
+        temporaryPassword,
+        loginUrl: env.PUBLIC_APP_URL + '/login',
+      });
+
       return {
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(), // password stripped by toJSON transform
         temporaryPassword,
+        emailSent: emailResult.sent === true,
       };
     } catch (txErr) {
       if (isTransactionUnsupportedError(txErr)) {
@@ -242,10 +254,21 @@ export class PlatformTenantService {
       logger.info('PlatformTenantService._createWithAdminCompensatory: success', {
         tenantId: createdTenant.tenantId,
       });
+
+      const emailResult = await emailService.sendWelcomeEmail({
+        to: createdAdmin.email,
+        tenantName: createdTenant.name,
+        tenantId: createdTenant.tenantId,
+        adminFirstName: createdAdmin.firstName,
+        temporaryPassword,
+        loginUrl: env.PUBLIC_APP_URL + '/login',
+      });
+
       return {
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(),
         temporaryPassword,
+        emailSent: emailResult.sent === true,
       };
     } catch (userErr) {
       logger.error(

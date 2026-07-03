@@ -2,6 +2,8 @@ import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
+import { emailService } from './external/email.service.js';
+import { env } from '../config/env.js';
 
 /**
  * PlatformUserService — cross-tenant user operations for the SuperAdmin.
@@ -90,8 +92,15 @@ export class PlatformUserService {
       targetTenantId: user.tenantId,
     });
 
+    const emailResult = await emailService.sendPasswordResetEmail({
+      to: user.email,
+      firstName: user.firstName || 'Usuario',
+      temporaryPassword,
+      loginUrl: env.PUBLIC_APP_URL + '/login',
+    });
+
     // Return safe user representation (toJSON removes password).
-    return { user: user.toJSON(), temporaryPassword };
+    return { user: user.toJSON(), temporaryPassword, emailSent: emailResult.sent === true };
   }
 }
 
