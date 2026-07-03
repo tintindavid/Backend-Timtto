@@ -34,4 +34,16 @@ export const env = {
   // Microservicio PDF
   PDF_SERVICE_URL: process.env.PDF_SERVICE_URL || 'https://html-to-pdf-service-production-a1f8.up.railway.app',
   PDF_MICROSERVICE_TIMEOUT: Number(process.env.PDF_MICROSERVICE_TIMEOUT || 30000),
+  // E3 — Notificaciones de email transaccional (Resend SMTP)
+  // Deploy con NOTIFICATIONS_ENABLED=false (default). Activar tras verificar
+  // que el dominio timtto.com está verificado en Resend y las credenciales SMTP son válidas.
+  NOTIFICATIONS_ENABLED: process.env.NOTIFICATIONS_ENABLED === 'true',
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.resend.com',
+  SMTP_PORT: Number(process.env.SMTP_PORT || 465),
+  SMTP_USER: process.env.SMTP_USER || 'resend',
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD || '',
+  EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS || 'AlertasyNotificaciones@timtto.com',
+  EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'TIMTTO Alertas y Notificaciones',
+  // URL pública del frontend — se usa en los links del email (ej. /login)
+  PUBLIC_APP_URL: process.env.PUBLIC_APP_URL || 'http://localhost:5173',
 };

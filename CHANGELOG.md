@@ -1,3 +1,37 @@
+# [Unreleased] — saas-notifications-baseline (E3)
+
+### Features
+
+* **email notifications (Resend SMTP):** New `services/external/email.service.js` sends transactional emails via Resend on custom domain `timtto.com`. Two flows covered in MVP:
+  - **Welcome tenant admin:** `POST /api/v1/platform/tenants` now sends a welcome email to the first admin with tenant name, tenantId, email, temporary password, and login URL. Response envelope adds `emailSent: boolean`.
+  - **Password reset:** `POST /api/v1/platform/users/:userId/reset-password` now sends the new temporary password by email. Response adds `emailSent: boolean`.
+* **Handlebars templates:** 4 templates in `src/templates/email/` — welcome + reset, each in HTML + plain-text fallback. Rendered on-demand with in-memory cache via `utils/renderTemplate.util.js`.
+* **Feature-flagged rollout:** All email sending is guarded by `NOTIFICATIONS_ENABLED=true`. Default is `false` — deploy is completely safe (no behaviour change) until the flag is activated.
+* **Defensive modal:** Frontend `CredentialsShownOnce` and `UserPasswordResetModal` still display the temporary password. When `emailSent=true`, they additionally show an info banner "también enviado por email a X" so the operator can rely on the email OR fall back to manual sharing.
+* **Fail-silent design:** Email failures never break the parent flow. Errors are logged with metadata only (`{ to, templateName, error.message }`); `html`, `text`, and `temporaryPassword` are never logged. `emailSent` in the response signals "intent accepted by SMTP" not "delivered".
+
+### New environment variables
+
+Required only when `NOTIFICATIONS_ENABLED=true`:
+
+- `SMTP_HOST` (default `smtp.resend.com`)
+- `SMTP_PORT` (default `465`, SSL direct)
+- `SMTP_USER` (default `resend`)
+- `SMTP_PASSWORD` (Resend API key starting with `re_...`)
+- `EMAIL_FROM_ADDRESS` (default `AlertasyNotificaciones@timtto.com`)
+- `EMAIL_FROM_NAME` (default `TIMTTO Alertas y Notificaciones`)
+- `PUBLIC_APP_URL` (used for the login link in emails; e.g. `https://app.timtto.com` or your Railway frontend URL)
+
+### Dependencies
+
+* Added `nodemailer ^6.9.0` and `handlebars ^4.7.8`.
+
+### Deployment note
+
+**Deploy with `NOTIFICATIONS_ENABLED=false` (default).** Verify all SMTP env vars are set in Railway. Activate the flag only after a manual test using `scripts/test-resend-smoke.mjs`. See README section "Email notifications" for full setup.
+
+---
+
 # [Unreleased] — saas-platform-support-tools (E2)
 
 ### Features
