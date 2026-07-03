@@ -54,6 +54,7 @@ import platformTenantRoutes from './routes/platformTenant.routes.js';
 import platformUserRoutes from './routes/platformUser.routes.js';
 import platformAuditRoutes from './routes/platformAudit.routes.js';
 import platformViewAsRoutes from './routes/platformViewAs.routes.js';
+import platformAnalyticsRoutes from './routes/platformAnalytics.routes.js';
 import myTenantRoutes from './routes/myTenant.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
@@ -150,6 +151,8 @@ app.use('/api/v1/platform/users', platformUserRoutes);
 app.use('/api/v1/platform/audit-log', platformAuditRoutes);
 // E2 — View-as session signalling (audit only; state lives in sessionStorage)
 app.use('/api/v1/platform/view-as', platformViewAsRoutes);
+// E4 — Cross-tenant analytics dashboard (SuperAdmin read-only)
+app.use('/api/v1/platform/analytics', platformAnalyticsRoutes);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Auth routes — registered before the enforce-* guards so that:

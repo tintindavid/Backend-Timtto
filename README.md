@@ -189,3 +189,13 @@ El script llama la REST API de Resend y confirma HTTP 200 + Message ID si la con
 Ambos flujos son fail-silent — un error de email nunca rompe la creación de tenant ni el reset. El modal de UI sigue mostrando la password como fallback defensivo.
 
 Ver `openspec/changes/saas-notifications-baseline/` para spec completa.
+
+Platform Analytics dashboard (E4)
+----------------------------------
+El SuperAdmin dispone de un dashboard de analytics cross-tenant en `/admin/analytics`. Backend: 3 endpoints bajo `/api/v1/platform/analytics/*`, todos protegidos con `authenticate + requireSuperAdmin`.
+
+- `GET /api/v1/platform/analytics` — KPIs globales: tenantStats, userStats, equipoTotal, otStats (con desglose por TipoServicio), otsPerTenant (top 20), equiposTimeline (mes a mes). Filtros `from`/`to` aplican solo a métricas time-based.
+- `GET /api/v1/platform/analytics/tenants` — array por tenant con 10 columnas (usersCount, equiposCount, otsOpen, otsClosed, reportsCount, etc.). Parámetro `includeDeleted=true` para ver tenants eliminados.
+- `GET /api/v1/platform/analytics/tenants.csv` — mismo dataset en CSV UTF-8 con BOM. Excel renderiza acentos correctamente.
+
+Sin migraciones, sin variables de entorno nuevas. Aggregations fresh en cada request (sin cache). Ver `openspec/changes/saas-platform-analytics/` para spec completa.

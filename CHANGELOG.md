@@ -1,3 +1,20 @@
+# [Unreleased] — saas-platform-analytics (E4)
+
+### Features
+
+* **Platform Analytics dashboard (SuperAdmin):** 3 new read-only endpoints under `/api/v1/platform/analytics/*`:
+  - `GET /platform/analytics` — returns 6 global metrics in a single response: tenantStats (by status), userStats (by role), equipoTotal, otStats (by estado + byType breakdown), otsPerTenant (top-20 open OTs per tenant), equiposTimeline (monthly equipo creations). Filters `from`/`to` apply only to time-based metrics; tenant/user counts always reflect current state.
+  - `GET /platform/analytics/tenants` — per-tenant breakdown array with 10 columns: tenantId, tenantName, status, plan, createdAt, usersCount, equiposCount, otsOpen, otsClosed, reportsCount. `includeDeleted=true` includes soft-deleted tenants.
+  - `GET /platform/analytics/tenants.csv` — same dataset as above, streamed as a UTF-8 CSV with BOM prefix for correct Excel rendering of Spanish accented characters. RFC 4180 escaping applied.
+* **csvBuilder util:** New `src/utils/csvBuilder.util.js` — lightweight RFC 4180 CSV builder; no external dependencies.
+* **analyticsQuery DTO:** New `src/dtos/analyticsQuery.dto.js` — Joi validation for `from`/`to` ISO dates with cross-field guard (`to >= from`) and `includeDeleted` boolean.
+
+### No migrations, no new env vars, no BREAKING CHANGES
+
+All aggregations run fresh on every request (no cache). With 2–10 tenants, latency is <200 ms. Follow-up: add TTL cache if tenant count grows beyond 100.
+
+---
+
 ## [2.2.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.2.0...v2.2.1) (2026-07-03)
 
 
