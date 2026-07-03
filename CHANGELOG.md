@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.1.0...v2.2.0) (2026-07-03)
+
+
+### Features
+
+* **notifications:** transactional emails via Resend SMTP (E3) ([f6590ac](https://github.com/tintindavid/Backend-Timtto/commit/f6590ac44c2e39826369808c7e478f4461bea41a))
+
 # [Unreleased] — saas-notifications-baseline (E3)
 
 ### Features
