@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.2.0...v2.2.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **notifications:** fire-and-forget email so response is not blocked ([5ad13f9](https://github.com/tintindavid/Backend-Timtto/commit/5ad13f90aaf2d4709acc0c23f00a19b95fd6bd24)), closes [#14](https://github.com/tintindavid/Backend-Timtto/issues/14)
+
 # [2.2.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.1.0...v2.2.0) (2026-07-03)
 
 
