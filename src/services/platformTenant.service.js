@@ -197,20 +197,26 @@ export class PlatformTenantService {
         adminEmail: createdAdmin.email,
       });
 
-      const emailResult = await emailService.sendWelcomeEmail({
-        to: createdAdmin.email,
-        tenantName: createdTenant.name,
-        tenantId: createdTenant.tenantId,
-        adminFirstName: createdAdmin.firstName,
-        temporaryPassword,
-        loginUrl: env.PUBLIC_APP_URL + '/login',
-      });
+      // Fire-and-forget the welcome email so the HTTP response is not blocked
+      // by the SMTP round-trip (~1-10s to Resend). Design D4/D8: `emailSent`
+      // is best-effort intent, not delivery confirmation. Failures logged in
+      // the email service. Defensive modal shows the password anyway.
+      emailService
+        .sendWelcomeEmail({
+          to: createdAdmin.email,
+          tenantName: createdTenant.name,
+          tenantId: createdTenant.tenantId,
+          adminFirstName: createdAdmin.firstName,
+          temporaryPassword,
+          loginUrl: env.PUBLIC_APP_URL + '/login',
+        })
+        .catch((err) => logger.error('platformTenant(tx): unhandled email error', { tenantId: createdTenant.tenantId, error: err.message }));
 
       return {
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(), // password stripped by toJSON transform
         temporaryPassword,
-        emailSent: emailResult.sent === true,
+        emailSent: env.NOTIFICATIONS_ENABLED === true,
       };
     } catch (txErr) {
       if (isTransactionUnsupportedError(txErr)) {
@@ -255,20 +261,23 @@ export class PlatformTenantService {
         tenantId: createdTenant.tenantId,
       });
 
-      const emailResult = await emailService.sendWelcomeEmail({
-        to: createdAdmin.email,
-        tenantName: createdTenant.name,
-        tenantId: createdTenant.tenantId,
-        adminFirstName: createdAdmin.firstName,
-        temporaryPassword,
-        loginUrl: env.PUBLIC_APP_URL + '/login',
-      });
+      // Fire-and-forget (see comment in transaction path above).
+      emailService
+        .sendWelcomeEmail({
+          to: createdAdmin.email,
+          tenantName: createdTenant.name,
+          tenantId: createdTenant.tenantId,
+          adminFirstName: createdAdmin.firstName,
+          temporaryPassword,
+          loginUrl: env.PUBLIC_APP_URL + '/login',
+        })
+        .catch((err) => logger.error('platformTenant(compensatory): unhandled email error', { tenantId: createdTenant.tenantId, error: err.message }));
 
       return {
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(),
         temporaryPassword,
-        emailSent: emailResult.sent === true,
+        emailSent: env.NOTIFICATIONS_ENABLED === true,
       };
     } catch (userErr) {
       logger.error(
