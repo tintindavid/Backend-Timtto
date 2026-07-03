@@ -1,3 +1,15 @@
+# [2.3.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.2.1...v2.3.0) (2026-07-03)
+
+
+### Bug Fixes
+
+* **analytics:** use preserveNullAndEmptyArrays (correct $unwind option) ([4a56bc1](https://github.com/tintindavid/Backend-Timtto/commit/4a56bc13f54d267b4995929421a3a4f14c5e9ce3))
+
+
+### Features
+
+* **platform:** analytics dashboard with cross-tenant KPIs (E4) ([d70cb77](https://github.com/tintindavid/Backend-Timtto/commit/d70cb7730f38f529580c9e9d518354725e1e4ae4))
+
 # [Unreleased] — saas-platform-analytics (E4)
 
 ### Features
