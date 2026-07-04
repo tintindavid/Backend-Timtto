@@ -4,6 +4,8 @@ import { signToken, verifyToken } from '../utils/jwt.util.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
+import { emailService } from '../services/external/email.service.js';
+import { env } from '../config/env.js';
 
 export class AuthController {
   /**
@@ -107,6 +109,37 @@ export class AuthController {
       if (!tenantId) throw new ApiError(401, 'Token inválido: falta tenant', 'INVALID_TOKEN');
       const user = await userService.getById(userId, tenantId);
       res.json(successResponse(user, 'Usuario actual'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forgotPassword(req, res, next) {
+    try {
+      const { email } = req.body;
+      const tenantId = req.tenantId;
+      const result = await userService.createPasswordResetToken(email, tenantId);
+      if (result) {
+        const resetLink = `${env.PUBLIC_APP_URL}/reset-password?token=${result.rawToken}&tenantId=${tenantId}`;
+        await emailService.sendForgotPasswordEmail({
+          to: result.user.email,
+          firstName: result.user.firstName || result.user.email,
+          resetLink,
+        });
+      }
+      return res.json(
+        successResponse(null, 'Si el email está registrado, recibirás un link de recuperación en los próximos minutos'),
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req, res, next) {
+    try {
+      const { token, tenantId, newPassword } = req.body;
+      await userService.resetPassword(token, tenantId, newPassword);
+      return res.json(successResponse(null, 'Contraseña restablecida correctamente'));
     } catch (error) {
       next(error);
     }
