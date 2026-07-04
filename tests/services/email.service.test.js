@@ -250,3 +250,45 @@ describe('emailService — log sanitization', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: sendForgotPasswordEmail — NOTIFICATIONS_ENABLED=false (skip path)
+// ---------------------------------------------------------------------------
+
+describe('emailService.sendForgotPasswordEmail — NOTIFICATIONS_ENABLED=false', () => {
+  let emailService;
+  let env;
+  let loggerModule;
+
+  before(async () => {
+    ({ env } = await import('../../src/config/env.js'));
+    ({ emailService } = await import('../../src/services/external/email.service.js'));
+    loggerModule = await import('../../src/config/logger.config.js');
+  });
+
+  it('returns { sent: false, skipped: true } without calling transport', async () => {
+    const originalFlag = env.NOTIFICATIONS_ENABLED;
+    env.NOTIFICATIONS_ENABLED = false;
+
+    const stub = stubLogger(loggerModule.logger, 'debug');
+
+    try {
+      const result = await emailService.sendForgotPasswordEmail({
+        to: 'user@test.com',
+        firstName: 'María',
+        resetLink: 'http://localhost:5173/reset-password?token=abc123&tenantId=acme',
+      });
+
+      assert.equal(result.sent, false, 'sent must be false when flag=off');
+      assert.equal(result.skipped, true, 'skipped must be true when flag=off');
+
+      assert.ok(stub.calls.length > 0, 'should log at debug level');
+      const logStr = JSON.stringify(stub.calls);
+      assert.ok(!logStr.includes('abc123'), 'log must not contain the reset token');
+      assert.ok(!logStr.includes('html'), 'log must not contain rendered html');
+    } finally {
+      env.NOTIFICATIONS_ENABLED = originalFlag;
+      stub.restore();
+    }
+  });
+});
