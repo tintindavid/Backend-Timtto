@@ -45,5 +45,14 @@ export const env = {
   EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS || 'AlertasyNotificaciones@timtto.com',
   EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'TIMTTO Alertas y Notificaciones',
   // URL pública del frontend — se usa en los links del email (ej. /login)
-  PUBLIC_APP_URL: process.env.PUBLIC_APP_URL || 'http://localhost:5173',
+  // REQUERIDA en producción. Si aparece localhost en los emails, esta var no llegó al proceso.
+  PUBLIC_APP_URL: (() => {
+    const val = process.env.PUBLIC_APP_URL;
+    if (!val || val.includes('localhost')) {
+      if ((process.env.NODE_ENV || 'development') === 'production') {
+        console.error('[env] CRITICAL: PUBLIC_APP_URL no está configurada o apunta a localhost en producción. Los links de email serán incorrectos.');
+      }
+    }
+    return val || 'http://localhost:5173';
+  })(),
 };
