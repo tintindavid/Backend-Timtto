@@ -1,3 +1,10 @@
+## [2.4.2](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.1...v2.4.2) (2026-07-05)
+
+
+### Bug Fixes
+
+* **email:** switch from SMTP to Resend HTTP API to bypass port 465 blocking ([9a8960d](https://github.com/tintindavid/Backend-Timtto/commit/9a8960db43894e6bed1ed3b098b049d7d3d55f7a))
+
 ## [2.4.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.0...v2.4.1) (2026-07-05)
 
 
