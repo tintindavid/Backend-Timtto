@@ -1,4 +1,5 @@
 'use strict';
+import crypto from 'crypto';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
@@ -173,6 +174,66 @@ export class UserService {
       if (error instanceof ApiError) throw error;
       logger.error('Error cambiando contraseña:', error);
       throw new ApiError(500, 'Error cambiando contraseña', 'CHANGE_PASSWORD_ERROR');
+    }
+  }
+
+  async createPasswordResetToken(email, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const user = await User.findOne({ email, tenantId });
+      if (!user) return null;
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      user.passwordResetToken = tokenHash;
+      user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save();
+      logger.info('UserService: passwordReset token created', { userId: user._id });
+      return { rawToken, user };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error creando password reset token:', error);
+      throw new ApiError(500, 'Error procesando solicitud', 'RESET_TOKEN_ERROR');
+    }
+  }
+
+  async findValidResetToken(rawToken, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const user = await User.findOne({
+        passwordResetToken: tokenHash,
+        passwordResetExpires: { $gt: new Date() },
+        tenantId,
+      });
+      return !!user;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error validando reset token:', error);
+      throw new ApiError(500, 'Error validando token', 'VALIDATE_TOKEN_ERROR');
+    }
+  }
+
+  async resetPassword(rawToken, tenantId, newPassword) {
+    try {
+      requireTenant(tenantId);
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const user = await User.findOne({
+        passwordResetToken: tokenHash,
+        passwordResetExpires: { $gt: new Date() },
+        tenantId,
+      });
+      if (!user) throw new ApiError(400, 'Token inválido o expirado', 'TOKEN_INVALID_OR_EXPIRED');
+      user.password = newPassword;
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      user.mustChangePassword = false;
+      await user.save();
+      logger.info('UserService: password reset successful', { userId: user._id });
+      return user.toJSON();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error en resetPassword:', error);
+      throw new ApiError(500, 'Error al restablecer contraseña', 'RESET_PASSWORD_ERROR');
     }
   }
 }

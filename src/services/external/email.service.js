@@ -126,7 +126,40 @@ async function sendPasswordResetEmail({ to, firstName, temporaryPassword, loginU
   });
 }
 
+/**
+ * Sends a self-service password recovery email with a secure reset link.
+ *
+ * Returns { sent: false, skipped: true } immediately when NOTIFICATIONS_ENABLED=false.
+ *
+ * @param {object} params
+ * @param {string} params.to          Recipient email
+ * @param {string} params.firstName   User's first name for greeting
+ * @param {string} params.resetLink   Full URL to the reset-password page (contains rawToken)
+ * @returns {Promise<{ sent: boolean, skipped?: boolean, error?: string }>}
+ */
+async function sendForgotPasswordEmail({ to, firstName, resetLink }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'forgot-password' });
+    return { sent: false, skipped: true };
+  }
+
+  const vars = { firstName, resetLink };
+  const [html, text] = await Promise.all([
+    renderTemplate('forgot-password.hbs', vars),
+    renderTemplate('forgot-password.txt.hbs', vars),
+  ]);
+
+  return _send({
+    to,
+    subject: 'Recupera tu contraseña — TIMTTO',
+    html,
+    text,
+    templateName: 'forgot-password',
+  });
+}
+
 export const emailService = {
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendForgotPasswordEmail,
 };

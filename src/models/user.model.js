@@ -24,6 +24,9 @@ const userSchema = new Schema(
     // Set to true when the user must rotate their password on next login.
     // Activated by E1 onboarding (temp passwords) and E2 SuperAdmin reset.
     mustChangePassword: { type: Boolean, default: false },
+    // Self-service password recovery token (SHA-256 hash of rawToken). Cleared on use.
+    passwordResetToken:   { type: String, default: null },
+    passwordResetExpires: { type: Date,   default: null },
   },
   {
     timestamps: true,
@@ -65,6 +68,8 @@ userSchema.set('toJSON', {
     delete ret.__v;
     delete ret.isDeleted;
     delete ret.deletedAt;
+    delete ret.passwordResetToken;
+    delete ret.passwordResetExpires;
     return ret;
   },
 });
