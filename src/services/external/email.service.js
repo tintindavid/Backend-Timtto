@@ -1,57 +1,41 @@
-import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.config.js';
 import { renderTemplate } from '../../utils/renderTemplate.util.js';
 
 /**
- * Nodemailer transport configured for Resend SMTP relay.
- * Uses SSL on port 465 (recommended by Resend).
- * Auth: user='resend', pass=<Resend API Key starting with re_...>.
+ * Internal send function via Resend HTTP API (port 443).
+ * Replaces SMTP/nodemailer to avoid port 465 blocking on Railway and other
+ * cloud platforms. Uses fetch (Node 18+) against https://api.resend.com/emails.
  *
- * The transport is created once at module load time. If SMTP credentials
- * are invalid, errors surface on the first sendMail call (not at startup).
- */
-const transport = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  secure: true, // SSL directo en puerto 465
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASSWORD,
-  },
-  connectionTimeout: 10_000,
-  greetingTimeout: 5_000,
-  socketTimeout: 15_000,
-});
-
-/**
- * Internal send function. Never called when NOTIFICATIONS_ENABLED=false
- * (the public methods guard against that before reaching this function).
- *
- * Never logs html, text, temporaryPassword, nor the full error object.
+ * Never logs html, text, nor the full error object.
  * Only logs sanitised metadata: { to, templateName }.
- *
- * @param {object} params
- * @param {string} params.to            Recipient email address
- * @param {string} params.subject       Email subject line
- * @param {string} params.html          Rendered HTML body
- * @param {string} params.text          Rendered plain-text body
- * @param {string} params.templateName  Template identifier (for logs)
- * @returns {Promise<{ sent: boolean, error?: string }>}
  */
 async function _send({ to, subject, html, text, templateName }) {
   try {
-    await transport.sendMail({
-      from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
-      to,
-      subject,
-      html,
-      text,
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.SMTP_PASSWORD}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
+        to: [to],
+        subject,
+        html,
+        text,
+      }),
     });
+
+    if (!res.ok) {
+      const body = await res.text();
+      logger.error('email-service: send failed', { to, templateName, status: res.status, body });
+      return { sent: false, error: `HTTP ${res.status}: ${body}` };
+    }
+
     logger.info('email-service: sent', { to, templateName });
     return { sent: true };
   } catch (err) {
-    // Log only err.message — never the full err object (may contain SMTP credentials in some nodemailer versions)
     logger.error('email-service: send failed', { to, templateName, error: err.message });
     return { sent: false, error: err.message };
   }
@@ -165,15 +149,12 @@ async function sendForgotPasswordEmail({ to, firstName, resetLink }) {
     return;
   }
   if (!env.SMTP_PASSWORD) {
-    logger.error('email-service: NOTIFICATIONS_ENABLED=true pero SMTP_PASSWORD está vacío. Los emails FALLARÁN.');
+    logger.error('email-service: NOTIFICATIONS_ENABLED=true pero SMTP_PASSWORD (Resend API key) está vacío. Los emails FALLARÁN.');
     return;
   }
-  logger.info('email-service: habilitado', {
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    user: env.SMTP_USER,
+  logger.info('email-service: habilitado (Resend HTTP API)', {
     from: env.EMAIL_FROM_ADDRESS,
-    hasPassword: true,
+    hasApiKey: true,
   });
 })();
 
