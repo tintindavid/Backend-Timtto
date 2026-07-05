@@ -158,6 +158,25 @@ async function sendForgotPasswordEmail({ to, firstName, resetLink }) {
   });
 }
 
+// Startup diagnostic — visible en logs de producción al arrancar el servidor
+(() => {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.warn('email-service: DESHABILITADO — NOTIFICATIONS_ENABLED no es "true". Los emails NO se enviarán.');
+    return;
+  }
+  if (!env.SMTP_PASSWORD) {
+    logger.error('email-service: NOTIFICATIONS_ENABLED=true pero SMTP_PASSWORD está vacío. Los emails FALLARÁN.');
+    return;
+  }
+  logger.info('email-service: habilitado', {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER,
+    from: env.EMAIL_FROM_ADDRESS,
+    hasPassword: true,
+  });
+})();
+
 export const emailService = {
   sendWelcomeEmail,
   sendPasswordResetEmail,
