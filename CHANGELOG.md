@@ -1,3 +1,15 @@
+# [2.4.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.3.0...v2.4.0) (2026-07-05)
+
+
+### Features
+
+* **auth:** add createPasswordResetToken and resetPassword to UserService ([93b6a04](https://github.com/tintindavid/Backend-Timtto/commit/93b6a04438065fa1df443683566a407a2a43f501))
+* **auth:** add forgot-password email template and sendForgotPasswordEmail ([6130ff2](https://github.com/tintindavid/Backend-Timtto/commit/6130ff287370a6abb4b4d2c81f385a929567763a))
+* **auth:** add forgotPassword and resetPassword controller handlers and routes ([0e284fc](https://github.com/tintindavid/Backend-Timtto/commit/0e284fc44490291cd07b7f29b67fe4bbfdfddd1e))
+* **auth:** add forgotPassword and resetPassword DTOs ([92252de](https://github.com/tintindavid/Backend-Timtto/commit/92252dec226a510dab36e129accbcefd442a8094))
+* **auth:** add passwordResetToken and passwordResetExpires to User schema ([2ed51f4](https://github.com/tintindavid/Backend-Timtto/commit/2ed51f49937ea809471f314de20cf2372d64e80e))
+* **auth:** add validate-reset-token endpoint and password strength rules ([0708fec](https://github.com/tintindavid/Backend-Timtto/commit/0708fecbe933196d0d2b33f6fb1b564fd3660c24))
+
 # [2.3.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.2.1...v2.3.0) (2026-07-03)
 
 
