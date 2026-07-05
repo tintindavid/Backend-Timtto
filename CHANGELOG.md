@@ -1,3 +1,11 @@
+## [2.4.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.0...v2.4.1) (2026-07-05)
+
+
+### Bug Fixes
+
+* **email:** add startup diagnostic log for email service configuration ([3f6f2d6](https://github.com/tintindavid/Backend-Timtto/commit/3f6f2d64e51ad30c095eba8262580f3eb4b77d73))
+* **env:** warn loudly when PUBLIC_APP_URL is missing or localhost in production ([fcde14b](https://github.com/tintindavid/Backend-Timtto/commit/fcde14b5a02c703268b3dcc7de5e2f3ec5797d92))
+
 # [2.4.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.3.0...v2.4.0) (2026-07-05)
 
 
