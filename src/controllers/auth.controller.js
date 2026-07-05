@@ -135,6 +135,22 @@ export class AuthController {
     }
   }
 
+  async validateResetToken(req, res, next) {
+    try {
+      const { token, tenantId } = req.query;
+      if (!token || !tenantId) {
+        return next(new ApiError(400, 'Parámetros token y tenantId requeridos', 'MISSING_PARAMS'));
+      }
+      const valid = await userService.findValidResetToken(token, tenantId);
+      if (!valid) {
+        return next(new ApiError(400, 'Token inválido o expirado', 'TOKEN_INVALID_OR_EXPIRED'));
+      }
+      return res.json(successResponse(null, 'Token válido'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async resetPassword(req, res, next) {
     try {
       const { token, tenantId, newPassword } = req.body;

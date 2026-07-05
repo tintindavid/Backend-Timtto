@@ -196,6 +196,23 @@ export class UserService {
     }
   }
 
+  async findValidResetToken(rawToken, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const user = await User.findOne({
+        passwordResetToken: tokenHash,
+        passwordResetExpires: { $gt: new Date() },
+        tenantId,
+      });
+      return !!user;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error validando reset token:', error);
+      throw new ApiError(500, 'Error validando token', 'VALIDATE_TOKEN_ERROR');
+    }
+  }
+
   async resetPassword(rawToken, tenantId, newPassword) {
     try {
       requireTenant(tenantId);

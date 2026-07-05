@@ -28,6 +28,7 @@ router.get('/me', authenticate, authController.me);
 router.post('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
 
 // Self-service password recovery — public
+router.get('/validate-reset-token', authController.validateResetToken);
 router.post('/forgot-password', validate(forgotPasswordSchema, 'body'), authController.forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema, 'body'), authController.resetPassword);
 
