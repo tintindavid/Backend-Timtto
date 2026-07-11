@@ -1,6 +1,11 @@
 'use strict';
 import multer from 'multer';
 import { ApiError } from '../utils/apiError.util.js';
+import {
+  MAX_EVIDENCES,
+  MAX_EVIDENCE_SIZE_BYTES,
+  ALLOWED_EVIDENCE_MIME,
+} from '../constants/evidence.constants.js';
 
 /**
  * Configuración de Multer para manejo de archivos
@@ -64,12 +69,38 @@ export const uploadLogoOptional = (req, res, next) => {
 };
 
 /**
+ * Multer instance for report evidences: JPEG/PNG only, max 3 files, 5MB each.
+ * Field name: `evidencias`.
+ */
+const evidenceFileFilter = (req, file, cb) => {
+  if (ALLOWED_EVIDENCE_MIME.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new ApiError(400, 'Only JPEG or PNG images are allowed', 'INVALID_FILE_TYPE'), false);
+  }
+};
+
+const evidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: evidenceFileFilter,
+  limits: {
+    fileSize: MAX_EVIDENCE_SIZE_BYTES,
+    files: MAX_EVIDENCES,
+  },
+});
+
+export const uploadEvidencias = evidenceUpload.array('evidencias', MAX_EVIDENCES);
+
+/**
  * Middleware para manejar errores de multer
  */
 export const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return next(new ApiError(400, 'El archivo es demasiado grande. Máximo 5MB.', 'FILE_TOO_LARGE'));
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return next(new ApiError(400, `A report can have at most ${MAX_EVIDENCES} evidences`, 'EVIDENCE_LIMIT_EXCEEDED'));
     }
     return next(new ApiError(400, `Error al procesar el archivo: ${err.message}`, 'MULTER_ERROR'));
   }

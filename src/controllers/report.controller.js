@@ -51,14 +51,14 @@ export class ReportController {
       const reporteId = req.params.reporteId;
       const payload = req.body;
       console.log('Payload procesar report:', payload);
-      const result = await reportService.procesar(reporteId, payload, req.tenantId);
+      const result = await reportService.procesar(reporteId, payload, req.tenantId, req.user);
       res.json(successResponse(result, 'Report procesado y OT notificada exitosamente'));
     } catch (err) { next(err); }
   }
 
   async update(req, res, next) {
     try {
-      const data = await reportService.update(req.params.id, req.body, req.tenantId);
+      const data = await reportService.update(req.params.id, req.body, req.tenantId, req.user);
       res.json(successResponse(data, 'Report actualizado exitosamente'));
     } catch (err) { next(err); }
   }
@@ -67,6 +67,65 @@ export class ReportController {
     try {
       await reportService.delete(req.params.id, req.tenantId);
       res.json(successResponse(null, 'Report eliminado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  async uploadEvidencias(req, res, next) {
+    try {
+      const { reporteId } = req.params;
+      const userId = req.user?.userId;
+      const files = req.files || [];
+      // Multer parses non-file multipart fields into req.body. Multiple values
+      // for the same field name arrive as an array; a single value as a string.
+      const rawDescs = req.body?.descripciones;
+      const descripciones = Array.isArray(rawDescs)
+        ? rawDescs
+        : rawDescs !== undefined && rawDescs !== null
+          ? [rawDescs]
+          : [];
+      const evidencias = await reportService.addEvidencias(
+        reporteId,
+        req.tenantId,
+        files,
+        userId,
+        descripciones
+      );
+      res.status(201).json(successResponse({ evidencias }, 'Evidences uploaded successfully', 201));
+    } catch (err) { next(err); }
+  }
+
+  async deleteEvidencia(req, res, next) {
+    try {
+      const { reporteId, evidenciaId } = req.params;
+      const evidencias = await reportService.removeEvidencia(reporteId, req.tenantId, evidenciaId);
+      res.json(successResponse({ evidencias }, 'Evidence deleted successfully'));
+    } catch (err) { next(err); }
+  }
+
+  async updateEvidencia(req, res, next) {
+    try {
+      const { reporteId, evidenciaId } = req.params;
+      const { descripcion } = req.body || {};
+      const evidencias = await reportService.updateEvidenciaDescripcion(
+        reporteId,
+        req.tenantId,
+        evidenciaId,
+        descripcion
+      );
+      res.json(successResponse({ evidencias }, 'Evidence updated successfully'));
+    } catch (err) { next(err); }
+  }
+
+  async updateVerificationParams(req, res, next) {
+    try {
+      const { reporteId } = req.params;
+      const { verificationParam } = req.body || {};
+      const report = await reportService.updateVerificationParams(
+        reporteId,
+        req.tenantId,
+        verificationParam
+      );
+      res.json(successResponse(report, 'Verification parameters updated successfully'));
     } catch (err) { next(err); }
   }
 }

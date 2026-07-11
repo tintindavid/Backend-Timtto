@@ -57,7 +57,7 @@ export class EquipoItemController {
 
   async delete(req, res, next) {
     try {
-      await equipoItemService.delete(req.params.id, req.tenantId);
+      await equipoItemService.delete(req.params.id, req.tenantId, req.user);
       res.json(successResponse(null, 'EquipoItem eliminado exitosamente'));
     } catch (err) { next(err); }
   }

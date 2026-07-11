@@ -1,6 +1,14 @@
 'use strict';
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.js';
+import {
+  VALIDATE_ACCESS_WINDOW_MS,
+  VALIDATE_ACCESS_MAX,
+  VALIDATE_ACCESS_IP_WINDOW_MS,
+  VALIDATE_ACCESS_IP_MAX,
+  PUBLIC_TICKET_CREATE_WINDOW_MS,
+  PUBLIC_TICKET_CREATE_MAX,
+} from '../constants/serviceQr.constants.js';
 
 export const rateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -13,4 +21,81 @@ export const rateLimiter = rateLimit({
       message: 'Demasiadas solicitudes. Por favor intenta nuevamente en 15 minutos',
       error: { code: 'RATE_LIMIT_EXCEEDED', details: { retryAfter: Math.floor(env.RATE_LIMIT_WINDOW_MS / 1000) } },
     }),
+});
+
+/**
+ * Build a 429 JSON response with a Retry-After header in seconds.
+ * Used by the public limiters below.
+ */
+function buildLimitHandler(windowMs, code, message) {
+  return (req, res /* , next, options */) => {
+    const retryAfterSec = Math.ceil(windowMs / 1000);
+    res.set('Retry-After', String(retryAfterSec));
+    res.status(429).json({
+      success: false,
+      message,
+      error: { code, details: { retryAfter: retryAfterSec } },
+    });
+  };
+}
+
+/**
+ * Per (IP + qrToken) limiter for POST /public/tickets/validate-access.
+ * 5 attempts per 15 minutes (design D9).
+ */
+export const validateAccessLimiter = rateLimit({
+  windowMs: VALIDATE_ACCESS_WINDOW_MS,
+  max: VALIDATE_ACCESS_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const qrToken =
+      (req.body && typeof req.body.qrToken === 'string' && req.body.qrToken.trim()) || 'no-token';
+    return `va:${ip}:${qrToken}`;
+  },
+  handler: buildLimitHandler(
+    VALIDATE_ACCESS_WINDOW_MS,
+    'RATE_LIMIT_VALIDATE_ACCESS',
+    'Demasiados intentos. Por favor intenta nuevamente más tarde.'
+  ),
+});
+
+/**
+ * Broader per-IP limiter for /validate-access — 20 attempts/hour.
+ * Mount BEFORE validateAccessLimiter on the route so both apply.
+ */
+export const validateAccessIpLimiter = rateLimit({
+  windowMs: VALIDATE_ACCESS_IP_WINDOW_MS,
+  max: VALIDATE_ACCESS_IP_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `va-ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`,
+  handler: buildLimitHandler(
+    VALIDATE_ACCESS_IP_WINDOW_MS,
+    'RATE_LIMIT_VALIDATE_ACCESS_IP',
+    'Demasiados intentos desde tu IP. Por favor intenta nuevamente en una hora.'
+  ),
+});
+
+/**
+ * Per-sessionToken limiter for POST /public/tickets (creation).
+ * 10 creations per minute (Q7 default). Falls back to IP if the session
+ * is not yet attached.
+ */
+export const publicTicketCreateLimiter = rateLimit({
+  windowMs: PUBLIC_TICKET_CREATE_WINDOW_MS,
+  max: PUBLIC_TICKET_CREATE_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const sid = req.publicSession && req.publicSession.serviceQrId;
+    if (sid) return `ptc:qr:${sid}`;
+    return `ptc:ip:${req.ip || 'unknown'}`;
+  },
+  handler: buildLimitHandler(
+    PUBLIC_TICKET_CREATE_WINDOW_MS,
+    'RATE_LIMIT_PUBLIC_TICKET_CREATE',
+    'Demasiadas solicitudes. Espera un momento antes de crear más tickets.'
+  ),
 });

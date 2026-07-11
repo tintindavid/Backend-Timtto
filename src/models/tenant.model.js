@@ -4,7 +4,7 @@ const { Schema, model } = mongoose;
 
 const TenantSchema = new Schema(
   {
-    tenantId: { type: String, required: true, unique: true, trim: true },
+    tenantId: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
     name: { type: String, required: true, trim: true },
     slogan:{type:String, trim:true, default:null},
     direccion: { type: String, trim: true, default: null },
@@ -44,8 +44,11 @@ TenantSchema.set('toJSON', {
   },
 });
 
+// Default: exclude soft-deleted documents.
+// Opt out via .setOptions({ includeDeleted: true }) for platform / superadmin queries.
 TenantSchema.pre(/^find/, function (next) {
-  this.where({ isDeleted: false });
+  const opts = this.getOptions ? this.getOptions() : {};
+  if (!opts.includeDeleted) this.where({ isDeleted: false });
   next();
 });
 

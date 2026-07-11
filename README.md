@@ -56,12 +56,38 @@ Estructura del proyecto
   - `app.js` — configuración Express (middlewares, rutas)
   - `server.js` — entrypoint y conexión a MongoDB
 
+Scripts de plataforma (one-off / migrations)
+--------------------------------------------
+
+Run from `TimttoApp/`:
+
+```bash
+# 1. Migrate legacy sentinel users (tenantId='superadmin'|'SUPERADMIN') to role='superadmin', tenantId='__platform__'
+MONGO_URI=mongodb://... node scripts/migrate-superadmin-users.js
+
+# 2. Normalize all tenantId fields to lowercase in every collection
+MONGO_URI=mongodb://... node scripts/normalize-tenant-ids.js
+
+# 3. Seed the first platform SuperAdmin (idempotent)
+MONGO_URI=mongodb://... \
+SEED_SUPERADMIN_EMAIL=ops@timtto.com \
+SEED_SUPERADMIN_PASSWORD=ChangeMe123! \
+node scripts/seed-platform-superadmin.js
+```
+
+Run order for a fresh deployment:
+  1. `migrate-superadmin-users.js` — must run before `normalize-tenant-ids.js`
+  2. `normalize-tenant-ids.js`
+  3. `seed-platform-superadmin.js`
+
+All scripts are idempotent and require `MONGO_URI` to be set. Verify on staging first.
+
 Endpoints principales
 --------------------
 - Autenticación
-  - `POST /api/v1/auth/register` — registrar usuario
+  - POST /api/v1/auth/register — RETIRADO (E0). Responde 410 Gone. Usar POST /api/v1/users (autenticado).
   - `POST /api/v1/auth/login` — login, devuelve JWT
-  - `POST /api/v1/auth/refresh-token` — refrescar token
+  - `POST /api/v1/auth/refresh-token` — refrescar token (preserva userId, role, tenantId)
   - `GET  /api/v1/auth/me` — obtener usuario actual (protegido)
 
 - Usuarios
@@ -124,3 +150,52 @@ CORS (desarrollo)
 - La configuración usa la librería `cors` con `credentials: true`, permite `GET, POST, PUT, DELETE, OPTIONS` y los headers `Content-Type` y `Authorization`.
  - La configuración usa la librería `cors` con `credentials: true`, permite `GET, POST, PUT, DELETE, OPTIONS` y los headers `Content-Type`, `Authorization` y `x-tenant-id` (necesario para el header personalizado del frontend).
 - En producción establece `CORS_ORIGINS` en el `.env` con los orígenes autorizados.
+
+Email notifications (E3)
+------------------------
+El backend puede enviar emails transaccionales via Resend SMTP (dominio `timtto.com`).
+
+**Estado por defecto**: desactivado (`NOTIFICATIONS_ENABLED=false`). Activar solo tras verificar deliverability con `scripts/test-resend-smoke.mjs`.
+
+**Variables de entorno requeridas** (cuando el flag está `true`):
+```
+NOTIFICATIONS_ENABLED=true
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_USER=resend
+SMTP_PASSWORD=re_xxxxxxxxxxxxxxxxxxxxxx     # Resend API key
+EMAIL_FROM_ADDRESS=AlertasyNotificaciones@timtto.com
+EMAIL_FROM_NAME=TIMTTO Alertas y Notificaciones
+PUBLIC_APP_URL=https://app.timtto.com       # base URL del frontend, usado en el link del email
+```
+
+**Setup one-time**:
+1. Sign up en Resend y agregar `timtto.com` como dominio.
+2. Agregar los 3-4 DNS records (SPF, DKIM, MX return-path, DMARC opcional) en Namecheap.
+3. Esperar propagación (~5 min) y verificar ✅ Verified en Resend.
+4. Generar API key con permiso "Sending access" en Resend.
+5. Configurar env vars en Railway (o `.env` local para dev).
+
+**Smoke test de credenciales** (sin depender del código de la app):
+```bash
+node scripts/test-resend-smoke.mjs tu-email@example.com
+```
+El script llama la REST API de Resend y confirma HTTP 200 + Message ID si la config está correcta.
+
+**Flujos con email en E3**:
+- **Welcome tenant admin**: al crear un tenant nuevo, el primer admin recibe email con credenciales.
+- **Password reset cross-tenant**: al resetear la password de un user desde `/admin/users`, el user recibe email con la nueva temp password.
+
+Ambos flujos son fail-silent — un error de email nunca rompe la creación de tenant ni el reset. El modal de UI sigue mostrando la password como fallback defensivo.
+
+Ver `openspec/changes/saas-notifications-baseline/` para spec completa.
+
+Platform Analytics dashboard (E4)
+----------------------------------
+El SuperAdmin dispone de un dashboard de analytics cross-tenant en `/admin/analytics`. Backend: 3 endpoints bajo `/api/v1/platform/analytics/*`, todos protegidos con `authenticate + requireSuperAdmin`.
+
+- `GET /api/v1/platform/analytics` — KPIs globales: tenantStats, userStats, equipoTotal, otStats (con desglose por TipoServicio), otsPerTenant (top 20), equiposTimeline (mes a mes). Filtros `from`/`to` aplican solo a métricas time-based.
+- `GET /api/v1/platform/analytics/tenants` — array por tenant con 10 columnas (usersCount, equiposCount, otsOpen, otsClosed, reportsCount, etc.). Parámetro `includeDeleted=true` para ver tenants eliminados.
+- `GET /api/v1/platform/analytics/tenants.csv` — mismo dataset en CSV UTF-8 con BOM. Excel renderiza acentos correctamente.
+
+Sin migraciones, sin variables de entorno nuevas. Aggregations fresh en cada request (sin cache). Ver `openspec/changes/saas-platform-analytics/` para spec completa.

@@ -17,6 +17,10 @@ import { logger, loggerStream } from './config/logger.config.js';
 import { rateLimiter } from './middlewares/rateLimiter.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { tenantResolver } from './middlewares/tenant.middleware.js';
+import { auditPlatformAction } from './middlewares/auditPlatformAction.middleware.js';
+import { enforceReadOnlyForSuperadmin } from './middlewares/enforceReadOnlyForSuperadmin.middleware.js';
+import { enforceMustChangePassword } from './middlewares/enforceMustChangePassword.middleware.js';
+import { verifyToken } from './utils/jwt.util.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
@@ -45,6 +49,15 @@ import sheetworkRoutes from './routes/sheetwork.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
 import pdfReportsRoutes from './routes/pdfReports.routes.js';
 import cronogramaRoutes from './routes/cronograma.routes.js';
+import ticketRoutes from './routes/ticket.routes.js';
+import serviceQrRoutes from './routes/serviceQr.routes.js';
+import publicTicketRoutes from './routes/publicTicket.routes.js';
+import platformTenantRoutes from './routes/platformTenant.routes.js';
+import platformUserRoutes from './routes/platformUser.routes.js';
+import platformAuditRoutes from './routes/platformAudit.routes.js';
+import platformViewAsRoutes from './routes/platformViewAs.routes.js';
+import platformAnalyticsRoutes from './routes/platformAnalytics.routes.js';
+import myTenantRoutes from './routes/myTenant.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -95,14 +108,87 @@ app.use(tenantResolver);
 
 app.use(morgan('combined', { stream: loggerStream }));
 
-// Mount generated routes
+// ──────────────────────────────────────────────────────────────────────────────
+// Global soft-authenticate: silently parses the JWT if present so that
+// subsequent global middlewares (auditPlatformAction, enforceMustChangePassword,
+// enforceReadOnlyForSuperadmin) can inspect req.user without requiring every
+// route to run the full authenticate middleware first.
+//
+// IMPORTANT: this does NOT enforce auth — it merely populates req.user when a
+// valid token is present. Route-level authenticate middleware still enforces
+// auth and rejects invalid/missing tokens with 401.
+// ──────────────────────────────────────────────────────────────────────────────
+app.use(function tryAuthenticate(req, _res, next) {
+  const header = req.headers.authorization || req.headers.Authorization;
+  if (header && typeof header === 'string' && header.startsWith('Bearer ')) {
+    try {
+      const decoded = verifyToken(header.split(' ')[1]);
+      if (!req.user) req.user = decoded; // do not overwrite if already set
+    } catch (_) {
+      // Silently ignore invalid/expired tokens — route-level authenticate
+      // will surface the correct 401 for routes that require auth.
+    }
+  }
+  next();
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// auditPlatformAction: post-response hook for SuperAdmin platform mutations.
+// Must be registered BEFORE the platform routes so that res.on('finish') is
+// attached before the controller responds.
+// ──────────────────────────────────────────────────────────────────────────────
+app.use(auditPlatformAction);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Platform routes (E1 + E2) — registered FIRST so that:
+//   1. They are NOT subject to the enforce-* global guards below.
+//   2. Responses to platform requests are handled before Express reaches the
+//      domain route handlers.
+// ──────────────────────────────────────────────────────────────────────────────
+// E1 — Tenant lifecycle management
+app.use('/api/v1/platform/tenants', platformTenantRoutes);
+// E2 — Cross-tenant user management
+app.use('/api/v1/platform/users', platformUserRoutes);
+// E2 — Immutable audit log queries
+app.use('/api/v1/platform/audit-log', platformAuditRoutes);
+// E2 — View-as session signalling (audit only; state lives in sessionStorage)
+app.use('/api/v1/platform/view-as', platformViewAsRoutes);
+// E4 — Cross-tenant analytics dashboard (SuperAdmin read-only)
+app.use('/api/v1/platform/analytics', platformAnalyticsRoutes);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Auth routes — registered before the enforce-* guards so that:
+//   - POST /auth/login never gets blocked by enforceMustChangePassword.
+//   - POST /auth/change-password can be reached even when mustChangePassword=true.
+// ──────────────────────────────────────────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Global guards — registered AFTER platform/auth routes, BEFORE domain routes.
+//
+// These middlewares only act when req.user is populated (by tryAuthenticate
+// above). Unauthenticated requests pass through; route-level authenticate will
+// enforce auth separately.
+// ──────────────────────────────────────────────────────────────────────────────
+// Blocks ALL routes for users with mustChangePassword=true (except exempt paths).
+app.use(enforceMustChangePassword);
+// Blocks mutating methods on domain routes for superadmin role.
+app.use(enforceReadOnlyForSuperadmin);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Domain routes — ALL registered AFTER the enforce-* guards.
+// Adding a new domain router here automatically inherits both guards.
+// ──────────────────────────────────────────────────────────────────────────────
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/permissions', permissionsRoutes);
+
+// My-tenant — scoped to the authenticated user's own tenant.
+app.use('/api/v1/my-tenant', myTenantRoutes);
+
 // app.use('/api/v1/equipos', equipoRoutes); // Comentar si no existe
 // app.use('/api/v1/hvequipos', hvequipoRoutes); // Comentar si no existe
-app.use('/api/v1/cronogramas', cronogramaRoutes); // Nueva ruta
+app.use('/api/v1/cronogramas', cronogramaRoutes);
 app.use('/api/v1/actividad-mtto', actividadMttoRoutes);
 app.use('/api/v1/actividad-reporte', actividadReporteRoutes);
 app.use('/api/v1/address', addressRoutes);
@@ -128,10 +214,21 @@ app.use('/api/v1/servicios', serviciosRoutes);
 app.use('/api/v1/sheetwork', sheetworkRoutes);
 // Alias for english/plural endpoint used by frontend
 app.use('/api/v1/worksheets', sheetworkRoutes);
-// Tenant management
+
+// Tenant management (legacy — Deprecation headers active; Sunset scheduled per E1 PR note)
 app.use('/api/v1/tenants', tenantRoutes);
 // PDF reports (bulk/single)
 app.use('/api/v1/pdf-reports', pdfReportsRoutes);
+
+// Ticket por Área module — panel endpoints
+app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/service-qrs', serviceQrRoutes);
+
+// Ticket por Área module — public (QR-gated) endpoints.
+// Mounted OUTSIDE /api/v1 per spec; uses publicAuth.middleware + dedicated
+// rate limiters. tenantResolver runs on all routes but is bypassed for
+// /public/* since publicAuth attaches req.tenantId from the sessionToken.
+app.use('/public/tickets', publicTicketRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));

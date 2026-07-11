@@ -6,14 +6,14 @@ const { Schema, model } = mongoose;
 
 const userSchema = new Schema(
   {
-    tenantId: { type: String, required: true },
+    tenantId: { type: String, required: true, index: true },
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
     fullName: { type: String, trim: true },
     username: { type: String, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'technician', 'user'], default: 'technician' },
+    role: { type: String, enum: ['admin', 'technician', 'user', 'superadmin'], default: 'technician' },
     roleId: { type: Schema.Types.ObjectId, ref: 'Role', default: null },
     phone: { type: String, trim: true },
     city: { type: String, trim: true },
@@ -22,6 +22,12 @@ const userSchema = new Schema(
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
     fileFirma: { type: String, trim: true },
+    // Set to true when the user must rotate their password on next login.
+    // Activated by E1 onboarding (temp passwords) and E2 SuperAdmin reset.
+    mustChangePassword: { type: Boolean, default: false },
+    // Self-service password recovery token (SHA-256 hash of rawToken). Cleared on use.
+    passwordResetToken:   { type: String, default: null },
+    passwordResetExpires: { type: Date,   default: null },
   },
   {
     timestamps: true,
@@ -63,13 +69,16 @@ userSchema.set('toJSON', {
     delete ret.__v;
     delete ret.isDeleted;
     delete ret.deletedAt;
+    delete ret.passwordResetToken;
+    delete ret.passwordResetExpires;
     return ret;
   },
 });
 
-// Default query to exclude soft-deleted
+// Default query to exclude soft-deleted (opt-out with { includeDeleted: true })
 userSchema.pre(/^find/, function (next) {
-  this.where({ isDeleted: false });
+  const opts = this.getOptions ? this.getOptions() : {};
+  if (!opts.includeDeleted) this.where({ isDeleted: false });
   next();
 });
 

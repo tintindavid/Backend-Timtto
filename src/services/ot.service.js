@@ -8,6 +8,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
+import { ticketService } from './ticket.service.js';
 
 export class OTService {
   async create(data, tenantId) {
@@ -136,6 +137,7 @@ export class OTService {
 
   async update(id, data, tenantId) {
     const session = await OT.startSession();
+    let cascadeCancelOt = false;
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -145,6 +147,23 @@ export class OTService {
         // Wrap completion side effects in one transaction to avoid partial sync states.
         const currentOt = await OT.findOne(applyTenantFilter({ _id: id }, t)).session(session);
         if (!currentOt) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
+
+        // isFromTicket guards (design D19): TipoServicio change is rejected.
+        if (currentOt.isFromTicket) {
+          if (typeof data.TipoServicio !== 'undefined' && data.TipoServicio !== currentOt.TipoServicio) {
+            throw new ApiError(409, 'No se puede cambiar TipoServicio en una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
+          }
+          // Block reassigning reportes array via update (use dedicated methods).
+          if (typeof data.reportes !== 'undefined') {
+            throw new ApiError(409, 'No se pueden modificar los reportes de una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
+          }
+        }
+
+        // Detect transition to Cancelado for the ticket cascade hook (D14).
+        cascadeCancelOt =
+          currentOt.isFromTicket &&
+          currentOt.EstadoOt !== 'Cancelado' &&
+          data.EstadoOt === 'Cancelado';
 
         updatedOt = await OT.findOneAndUpdate(
           applyTenantFilter({ _id: id }, t),
@@ -197,6 +216,23 @@ export class OTService {
       });
 
       logger.info('OT actualizado: ' + id);
+
+      // Ticket cascade (design D14): when an OT originated from tickets is
+      // cancelled, revert the linked tickets to pendiente and cancel the
+      // associated reports.
+      if (cascadeCancelOt && updatedOt) {
+        try {
+          await ticketService.revertFromOTCancel(updatedOt._id, tenantId || data.tenantId);
+          // Also cancel the associated reports so their lifecycle is consistent.
+          await Report.updateMany(
+            applyTenantFilter({ orden: updatedOt._id, isDeleted: false }, tenantId || data.tenantId),
+            { $set: { estado: 'Cancelado', fechaCancelacion: new Date() } }
+          );
+        } catch (cascadeErr) {
+          logger.error('Ticket cascade (OT cancel) failed', { err: String(cascadeErr) });
+        }
+      }
+
       return updatedOt;
     } catch (err) {
       if (err instanceof ApiError) throw err;
@@ -227,6 +263,12 @@ export class OTService {
 
       const ot = await OT.findOne(applyTenantFilter({ _id: otId }, t));
       if (!ot) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id: otId });
+
+      // isFromTicket guard (design D19): cannot append equipos/reports to a
+      // ticket-sourced OT — the report set is fixed at ticket-to-OT promotion.
+      if (ot.isFromTicket) {
+        throw new ApiError(409, 'No se pueden adicionar equipos a una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
+      }
 
       const createdEquipos = [];
       const createdReports = [];

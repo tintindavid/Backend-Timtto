@@ -1,7 +1,37 @@
 import mongoose from 'mongoose';
 import { type } from 'os';
+import {
+  MAX_EVIDENCES,
+  ALLOWED_EVIDENCE_MIME,
+  MAX_EVIDENCE_DESCRIPTION_LENGTH,
+} from '../constants/evidence.constants.js';
+import {
+  MAX_MAGNITUD_LENGTH,
+  MAX_UNIDAD_LENGTH,
+  MAX_PATRON_LENGTH,
+} from '../constants/verificationParam.constants.js';
 
 const { Schema, model } = mongoose;
+
+const VerificationParamSchema = new Schema({
+  magnitud: { type: String, trim: true, maxlength: MAX_MAGNITUD_LENGTH, default: '' },
+  unidad: { type: String, trim: true, maxlength: MAX_UNIDAD_LENGTH, default: '' },
+  valorReferencia: { type: Number, default: null },
+  valorMedido: { type: Number, default: null },
+  patron: { type: String, trim: true, maxlength: MAX_PATRON_LENGTH, default: '' },
+}, { _id: true });
+
+const EvidenciaSchema = new Schema({
+  url: { type: String, required: true, trim: true },
+  storagePath: { type: String, required: true, trim: true },
+  nombre: { type: String, required: true, trim: true },
+  tipo: { type: String, enum: ['imagen'], default: 'imagen' },
+  mimetype: { type: String, required: true, enum: ALLOWED_EVIDENCE_MIME },
+  size: { type: Number, required: true, min: 0 },
+  descripcion: { type: String, trim: true, default: '', maxlength: MAX_EVIDENCE_DESCRIPTION_LENGTH },
+  fechaSubida: { type: Date, default: Date.now },
+  uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+}, { _id: true });
 
 const ReportSchema = new Schema({
     tenantId: { type: String, required: true },
@@ -56,9 +86,26 @@ const ReportSchema = new Schema({
     estadoOperativo: { type: String,  enum: ['Operativo', 'Fuera de Servicio', 'En Mantenimiento', 'Espera de Repuestos', 'En Reparacion'], trim: true
     },
     ReportPDF: { type: String,  trim: true },  // Path to generated PDF
+    evidencias: {
+      type: [EvidenciaSchema],
+      default: [],
+      validate: {
+        validator: (arr) => !arr || arr.length <= MAX_EVIDENCES,
+        message: `A report can have at most ${MAX_EVIDENCES} evidences`,
+      },
+    },
+    verificationParam: { type: [VerificationParamSchema], default: [] },
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
-    /* Tipo de mantenimiento es un Enum */
-    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo'], trim: true, default: 'Preventivo' },
+    /* Tipo de mantenimiento es un Enum.
+       'Diagnostico' (ASCII) is added per design D10 to support reports
+       created from the ticket-area flow (isFromTicket=true). */
+    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Diagnostico'], trim: true, default: 'Preventivo' },
+
+    /* Ticket-area integration: reports created from a ticket carry the ticket
+       reference and the isFromTicket=true flag. Cascades (close/cancel) live
+       in report.service.js per design D14. */
+    ticket: { type: Schema.Types.ObjectId, ref: 'Ticket', default: null, index: true },
+    isFromTicket: { type: Boolean, default: false, index: true },
 
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
@@ -71,6 +118,7 @@ const ReportSchema = new Schema({
 // Indexes (tenant-aware)
 ReportSchema.index({ tenantId: 1, isDeleted: 1 });
 ReportSchema.index({ tenantId: 1, createdAt: -1 });
+ReportSchema.index({ tenantId: 1, isFromTicket: 1, ticket: 1 });
 
 // Exclude sensitive fields
 ReportSchema.set('toJSON', {
