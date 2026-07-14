@@ -20,8 +20,12 @@ export class CustomerController {
 
   async list(req, res, next) {
     try {
-      const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await customerService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const { page, limit, sortBy, order, search, razonSocial, ciudad, nit, ...filters } = req.query;
+      const result = await customerService.list(
+        filters,
+        { page, limit, sortBy, order, search, razonSocial, ciudad, nit },
+        req.tenantId,
+      );
       res.json(successResponse(result.data, 'Customers recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
@@ -30,6 +34,18 @@ export class CustomerController {
     try {
       const data = await customerService.getById(req.params.id, req.tenantId);
       res.json(successResponse(data, 'Customer recuperado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  async exportCsv(req, res, next) {
+    try {
+      const { csv, filename } = await customerService.exportCsv(
+        { search: req.query.search },
+        req.tenantId,
+      );
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
     } catch (err) { next(err); }
   }
 

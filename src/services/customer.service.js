@@ -5,6 +5,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
+import { buildCsv } from '../utils/csvBuilder.util.js';
 
 export class CustomerService {
   /**
@@ -67,12 +68,43 @@ export class CustomerService {
 
   async list(filters = {}, pagination = {}, tenantId) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = 'createdAt',
+        order = 'desc',
+        search,
+        razonSocial,
+        ciudad,
+        nit,
+      } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+
+      const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
       if (search) {
-        const rx = new RegExp(search, 'i');
+        const rx = new RegExp(escapeRegex(search), 'i');
         query.$or = [{ Razonsocial: rx }, { Ciudad: rx }, { Email: rx }];
+      }
+      if (razonSocial) {
+        query.Razonsocial = new RegExp(escapeRegex(razonSocial), 'i');
+      }
+      if (ciudad) {
+        query.Ciudad = new RegExp(escapeRegex(ciudad), 'i');
+      }
+      if (nit) {
+        // Nit is stored as Number but users search it as a prefix / substring
+        // string. Cast on the fly with $expr + $regexMatch so we don't need
+        // a migration to a String column.
+        const nitPattern = escapeRegex(nit);
+        query.$expr = {
+          $regexMatch: {
+            input: { $toString: '$Nit' },
+            regex: nitPattern,
+            options: 'i',
+          },
+        };
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([
@@ -194,6 +226,54 @@ export class CustomerService {
       if (err instanceof ApiError) throw err;
       logger.error('Error eliminando customer:', err);
       throw new ApiError(500, 'Error eliminando Customer', 'DELETE_ERROR');
+    }
+  }
+
+  /**
+   * Builds a CSV export of all customers for the tenant, optionally filtered
+   * by the same `search` regex as the list endpoint. No pagination — we stream
+   * the entire dataset because the operator asked for it explicitly.
+   *
+   * Returns `{ csv, filename }` so the controller can set Content-Disposition.
+   */
+  async exportCsv({ search } = {}, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const query = applyTenantFilter({ isDeleted: false }, tenantId);
+      if (search) {
+        const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const rx = new RegExp(escaped, 'i');
+        query.$or = [{ Razonsocial: rx }, { Ciudad: rx }, { Email: rx }];
+      }
+      const rows = await Customer.find(query)
+        .sort({ Razonsocial: 1 })
+        .select('Razonsocial Nit Ciudad Departamento Direccion Email TelContacto UserContacto createdAt')
+        .lean();
+
+      const columns = [
+        { key: 'Razonsocial', label: 'Razón Social' },
+        { key: 'Nit', label: 'NIT' },
+        { key: 'Ciudad', label: 'Ciudad' },
+        { key: 'Departamento', label: 'Departamento' },
+        { key: 'Direccion', label: 'Dirección' },
+        { key: 'Email', label: 'Email' },
+        { key: 'TelContacto', label: 'Teléfono' },
+        { key: 'UserContacto', label: 'Persona de contacto' },
+        { key: 'createdAt', label: 'Creado' },
+      ];
+      const formattedRows = rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt ? new Date(row.createdAt).toISOString().slice(0, 10) : '',
+      }));
+
+      const csv = buildCsv(formattedRows, columns);
+      const filename = `clientes_${new Date().toISOString().slice(0, 10)}.csv`;
+      // Prepend BOM so Excel opens UTF-8 correctly.
+      return { csv: `﻿${csv}`, filename };
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error exportando customers:', err);
+      throw new ApiError(500, 'Error exportando clientes', 'EXPORT_ERROR');
     }
   }
 }

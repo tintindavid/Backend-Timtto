@@ -11,6 +11,10 @@ const roleSchema = new Schema(
     description: { type: String, trim: true, default: null },
     permissions: { type: [String], required: true, default: [] },
     isDefault: { type: Boolean, default: false },
+    // System roles (isSystem=true) are seeded automatically for each tenant
+    // (currently: "Admin"). The service layer blocks delete/rename on them so
+    // the tenant cannot lock itself out of the Roles UI.
+    isSystem: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
   },

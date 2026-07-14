@@ -9,9 +9,10 @@ import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 import { ticketService } from './ticket.service.js';
+import { historyService } from './history.service.js';
 
 export class OTService {
-  async create(data, tenantId) {
+  async create(data, tenantId, user) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -87,6 +88,18 @@ export class OTService {
       }
 
       logger.info('OT creado: ' + entity._id);
+
+      await historyService.record({
+        tenantId: t,
+        resourceType: 'OT',
+        resourceId: entity._id,
+        action: 'create',
+        description: `OT ${entity.Consecutivo} creada${equipos.length ? ` con ${equipos.length} equipo(s)` : ''}`,
+        userId: user?.userId || null,
+        userName: user?.userName || user?.email || 'Sistema',
+        metadata: { equiposCount: equipos.length, tipoServicio: entity.TipoServicio },
+      });
+
       return entity;
     } catch (err) {
       logger.error('Error creando oT:', err);
@@ -135,9 +148,10 @@ export class OTService {
     }
   }
 
-  async update(id, data, tenantId) {
+  async update(id, data, tenantId, user) {
     const session = await OT.startSession();
     let cascadeCancelOt = false;
+    let previousEstado = null;
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -147,6 +161,7 @@ export class OTService {
         // Wrap completion side effects in one transaction to avoid partial sync states.
         const currentOt = await OT.findOne(applyTenantFilter({ _id: id }, t)).session(session);
         if (!currentOt) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
+        previousEstado = currentOt.EstadoOt;
 
         // isFromTicket guards (design D19): TipoServicio change is rejected.
         if (currentOt.isFromTicket) {
@@ -233,6 +248,30 @@ export class OTService {
         }
       }
 
+      // Record history AFTER the transaction so we don't pollute the timeline
+      // with entries for a rollback.
+      if (updatedOt) {
+        const estadoChanged = data.EstadoOt && data.EstadoOt !== previousEstado;
+        const description = estadoChanged
+          ? `Estado cambiado de "${previousEstado}" a "${data.EstadoOt}"`
+          : `OT actualizada`;
+        await historyService.record({
+          tenantId: tenantId || data.tenantId,
+          resourceType: 'OT',
+          resourceId: updatedOt._id,
+          action: estadoChanged ? 'change-status' : 'update',
+          description,
+          userId: user?.userId || null,
+          userName: user?.userName || user?.email || 'Sistema',
+          changes: estadoChanged
+            ? { EstadoOt: { from: previousEstado, to: data.EstadoOt } }
+            : Object.keys(data).reduce((acc, key) => {
+                acc[key] = { to: data[key] };
+                return acc;
+              }, {}),
+        });
+      }
+
       return updatedOt;
     } catch (err) {
       if (err instanceof ApiError) throw err;
@@ -256,7 +295,7 @@ export class OTService {
     }
   }
 
-  async addEquipos(otId, body, tenantId) {
+  async addEquipos(otId, body, tenantId, user) {
     try {
       const t = tenantId || body.tenantId;
       requireTenant(t);
@@ -349,11 +388,116 @@ export class OTService {
       await ot.save();
 
       logger.info(`Equipos añadidos a OT ${otId}`);
+
+      await historyService.record({
+        tenantId: t,
+        resourceType: 'OT',
+        resourceId: ot._id,
+        action: 'add-equipos',
+        description: `${createdReports.length || createdEquipos.length} equipo(s) añadido(s) a la OT`,
+        userId: user?.userId || null,
+        userName: user?.userName || user?.email || 'Sistema',
+        metadata: {
+          equiposCount: createdEquipos.length,
+          reportsCount: createdReports.length,
+        },
+      });
+
       return { equipos: createdEquipos, reports: createdReports, ot };
     } catch (err) {
       logger.error('Error añadiendo equipos a OT:', err);
       if (err instanceof ApiError) throw err;
       throw new ApiError(500, 'Error añadiendo equipos a OT', 'ADD_EQUIPOS_ERROR');
+    }
+  }
+
+  /**
+   * Notas de OT — ad-hoc observations, ordered oldest → newest as stored.
+   * Read/write scoped by tenant so a caller can never touch another tenant's OT.
+   */
+  async listNotas(otId, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const ot = await OT.findOne(applyTenantFilter({ _id: otId }, tenantId)).select('notas').lean();
+      if (!ot) throw new ApiError(404, 'OT no encontrada', 'OT_NOT_FOUND', { otId });
+      return ot.notas || [];
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error listando notas OT:', err);
+      throw new ApiError(500, 'Error listando notas', 'LIST_NOTAS_ERROR');
+    }
+  }
+
+  async addNota(otId, body, user, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const descripcion = (body?.descripcion || '').trim();
+      if (!descripcion) {
+        throw new ApiError(422, 'La descripción de la nota es obligatoria', 'INVALID_NOTA');
+      }
+      if (!user?.userId) {
+        throw new ApiError(401, 'No autenticado', 'NOT_AUTHENTICATED');
+      }
+
+      const nota = {
+        descripcion,
+        fecha: new Date(),
+        usuarioId: user.userId,
+        usuarioNombre: body?.usuarioNombre?.trim() || 'Usuario',
+      };
+
+      const updated = await OT.findOneAndUpdate(
+        applyTenantFilter({ _id: otId }, tenantId),
+        { $push: { notas: nota } },
+        { new: true, runValidators: true },
+      ).select('notas').lean();
+
+      if (!updated) throw new ApiError(404, 'OT no encontrada', 'OT_NOT_FOUND', { otId });
+
+      logger.info(`Nota agregada a OT ${otId} por usuario ${user.userId}`);
+
+      await historyService.record({
+        tenantId,
+        resourceType: 'OT',
+        resourceId: otId,
+        action: 'add-nota',
+        description: `Nota agregada: "${nota.descripcion.slice(0, 80)}${nota.descripcion.length > 80 ? '…' : ''}"`,
+        userId: user.userId,
+        userName: nota.usuarioNombre,
+      });
+
+      return updated.notas || [];
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error agregando nota OT:', err);
+      throw new ApiError(500, 'Error agregando nota', 'ADD_NOTA_ERROR');
+    }
+  }
+
+  async deleteNota(otId, notaId, tenantId) {
+    try {
+      requireTenant(tenantId);
+      const updated = await OT.findOneAndUpdate(
+        applyTenantFilter({ _id: otId }, tenantId),
+        { $pull: { notas: { _id: notaId } } },
+        { new: true },
+      ).select('notas').lean();
+      if (!updated) throw new ApiError(404, 'OT no encontrada', 'OT_NOT_FOUND', { otId });
+      logger.info(`Nota ${notaId} eliminada de OT ${otId}`);
+
+      await historyService.record({
+        tenantId,
+        resourceType: 'OT',
+        resourceId: otId,
+        action: 'delete-nota',
+        description: 'Nota eliminada',
+      });
+
+      return updated.notas || [];
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error eliminando nota OT:', err);
+      throw new ApiError(500, 'Error eliminando nota', 'DELETE_NOTA_ERROR');
     }
   }
 }

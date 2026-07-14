@@ -8,6 +8,7 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { ticketService } from './ticket.service.js';
+import { historyService } from './history.service.js';
 import {
   MAX_EVIDENCES,
   ALLOWED_EVIDENCE_MIME,
@@ -420,10 +421,138 @@ export class ReportService {
       }
 
       logger.info('Report procesado: ' + reporteId);
+
+      // Timeline entries: one on the Report and mirror one on the parent OT so
+      // OT-level views ("who touched this OT?") don't require joining tables.
+      if (updated) {
+        const previousEstado = previous?.estado;
+        const currentEstado = updated.estado;
+        const transitionedToProcesado = previousEstado !== 'Procesado' && currentEstado === 'Procesado';
+        const revertedToPending = previousEstado === 'Procesado' && currentEstado === 'Pendiente';
+
+        let action = 'update';
+        let description = `Reporte ${updated.consecutivo || ''} actualizado`;
+        if (transitionedToProcesado) {
+          action = 'mark-processed';
+          description = `Reporte ${updated.consecutivo || ''} marcado como Procesado`;
+        } else if (revertedToPending) {
+          action = 'unprocess';
+          description = `Reporte ${updated.consecutivo || ''} devuelto a Pendiente (procesado anulado)`;
+        } else if (currentEstado && previousEstado && currentEstado !== previousEstado) {
+          action = 'change-status';
+          description = `Reporte ${updated.consecutivo || ''}: ${previousEstado} → ${currentEstado}`;
+        }
+
+        const historyPayload = {
+          tenantId: t,
+          resourceType: 'Report',
+          resourceId: updated._id,
+          action,
+          description,
+          userId: panelUser?.userId || null,
+          userName: panelUser?.userName || panelUser?.email || 'Sistema',
+          changes: { estado: { from: previousEstado, to: currentEstado } },
+        };
+        await historyService.record(historyPayload);
+
+        if (updated.orden) {
+          await historyService.record({
+            ...historyPayload,
+            resourceType: 'OT',
+            resourceId: updated.orden,
+          });
+        }
+      }
+
       return { report: updated, ot: otUpdated };
     } catch (err) {
       logger.error('Error procesando report:', err);
       throw new ApiError(500, 'Error procesando Report', 'PROCESS_ERROR');
+    }
+  }
+
+  /**
+   * Reverts a processed report back to Pendiente. Uses $unset so the schema
+   * validator doesn't reject null on fields typed as Date / ObjectId — the
+   * generic PUT rejects the same payload with a VALIDATION_ERROR.
+   *
+   * Refuses if the report is not currently in Procesado (Cerrado/Cancelado are
+   * terminal, Pendiente is a no-op) or if it's already attached to a signed
+   * worksheet (would break the HT invariant).
+   */
+  async unprocess(reporteId, tenantId, panelUser = null) {
+    try {
+      requireTenant(tenantId);
+      const previous = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId)).lean();
+      if (!previous) throw new ApiError(404, 'Report no encontrado', 'REPORT_NOT_FOUND', { id: reporteId });
+      if (previous.estado !== 'Procesado') {
+        throw new ApiError(409, 'Solo reportes en estado Procesado pueden anularse', 'REPORT_NOT_PROCESSED', { estado: previous.estado });
+      }
+
+      const updated = await Report.findOneAndUpdate(
+        applyTenantFilter({ _id: reporteId }, tenantId),
+        {
+          $set: {
+            estado: 'Pendiente',
+            procesado: false,
+            observacionEstadoFinal: '',
+          },
+          $unset: {
+            fechaProcesado: '',
+            fechaMtto: '',
+            ResponsableMtto: '',
+            resumen: '',
+            duracion: '',
+          },
+        },
+        { new: true, runValidators: false },
+      );
+
+      // Recompute parent OT progress so the badge reflects the reverted state.
+      if (updated?.orden) {
+        try {
+          const total = await Report.countDocuments(applyTenantFilter({ orden: updated.orden, isDeleted: false }, tenantId));
+          const closed = await Report.countDocuments(applyTenantFilter({ orden: updated.orden, isDeleted: false, estado: 'Cerrado' }, tenantId));
+          const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
+          let nuevoEstado = 'Pendiente';
+          if (closed === total && total > 0) nuevoEstado = 'Cerrado';
+          else if (closed > 0) nuevoEstado = 'En Progreso';
+          await OT.findOneAndUpdate(applyTenantFilter({ _id: updated.orden }, tenantId), { $set: { Avance: avance, EstadoOt: nuevoEstado } });
+        } catch (recomputeErr) {
+          logger.warn('unprocess: OT progress recompute failed', { err: String(recomputeErr) });
+        }
+      }
+
+      logger.info(`Report ${reporteId} desprocesado`);
+
+      const description = `Reporte ${updated.consecutivo || ''} devuelto a Pendiente (procesado anulado)`;
+      await historyService.record({
+        tenantId,
+        resourceType: 'Report',
+        resourceId: updated._id,
+        action: 'unprocess',
+        description,
+        userId: panelUser?.userId || null,
+        userName: panelUser?.userName || panelUser?.email || 'Sistema',
+        changes: { estado: { from: 'Procesado', to: 'Pendiente' } },
+      });
+      if (updated.orden) {
+        await historyService.record({
+          tenantId,
+          resourceType: 'OT',
+          resourceId: updated.orden,
+          action: 'unprocess',
+          description,
+          userId: panelUser?.userId || null,
+          userName: panelUser?.userName || panelUser?.email || 'Sistema',
+        });
+      }
+
+      return updated;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error desprocesando report:', err);
+      throw new ApiError(500, 'Error desprocesando Report', 'UNPROCESS_ERROR');
     }
   }
 
@@ -693,6 +822,116 @@ export class ReportService {
       if (err instanceof ApiError) throw err;
       logger.error('Error updating verificationParam:', err);
       throw new ApiError(500, 'Error updating verification parameters', 'VERIFICATION_PARAMS_UPDATE_ERROR');
+    }
+  }
+
+  /**
+   * Returns a template of verification parameters based on the last report of
+   * this equipment that actually recorded them (any state except Cancelado).
+   * The template preserves magnitud/unidad/valorReferencia/patron so the
+   * technician doesn't have to re-enter the setup, but strips valorMedido so
+   * they must record fresh measurements this service.
+   *
+   * Returns [] when the equipment has no historical measurements — the UI
+   * shows the empty editor unchanged in that case.
+   */
+  async suggestVerificationParams(equipoId, tenantId, { excludeReporteId } = {}) {
+    try {
+      requireTenant(tenantId);
+      if (!equipoId) throw new ApiError(400, 'equipoId requerido', 'INVALID_QUERY');
+
+      const filter = applyTenantFilter(
+        {
+          Equipo: equipoId,
+          isDeleted: false,
+          estado: { $ne: 'Cancelado' },
+          verificationParam: { $exists: true, $ne: [] },
+        },
+        tenantId,
+      );
+      if (excludeReporteId) filter._id = { $ne: excludeReporteId };
+
+      const last = await Report.findOne(filter)
+        .select('verificationParam consecutivo fechaProcesado createdAt')
+        .sort({ fechaProcesado: -1, createdAt: -1 })
+        .lean();
+
+      if (!last || !Array.isArray(last.verificationParam) || last.verificationParam.length === 0) {
+        return { suggestions: [], source: null };
+      }
+
+      const suggestions = last.verificationParam
+        .filter((row) => row && (row.magnitud || row.valorReferencia !== null))
+        .map((row) => ({
+          magnitud: row.magnitud || '',
+          unidad: row.unidad || '',
+          valorReferencia: typeof row.valorReferencia === 'number' ? row.valorReferencia : null,
+          valorMedido: null,
+          patron: row.patron || '',
+        }));
+
+      return {
+        suggestions,
+        source: {
+          consecutivo: last.consecutivo,
+          fecha: last.fechaProcesado || last.createdAt,
+        },
+      };
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error suggesting verification params:', err);
+      throw new ApiError(500, 'Error obteniendo sugerencia de parámetros', 'VERIFICATION_PARAMS_SUGGEST_ERROR');
+    }
+  }
+
+  /**
+   * Every historical verification-param measurement for an equipment, oldest
+   * first. Used to render the trend chart in the HV tab; the frontend agrupa
+   * por magnitud + valorReferencia and draws one line per group.
+   */
+  async historyVerificationParams(equipoId, tenantId) {
+    try {
+      requireTenant(tenantId);
+      if (!equipoId) throw new ApiError(400, 'equipoId requerido', 'INVALID_QUERY');
+
+      const filter = applyTenantFilter(
+        {
+          Equipo: equipoId,
+          isDeleted: false,
+          estado: { $ne: 'Cancelado' },
+          verificationParam: { $exists: true, $ne: [] },
+        },
+        tenantId,
+      );
+
+      const reportes = await Report.find(filter)
+        .select('verificationParam consecutivo fechaProcesado fechaMtto createdAt')
+        .sort({ fechaProcesado: 1, createdAt: 1 })
+        .lean();
+
+      const measurements = [];
+      for (const reporte of reportes) {
+        const fecha = reporte.fechaProcesado || reporte.fechaMtto || reporte.createdAt;
+        for (const row of reporte.verificationParam || []) {
+          if (!row || typeof row.valorMedido !== 'number' || row.valorMedido === null) continue;
+          measurements.push({
+            reporteId: reporte._id,
+            consecutivo: reporte.consecutivo,
+            fecha,
+            magnitud: row.magnitud || 'Sin magnitud',
+            unidad: row.unidad || '',
+            valorReferencia: typeof row.valorReferencia === 'number' ? row.valorReferencia : null,
+            valorMedido: row.valorMedido,
+            patron: row.patron || '',
+          });
+        }
+      }
+
+      return { measurements };
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error listing verification history:', err);
+      throw new ApiError(500, 'Error obteniendo historial de parámetros', 'VERIFICATION_PARAMS_HISTORY_ERROR');
     }
   }
 }

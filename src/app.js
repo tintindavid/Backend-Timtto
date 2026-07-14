@@ -25,6 +25,7 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
 import permissionsRoutes from './routes/permissions.routes.js';
+import historyRoutes from './routes/history.routes.js';
 import actividadMttoRoutes from './routes/actividadmtto.routes.js';
 import actividadReporteRoutes from './routes/actividadreporte.routes.js';
 import addressRoutes from './routes/address.routes.js';
@@ -182,6 +183,7 @@ app.use(enforceReadOnlyForSuperadmin);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/permissions', permissionsRoutes);
+app.use('/api/v1/history', historyRoutes);
 
 // My-tenant — scoped to the authenticated user's own tenant.
 app.use('/api/v1/my-tenant', myTenantRoutes);

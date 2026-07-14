@@ -82,15 +82,27 @@ export class RoleService {
       requireTenant(tenantId);
       if (data.permissions) validatePermissions(data.permissions);
 
+      const current = await Role.findOne({ _id: id, tenantId, isDeleted: false }).lean();
+      if (!current) {
+        throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: id });
+      }
+      // System roles (e.g. Admin) cannot be renamed or converted to a regular role.
+      // Editing their permission list is still allowed so the tenant can extend
+      // the catalog as new permissions ship.
+      if (current.isSystem) {
+        if (data.name && data.name !== current.name) {
+          throw new ApiError(409, 'No se puede renombrar un rol del sistema', 'SYSTEM_ROLE_LOCKED', { roleId: id });
+        }
+        if (typeof data.isSystem === 'boolean' && data.isSystem !== true) {
+          throw new ApiError(409, 'No se puede desmarcar isSystem en un rol del sistema', 'SYSTEM_ROLE_LOCKED', { roleId: id });
+        }
+      }
+
       const existing = await Role.findOneAndUpdate(
         { _id: id, tenantId },
         { $set: data },
         { new: true, runValidators: true }
       );
-
-      if (!existing) {
-        throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: id });
-      }
 
       return existing.toJSON();
     } catch (error) {
@@ -103,15 +115,17 @@ export class RoleService {
   async softDelete(id, tenantId) {
     try {
       requireTenant(tenantId);
-      const role = await Role.findOneAndUpdate(
-        { _id: id, tenantId },
-        { $set: { isDeleted: true, deletedAt: new Date() } },
-        { new: true }
-      );
-
-      if (!role) {
+      const current = await Role.findOne({ _id: id, tenantId, isDeleted: false }).lean();
+      if (!current) {
         throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: id });
       }
+      if (current.isSystem) {
+        throw new ApiError(409, 'No se puede eliminar un rol del sistema', 'SYSTEM_ROLE_LOCKED', { roleId: id });
+      }
+      await Role.updateOne(
+        { _id: id, tenantId },
+        { $set: { isDeleted: true, deletedAt: new Date() } },
+      );
 
       return null;
     } catch (error) {

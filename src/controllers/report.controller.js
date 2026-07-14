@@ -56,6 +56,14 @@ export class ReportController {
     } catch (err) { next(err); }
   }
 
+  async unprocess(req, res, next) {
+    try {
+      const reporteId = req.params.reporteId;
+      const result = await reportService.unprocess(reporteId, req.tenantId, req.user);
+      res.json(successResponse(result, 'Procesamiento anulado'));
+    } catch (err) { next(err); }
+  }
+
   async update(req, res, next) {
     try {
       const data = await reportService.update(req.params.id, req.body, req.tenantId, req.user);
@@ -126,6 +134,22 @@ export class ReportController {
         verificationParam
       );
       res.json(successResponse(report, 'Verification parameters updated successfully'));
+    } catch (err) { next(err); }
+  }
+
+  async suggestVerificationParams(req, res, next) {
+    try {
+      const { equipoId, excludeReporteId } = req.query;
+      const data = await reportService.suggestVerificationParams(equipoId, req.tenantId, { excludeReporteId });
+      res.json(successResponse(data, 'Sugerencia de parámetros'));
+    } catch (err) { next(err); }
+  }
+
+  async historyVerificationParams(req, res, next) {
+    try {
+      const { equipoId } = req.query;
+      const data = await reportService.historyVerificationParams(equipoId, req.tenantId);
+      res.json(successResponse(data, 'Historial de parámetros'));
     } catch (err) { next(err); }
   }
 }

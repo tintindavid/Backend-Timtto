@@ -110,7 +110,12 @@ export class AuthController {
       const tenantId = req.user?.tenantId || req.tenantId;
       if (!tenantId) throw new ApiError(401, 'Token inválido: falta tenant', 'INVALID_TOKEN');
       const user = await userService.getById(userId, tenantId);
-      res.json(successResponse(user, 'Usuario actual'));
+      const userJson = typeof user?.toJSON === 'function' ? user.toJSON() : user;
+      const payload = {
+        ...userJson,
+        permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
+      };
+      res.json(successResponse(payload, 'Usuario actual'));
     } catch (error) {
       next(error);
     }

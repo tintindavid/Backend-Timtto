@@ -19,6 +19,16 @@ const userSchema = new Schema(
     city: { type: String, trim: true },
     registroInvima: { type: String, trim: true },
     photo: { type: String, default: null },
+    // Payroll / HR fields — introduced so /users can operate as a lightweight
+    // personnel module. All optional so existing users keep working.
+    fechaNacimiento: { type: Date, default: null },
+    fechaIngreso: { type: Date, default: null },
+    tipoContrato: {
+      type: String,
+      enum: ['Indefinido', 'Fijo', 'Prestacion de servicios', 'Obra o labor', 'Aprendizaje', 'Practicas', 'Temporal', ''],
+      default: '',
+    },
+    salario: { type: Number, default: null, min: 0 },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
     fileFirma: { type: String, trim: true },
@@ -36,8 +46,15 @@ const userSchema = new Schema(
 );
 
 // Indexes
-// Compound unique index per tenant
-userSchema.index({ tenantId: 1, email: 1 }, { unique: true });
+// Compound unique index per tenant, but only over live users. This lets an
+// admin re-create a user with the same email as a previously deleted one
+// (soft-deleted rows keep their email for audit purposes but no longer
+// occupy the unique slot). Same email across DIFFERENT tenants keeps working
+// because the index is compound with tenantId.
+userSchema.index(
+  { tenantId: 1, email: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: false } },
+);
 userSchema.index({ tenantId: 1, username: 1 });
 userSchema.index({ tenantId: 1, isDeleted: 1 });
 userSchema.index({ tenantId: 1, createdAt: -1 });
