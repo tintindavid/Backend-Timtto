@@ -180,6 +180,23 @@ export class OTService {
           currentOt.EstadoOt !== 'Cancelado' &&
           data.EstadoOt === 'Cancelado';
 
+        // isFromTicket guards (design D19): TipoServicio change is rejected.
+        if (currentOt.isFromTicket) {
+          if (typeof data.TipoServicio !== 'undefined' && data.TipoServicio !== currentOt.TipoServicio) {
+            throw new ApiError(409, 'No se puede cambiar TipoServicio en una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
+          }
+          // Block reassigning reportes array via update (use dedicated methods).
+          if (typeof data.reportes !== 'undefined') {
+            throw new ApiError(409, 'No se pueden modificar los reportes de una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
+          }
+        }
+
+        // Detect transition to Cancelado for the ticket cascade hook (D14).
+        cascadeCancelOt =
+          currentOt.isFromTicket &&
+          currentOt.EstadoOt !== 'Cancelado' &&
+          data.EstadoOt === 'Cancelado';
+
         updatedOt = await OT.findOneAndUpdate(
           applyTenantFilter({ _id: id }, t),
           { $set: data },

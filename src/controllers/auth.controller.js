@@ -167,6 +167,53 @@ export class AuthController {
       next(error);
     }
   }
+
+  async forgotPassword(req, res, next) {
+    try {
+      const { email } = req.body;
+      const tenantId = req.tenantId;
+      const result = await userService.createPasswordResetToken(email, tenantId);
+      if (result) {
+        const resetLink = `${env.PUBLIC_APP_URL}/reset-password?token=${result.rawToken}&tenantId=${tenantId}`;
+        await emailService.sendForgotPasswordEmail({
+          to: result.user.email,
+          firstName: result.user.firstName || result.user.email,
+          resetLink,
+        });
+      }
+      return res.json(
+        successResponse(null, 'Si el email está registrado, recibirás un link de recuperación en los próximos minutos'),
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async validateResetToken(req, res, next) {
+    try {
+      const { token, tenantId } = req.query;
+      if (!token || !tenantId) {
+        return next(new ApiError(400, 'Parámetros token y tenantId requeridos', 'MISSING_PARAMS'));
+      }
+      const valid = await userService.findValidResetToken(token, tenantId);
+      if (!valid) {
+        return next(new ApiError(400, 'Token inválido o expirado', 'TOKEN_INVALID_OR_EXPIRED'));
+      }
+      return res.json(successResponse(null, 'Token válido'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req, res, next) {
+    try {
+      const { token, tenantId, newPassword } = req.body;
+      await userService.resetPassword(token, tenantId, newPassword);
+      return res.json(successResponse(null, 'Contraseña restablecida correctamente'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();
