@@ -20,8 +20,12 @@ export class UserController {
 
   async list(req, res, next) {
     try {
-      const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await userService.list(filters, { page, limit, sortBy, order, search: req.query.search, role: req.query.role }, req.tenantId);
+      const { page, limit, sortBy, order, search, name, email, role, roleId, ...filters } = req.query;
+      const result = await userService.list(
+        filters,
+        { page, limit, sortBy, order, search, name, email, role, roleId },
+        req.tenantId,
+      );
       res.json(successResponse(result.data, 'Usuarios recuperados exitosamente', 200, result.pagination));
     } catch (error) {
       next(error);
@@ -51,6 +55,15 @@ export class UserController {
     try {
       await userService.delete(req.params.id, req.tenantId);
       res.json(successResponse(null, 'Usuario eliminado exitosamente'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async assignRole(req, res, next) {
+    try {
+      const data = await userService.assignRole(req.params.id, req.body.roleId, req.tenantId);
+      res.json(successResponse(data, 'Rol asignado exitosamente'));
     } catch (error) {
       next(error);
     }

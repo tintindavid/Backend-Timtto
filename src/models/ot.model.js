@@ -35,6 +35,17 @@ const OTSchema = new Schema({
        rejected by the service layer when this flag is true. */
     isFromTicket: { type: Boolean, default: false, index: true },
     ticketIds: [{ type: Schema.Types.ObjectId, ref: 'Ticket' }],
+    // Ad-hoc notes added by any operator on the OT (audit trail of manual
+    // observations, not tied to reports or worksheets). Ordered oldest → newest.
+    notas: [
+      {
+        _id: { type: Schema.Types.ObjectId, auto: true },
+        descripcion: { type: String, required: true, trim: true, maxlength: 2000 },
+        fecha: { type: Date, default: Date.now },
+        usuarioId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        usuarioNombre: { type: String, required: true, trim: true },
+      },
+    ],
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

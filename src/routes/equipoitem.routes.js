@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { equipoItemController } from '../controllers/equipoitem.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
+import { authorize } from '../middlewares/rbac.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
+import { PERMISSIONS } from '../constants/permissions.js';
 import { createEquipoItemDto } from '../dtos/createEquipoItem.dto.js';
 import { updateEquipoItemDto } from '../dtos/updateEquipoItem.dto.js';
 import { queryEquipoItemDto } from '../dtos/queryEquipoItem.dto.js';
@@ -11,19 +13,14 @@ import { queryEquipoByMesDto } from '../dtos/queryEquipoByMes.dto.js';
 const router = Router();
 router.use(authenticate);
 
-router.post('/', validate(createEquipoItemDto, 'body'), equipoItemController.create);
-router.get('/', validate(queryEquipoItemDto, 'query'), equipoItemController.list);
-
-// GET - Obtener equipos por mes de mantenimiento (debe ir ANTES de /:id)
-router.get('/mes/:mes', validate(queryEquipoByMesDto, 'params'), equipoItemController.getByMesMantenimiento);
-
-// GET - Obtener equipo con todas las relaciones populadas (debe ir ANTES de /:id)
-router.get('/:id/populated', equipoItemController.getByIdPopulated);
-
-router.get('/:id', equipoItemController.getById);
-router.put('/:id', validate(updateEquipoItemDto, 'body'), equipoItemController.update);
-router.patch('/:id', validate(updateEquipoItemDto, 'body'), equipoItemController.update);
-router.put('/:id/snapshot', validate(updateEquipoSnapshotDto, 'body'), equipoItemController.updateSnapshot);
-router.delete('/:id', equipoItemController.delete);
+router.post('/', authorize(PERMISSIONS.EQUIPO_ITEMS_CREATE), validate(createEquipoItemDto, 'body'), equipoItemController.create);
+router.get('/', authorize(PERMISSIONS.EQUIPO_ITEMS_READ), validate(queryEquipoItemDto, 'query'), equipoItemController.list);
+router.get('/mes/:mes', authorize(PERMISSIONS.EQUIPO_ITEMS_READ), validate(queryEquipoByMesDto, 'params'), equipoItemController.getByMesMantenimiento);
+router.get('/:id/populated', authorize(PERMISSIONS.EQUIPO_ITEMS_READ), equipoItemController.getByIdPopulated);
+router.get('/:id', authorize(PERMISSIONS.EQUIPO_ITEMS_READ), equipoItemController.getById);
+router.put('/:id', authorize(PERMISSIONS.EQUIPO_ITEMS_UPDATE), validate(updateEquipoItemDto, 'body'), equipoItemController.update);
+router.patch('/:id', authorize(PERMISSIONS.EQUIPO_ITEMS_UPDATE), validate(updateEquipoItemDto, 'body'), equipoItemController.update);
+router.put('/:id/snapshot', authorize(PERMISSIONS.EQUIPO_ITEMS_UPDATE), validate(updateEquipoSnapshotDto, 'body'), equipoItemController.updateSnapshot);
+router.delete('/:id', authorize(PERMISSIONS.EQUIPO_ITEMS_DELETE), equipoItemController.delete);
 
 export default router;

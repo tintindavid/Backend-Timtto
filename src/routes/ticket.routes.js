@@ -2,7 +2,9 @@
 import { Router } from 'express';
 import { ticketController } from '../controllers/ticket.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
+import { authorize } from '../middlewares/rbac.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
+import { PERMISSIONS } from '../constants/permissions.js';
 import {
   createTicketAdminDto,
   assignTicketDto,
@@ -15,27 +17,23 @@ import {
 const router = Router();
 router.use(authenticate);
 
-// Stats (must be before /:id)
-router.get('/stats', ticketController.stats);
+router.get('/stats', authorize(PERMISSIONS.TICKETS_READ), ticketController.stats);
 
-// Atomic OT creation from N tickets (must be before /:id)
 router.post(
   '/work-order',
+  authorize(PERMISSIONS.OTS_CREATE),
   validate(createWorkOrderFromTicketsDto, 'body'),
-  ticketController.createWorkOrder
+  ticketController.createWorkOrder,
 );
 
-// Batch
-router.get('/batch/:batchId', ticketController.getByBatch);
+router.get('/batch/:batchId', authorize(PERMISSIONS.TICKETS_READ), ticketController.getByBatch);
 
-// Collection
-router.get('/', validate(queryTicketsDto, 'query'), ticketController.list);
-router.post('/', validate(createTicketAdminDto, 'body'), ticketController.create);
+router.get('/', authorize(PERMISSIONS.TICKETS_READ), validate(queryTicketsDto, 'query'), ticketController.list);
+router.post('/', authorize(PERMISSIONS.TICKETS_CREATE), validate(createTicketAdminDto, 'body'), ticketController.create);
 
-// Single resource
-router.get('/:id', ticketController.getById);
-router.patch('/:id/assign', validate(assignTicketDto, 'body'), ticketController.assign);
-router.post('/:id/note', validate(addNoteDto, 'body'), ticketController.addNote);
-router.patch('/:id/cancel', validate(cancelTicketDto, 'body'), ticketController.cancel);
+router.get('/:id', authorize(PERMISSIONS.TICKETS_READ), ticketController.getById);
+router.patch('/:id/assign', authorize(PERMISSIONS.TICKETS_UPDATE), validate(assignTicketDto, 'body'), ticketController.assign);
+router.post('/:id/note', authorize(PERMISSIONS.TICKETS_REPLY), validate(addNoteDto, 'body'), ticketController.addNote);
+router.patch('/:id/cancel', authorize(PERMISSIONS.TICKETS_CLOSE), validate(cancelTicketDto, 'body'), ticketController.cancel);
 
 export default router;

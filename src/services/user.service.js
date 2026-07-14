@@ -1,10 +1,15 @@
 'use strict';
 import crypto from 'crypto';
 import { User } from '../models/user.model.js';
+import { Role } from '../models/role.model.js';
+import { Tenant } from '../models/tenant.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { hashPassword, comparePassword } from '../utils/password.util.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
+import { emailService } from './external/email.service.js';
+import { env } from '../config/env.js';
 
 export class UserService {
   async create(data) {
@@ -12,15 +17,63 @@ export class UserService {
       const tenantId = data.tenantId;
       requireTenant(tenantId);
 
+      if (data.roleId) {
+        const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
+        if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
+
+      // Uniqueness by (tenantId, email) is enforced by a compound unique index
+      // in the model, but we pre-check so the caller gets a friendly 409 with
+      // an actionable message instead of a bare "duplicate key" error.
       const exists = await User.findOne({ tenantId, email: data.email });
       if (exists) throw new ApiError(409, 'El email ya está registrado para este tenant', 'EMAIL_ALREADY_EXISTS', { email: data.email });
 
-      const user = await User.create(data);
+      // Generate a temporary password when the client didn't provide one — the
+      // panel now creates personnel via /users without asking for a password,
+      // and we email the temp so the user can log in and rotate it.
+      const clientPassword = typeof data.password === 'string' && data.password.trim().length > 0 ? data.password : null;
+      const temporaryPassword = clientPassword ? null : generateTemporaryPassword();
+
+      const userPayload = {
+        ...data,
+        password: clientPassword || temporaryPassword,
+        mustChangePassword: temporaryPassword !== null,
+      };
+
+      const user = await User.create(userPayload);
       logger.info(`User creado: ${user._id}`);
-      return user.toJSON();
+
+      let emailSent = false;
+      if (temporaryPassword) {
+        // Fire-and-forget: we don't want a slow SMTP to block the API response.
+        // The caller sees the temp password in the payload as a fallback.
+        try {
+          const tenant = await Tenant.findOne({ tenantId }).lean();
+          await emailService.sendWelcomeEmail({
+            to: user.email,
+            tenantName: tenant?.name || tenantId,
+            tenantId,
+            adminFirstName: user.firstName || 'Usuario',
+            temporaryPassword,
+            loginUrl: `${env.PUBLIC_APP_URL || ''}/login`,
+          });
+          emailSent = env.NOTIFICATIONS_ENABLED === true;
+        } catch (err) {
+          logger.error('user.create: welcome email failed', { userId: user._id, error: err?.message });
+        }
+      }
+
+      return {
+        user: user.toJSON(),
+        temporaryPassword,
+        emailSent,
+      };
     } catch (error) {
       logger.error('Error creando user:', error);
       if (error instanceof ApiError) throw error;
+      if (error?.code === 11000) {
+        throw new ApiError(409, 'El email ya está registrado para este tenant', 'EMAIL_ALREADY_EXISTS', { email: data.email });
+      }
       throw new ApiError(500, 'Error creando usuario', 'CREATE_ERROR');
     }
   }
@@ -58,15 +111,38 @@ export class UserService {
 
   async list(filters = {}, pagination = {}, tenantId) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search, role } = pagination;
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = 'createdAt',
+        order = 'desc',
+        search,
+        name,
+        email,
+        role,
+        roleId,
+      } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
 
+      const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
       if (search) {
-        const regex = new RegExp(search, 'i');
+        const regex = new RegExp(escapeRegex(search), 'i');
         query.$or = [{ firstName: regex }, { lastName: regex }, { email: regex }, { username: regex }];
       }
+      if (name) {
+        const regex = new RegExp(escapeRegex(name), 'i');
+        // AND with $or so combining `name` and `email` narrows the result set
+        // instead of widening it — server-side filters must compose safely.
+        const nameOr = [{ firstName: regex }, { lastName: regex }, { fullName: regex }];
+        query.$and = [...(query.$and || []), { $or: nameOr }];
+      }
+      if (email) {
+        query.email = new RegExp(escapeRegex(email), 'i');
+      }
       if (role) query.role = role;
+      if (roleId) query.roleId = roleId;
 
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
 
@@ -113,6 +189,11 @@ export class UserService {
       const tenantId = data.tenantId || data._tenantId;
       requireTenant(tenantId);
 
+      if (data.roleId) {
+        const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
+        if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
+
       const user = await User.findOneAndUpdate({ _id: id, tenantId }, { $set: data }, { new: true, runValidators: true });
       if (!user) throw new ApiError(404, 'Usuario no encontrado', 'NOT_FOUND', { userId: id });
       logger.info(`User actualizado: ${id}`);
@@ -134,6 +215,29 @@ export class UserService {
       if (error instanceof ApiError) throw error;
       logger.error('Error eliminando user:', error);
       throw new ApiError(500, 'Error eliminando usuario', 'DELETE_ERROR');
+    }
+  }
+
+  async assignRole(userId, roleId, tenantId) {
+    try {
+      requireTenant(tenantId);
+
+      const role = await Role.findOne({ _id: roleId, tenantId, isDeleted: false });
+      if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId });
+
+      const user = await User.findOneAndUpdate(
+        { _id: userId, tenantId },
+        { $set: { roleId } },
+        { new: true, runValidators: true }
+      );
+
+      if (!user) throw new ApiError(404, 'Usuario no encontrado', 'USER_NOT_FOUND', { userId });
+
+      return user.toJSON();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error asignando rol al user:', error);
+      throw new ApiError(500, 'Error asignando rol al usuario', 'ASSIGN_ROLE_ERROR');
     }
   }
 

@@ -30,7 +30,7 @@ export class AuthController {
       const { email, password } = req.body;
       const tenantId = req.tenantId;
       const user = await userService.login(email, password, tenantId);
-      const token = signToken({ userId: user._id, role: user.role, tenantId: user.tenantId });
+      const token = signToken({ userId: user._id, role: user.role, roleId: user.roleId || null, tenantId: user.tenantId });
       // Include mustChangePassword so the frontend can redirect immediately after login.
       res.json(
         successResponse(
@@ -67,6 +67,7 @@ export class AuthController {
       const newToken = signToken({
         userId: updatedUser._id || userId,
         role: updatedUser.role,
+        roleId: updatedUser.roleId || null,
         tenantId: updatedUser.tenantId || tenantId,
       });
 
@@ -93,6 +94,7 @@ export class AuthController {
       const newToken = signToken({
         userId: payload.userId,
         role: payload.role,
+        roleId: payload.roleId || null,
         tenantId: payload.tenantId,
       });
       res.json(successResponse({ token: newToken }, 'Token refrescado'));
@@ -108,7 +110,59 @@ export class AuthController {
       const tenantId = req.user?.tenantId || req.tenantId;
       if (!tenantId) throw new ApiError(401, 'Token inválido: falta tenant', 'INVALID_TOKEN');
       const user = await userService.getById(userId, tenantId);
-      res.json(successResponse(user, 'Usuario actual'));
+      const userJson = typeof user?.toJSON === 'function' ? user.toJSON() : user;
+      const payload = {
+        ...userJson,
+        permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
+      };
+      res.json(successResponse(payload, 'Usuario actual'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forgotPassword(req, res, next) {
+    try {
+      const { email } = req.body;
+      const tenantId = req.tenantId;
+      const result = await userService.createPasswordResetToken(email, tenantId);
+      if (result) {
+        const resetLink = `${env.PUBLIC_APP_URL}/reset-password?token=${result.rawToken}&tenantId=${tenantId}`;
+        await emailService.sendForgotPasswordEmail({
+          to: result.user.email,
+          firstName: result.user.firstName || result.user.email,
+          resetLink,
+        });
+      }
+      return res.json(
+        successResponse(null, 'Si el email está registrado, recibirás un link de recuperación en los próximos minutos'),
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async validateResetToken(req, res, next) {
+    try {
+      const { token, tenantId } = req.query;
+      if (!token || !tenantId) {
+        return next(new ApiError(400, 'Parámetros token y tenantId requeridos', 'MISSING_PARAMS'));
+      }
+      const valid = await userService.findValidResetToken(token, tenantId);
+      if (!valid) {
+        return next(new ApiError(400, 'Token inválido o expirado', 'TOKEN_INVALID_OR_EXPIRED'));
+      }
+      return res.json(successResponse(null, 'Token válido'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req, res, next) {
+    try {
+      const { token, tenantId, newPassword } = req.body;
+      await userService.resetPassword(token, tenantId, newPassword);
+      return res.json(successResponse(null, 'Contraseña restablecida correctamente'));
     } catch (error) {
       next(error);
     }

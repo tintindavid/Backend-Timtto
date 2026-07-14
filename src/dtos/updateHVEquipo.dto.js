@@ -81,5 +81,21 @@ export const updateHVEquipoDto = Joi.object({
   ResponsableCustomer: Joi.string().allow('').optional(),
   CargoResponsableCustomer: Joi.string().allow('').optional(),
   FirmaResponsableCustomer: Joi.string().allow('').optional(),
-  foto: Joi.string().allow('').optional()
+  foto: Joi.string().allow('').optional(),
+  // Per-magnitud verification tolerances (%). Optional — the frontend falls
+  // back to defaults when the array is empty.
+  verificationTolerances: Joi.array().items(Joi.object({
+    _id: Joi.string().optional(),
+    magnitud: Joi.string().min(1).required(),
+    unidad: Joi.string().allow('').optional(),
+    umbralAlertaPct: Joi.number().min(0).max(100).default(2),
+    umbralFueraToleranciaPct: Joi.number().min(0).max(100).default(5),
+  }).unknown(true)).optional(),
+  // Guía rápida de uso (modular). HTML is sanitized on render, not here.
+  guiaRapida: Joi.array().items(Joi.object({
+    _id: Joi.string().optional(),
+    titulo: Joi.string().min(1).max(200).required(),
+    contenidoHtml: Joi.string().allow('').max(10000).default(''),
+    orden: Joi.number().integer().min(0).default(0),
+  }).unknown(true)).optional(),
 }).min(1).unknown(true);

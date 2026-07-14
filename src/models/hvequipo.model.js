@@ -84,6 +84,27 @@ const HVEquipoSchema = new Schema({
     CargoResponsableCustomer: { type: String,  trim: true },
     FirmaResponsableCustomer: { type: String,  trim: true },
     Foto: { type: String,  trim: true },
+    // Per-magnitud tolerances used by the verification-params trend chart to
+    // classify each measurement as Estable / Alerta / Fuera de Tolerancia.
+    // Expressed as % of the reference value. If a magnitud isn't listed here,
+    // the frontend falls back to a conservative 2% / 5% default.
+    verificationTolerances: [{
+      _id: { type: Schema.Types.ObjectId, auto: true },
+      magnitud: { type: String, required: true, trim: true },
+      unidad: { type: String, trim: true, default: '' },
+      umbralAlertaPct: { type: Number, default: 2, min: 0, max: 100 },
+      umbralFueraToleranciaPct: { type: Number, default: 5, min: 0, max: 100 },
+    }],
+    // Guía rápida de uso del equipo — modular per IEC 60601-1-6 / ISO 82304-1.
+    // Sections are stored as sanitized HTML so the rich-text editor round-trips
+    // formatting (bold, italic, lists) without a WYSIWYG library on either side.
+    // `orden` lets the frontend reorder without renumbering.
+    guiaRapida: [{
+      _id: { type: Schema.Types.ObjectId, auto: true },
+      titulo: { type: String, required: true, trim: true, maxlength: 200 },
+      contenidoHtml: { type: String, default: '', maxlength: 10000 },
+      orden: { type: Number, default: 0 },
+    }],
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

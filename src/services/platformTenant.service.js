@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Tenant } from '../models/tenant.model.js';
 import { User } from '../models/user.model.js';
+import { Role } from '../models/role.model.js';
 import { Customer } from '../models/customer.model.js';
 import { HVEquipo } from '../models/hvequipo.model.js';
 import { OT } from '../models/ot.model.js';
@@ -8,6 +9,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { emailService } from './external/email.service.js';
 import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
+import { PERMISSION_VALUES } from '../constants/permissions.js';
 import { logger } from '../config/logger.config.js';
 import { env } from '../config/env.js';
 
@@ -184,11 +186,26 @@ export class PlatformTenantService {
 
       let createdTenant;
       let createdAdmin;
+      let createdAdminRole;
 
       await session.withTransaction(async () => {
         [createdTenant] = await Tenant.create([tenantPayload], { session });
         // Ensure tenantId is consistent with what was persisted (lowercase enforced by schema)
         adminPayload.tenantId = createdTenant.tenantId;
+        // Bootstrap the tenant's "Admin" role with the full permission catalog.
+        // isSystem=true blocks accidental delete/rename of the tenant's
+        // last admin role from the Roles UI.
+        [createdAdminRole] = await Role.create(
+          [{
+            tenantId: createdTenant.tenantId,
+            name: 'Admin',
+            description: 'Tenant administrator (bootstrap)',
+            permissions: PERMISSION_VALUES,
+            isSystem: true,
+          }],
+          { session },
+        );
+        adminPayload.roleId = createdAdminRole._id;
         [createdAdmin] = await User.create([adminPayload], { session });
       });
 
@@ -253,9 +270,19 @@ export class PlatformTenantService {
     }
 
     try {
+      // Bootstrap the tenant's "Admin" role (isSystem=true) before the user
+      // so the resulting user carries a valid roleId, mirroring the transactional path.
+      const createdAdminRole = await Role.create({
+        tenantId: createdTenant.tenantId,
+        name: 'Admin',
+        description: 'Tenant administrator (bootstrap)',
+        permissions: PERMISSION_VALUES,
+        isSystem: true,
+      });
       const createdAdmin = await User.create({
         ...adminPayload,
         tenantId: createdTenant.tenantId,
+        roleId: createdAdminRole._id,
       });
       logger.info('PlatformTenantService._createWithAdminCompensatory: success', {
         tenantId: createdTenant.tenantId,
