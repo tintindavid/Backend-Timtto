@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.2...v2.5.0) (2026-07-14)
+
+
+### Features
+
+* rbac granular, historial, notas ot, guía rápida, verificación de parámetros y personal ([6d7d188](https://github.com/tintindavid/Backend-Timtto/commit/6d7d188e5f2c8deca00f8db75a46ebfd29009ad5))
+
 ## [2.4.2](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.1...v2.4.2) (2026-07-05)
 
 
