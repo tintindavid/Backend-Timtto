@@ -59,6 +59,8 @@ import platformAuditRoutes from './routes/platformAudit.routes.js';
 import platformViewAsRoutes from './routes/platformViewAs.routes.js';
 import platformAnalyticsRoutes from './routes/platformAnalytics.routes.js';
 import myTenantRoutes from './routes/myTenant.routes.js';
+import clientAccessTokenRoutes from './routes/clientAccessToken.routes.js';
+import clientPortalRoutes from './routes/clientPortal.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -226,11 +228,25 @@ app.use('/api/v1/pdf-reports', pdfReportsRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/service-qrs', serviceQrRoutes);
 
+// Client portal — admin CRUD of ClientAccessToken (role admin). Mounted at
+// /api/v1/client-tokens to match the platform-wide convention used by every
+// other admin router (/api/v1/tickets, /api/v1/service-qrs, ...); frontend
+// admin `api` axios uses baseURL=`/api/v1`.
+app.use('/api/v1/client-tokens', clientAccessTokenRoutes);
+
 // Ticket por Área module — public (QR-gated) endpoints.
 // Mounted OUTSIDE /api/v1 per spec; uses publicAuth.middleware + dedicated
 // rate limiters. tenantResolver runs on all routes but is bypassed for
 // /public/* since publicAuth attaches req.tenantId from the sessionToken.
 app.use('/public/tickets', publicTicketRoutes);
+
+// Client portal — public read-only endpoints (design D3: registered outside
+// any route-level `authenticate`, resolves req.tenantId from the opaque
+// token via resolveClientToken.middleware.js, never from a header/JWT).
+// Mounted at /public/client-view to match the existing public-router
+// convention (/public/tickets); frontend `publicPortal.service.ts` strips
+// `/api/v1` from VITE_API_URL and hits `${origin}/public/client-view/...`.
+app.use('/public/client-view', clientPortalRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));

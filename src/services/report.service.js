@@ -262,9 +262,29 @@ export class ReportService {
     }
   }
 
-  async delete(id) {
+  async delete(id, tenantId) {
     try {
-      const e = await Report.findByIdAndUpdate(id, { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
+      // Estado gate (2026-08-02): only Pendiente reports can be removed
+      // from an OT. Once work has started (Abierto/En Progreso), been
+      // finished (Cerrado), processed (Procesado), or cancelled
+      // (Cancelado), the report belongs to the audit trail and must stay.
+      // Tenant filter added so the same call can't reach across tenants.
+      const filter = tenantId ? applyTenantFilter({ _id: id }, tenantId) : { _id: id };
+      const current = await Report.findOne(filter).lean();
+      if (!current) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id });
+      if (current.estado !== 'Pendiente') {
+        throw new ApiError(
+          409,
+          'Solo los reportes en estado Pendiente pueden eliminarse.',
+          'REPORT_NOT_DELETABLE',
+          { estado: current.estado }
+        );
+      }
+      const e = await Report.findOneAndUpdate(
+        filter,
+        { $set: { isDeleted: true, deletedAt: new Date() } },
+        { new: true }
+      );
       if (!e) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id });
       logger.info('Report eliminado (soft): ' + id);
     } catch (err) {

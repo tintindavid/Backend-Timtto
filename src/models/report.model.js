@@ -110,6 +110,27 @@ const ReportSchema = new Schema({
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
+
+  /* Client-portal review state (change B, design D1). Optional sub-doc —
+     undefined on reports never opened/reviewed from the client portal.
+     `reviewedByTokenId` is intentionally never exposed via toJSON/DTOs
+     outside internal audit (task 6.2 whitelist maps only `reviewedAt`). */
+  clientReview: {
+    reviewedAt: { type: Date, default: null },
+    reviewedByTokenId: { type: Schema.Types.ObjectId, ref: 'ClientAccessToken', default: null },
+  },
+  /* Free-form note the CLIENT can attach to a single report from the portal
+     (feature added 2026-08-02). Persists across the review/sign lifecycle so
+     admins can see "el cliente aclaró X sobre este equipo" even after the
+     HT is signed. `updatedByTokenId` is audit-only, whitelist mappers only
+     expose `{ text, updatedAt }` to the public payload. Max text length is
+     enforced in the DTO, not the schema, so backfill scripts aren't broken
+     by a hard cap change. */
+  clientNote: {
+    text: { type: String, trim: true, default: null },
+    updatedAt: { type: Date, default: null },
+    updatedByTokenId: { type: Schema.Types.ObjectId, ref: 'ClientAccessToken', default: null },
+  },
 }, {
   timestamps: true,
   collection: 'reports'

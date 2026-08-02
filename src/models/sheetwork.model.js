@@ -22,6 +22,22 @@ const SheetWorkSchema = new Schema({
   reports: [
     { type: Schema.Types.ObjectId, ref: 'Report' }
   ],
+
+  /* Client-portal signature (change B). `source` distinguishes HTs generated
+     from the field flow vs. the public client-portal sign endpoint (design
+     D9/D14). `clientSignature` is optional and undefined on field HTs. */
+  source: { type: String, enum: ['field', 'client-portal'], default: 'field' },
+  clientSignature: {
+    ip: { type: String, trim: true, default: null },
+    userAgent: { type: String, trim: true, default: null },
+    contentHash: { type: String, trim: true, default: null },
+    signedAt: { type: Date, default: null },
+    signedBatchId: { type: String, trim: true, default: null },
+    tokenId: { type: Schema.Types.ObjectId, ref: 'ClientAccessToken', default: null },
+  },
+  pdfStatus: { type: String, enum: ['pending', 'ready', 'error'], default: 'ready' }, // default 'ready' for retrocompat with existing sheets
+  pdfGenerationError: { type: String, default: null },
+
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
@@ -34,6 +50,14 @@ const SheetWorkSchema = new Schema({
 // Indexes (tenant-aware)
 SheetWorkSchema.index({ tenantId: 1, isDeleted: 1 });
 SheetWorkSchema.index({ tenantId: 1, createdAt: -1 });
+SheetWorkSchema.index(
+  { tenantId: 1, 'clientSignature.signedBatchId': 1 },
+  { partialFilterExpression: { 'clientSignature.signedBatchId': { $exists: true } } }
+);
+SheetWorkSchema.index(
+  { tenantId: 1, 'clientSignature.tokenId': 1 },
+  { partialFilterExpression: { 'clientSignature.tokenId': { $exists: true } } }
+);
 
 // Exclude sensitive fields
 SheetWorkSchema.set('toJSON', {
