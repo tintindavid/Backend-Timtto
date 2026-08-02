@@ -1,5 +1,6 @@
 import { OT } from '../models/ot.model.js';
 import { Report } from '../models/report.model.js';
+import { Customer } from '../models/customer.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { Repuestos } from '../models/repuestos.model.js';
 import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
@@ -111,10 +112,44 @@ export class OTService {
     try {
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
-      const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+      // Whitelist only the filters that make sense on OT (2026-08-02). Older
+      // code spread `...filters` directly, which allowed arbitrary query
+      // parameters to reach Mongo — including ones with no matching field.
+      const { ClienteId, EstadoOt, Consecutivo, clienteName } = filters;
+      const cleanFilters = {};
+      if (ClienteId) cleanFilters.ClienteId = ClienteId;
+      if (EstadoOt) cleanFilters.EstadoOt = EstadoOt;
+      // Consecutivo is a partial match — the UI passes fragments like
+      // "OT-0012" and expects "OT-001234" to hit. `\\` escapes regex meta
+      // chars in the user input.
+      if (Consecutivo) {
+        const escaped = String(Consecutivo).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        cleanFilters.Consecutivo = new RegExp(escaped, 'i');
+      }
+      // Text search on the populated Customer.Razonsocial. Two-step:
+      // resolve matching Customer IDs first, then filter OT.ClienteId $in
+      // that set. Short-circuits with an empty page when no customer
+      // matches — the outer query would otherwise return every OT if the
+      // `$in` were left empty. Skips when ClienteId is already explicit.
+      if (clienteName && !ClienteId) {
+        const nameEscaped = String(clienteName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const matchingCustomers = await Customer.find(
+          applyTenantFilter({ Razonsocial: new RegExp(nameEscaped, 'i') }, tenantId),
+        ).select('_id').lean();
+        if (matchingCustomers.length === 0) {
+          return {
+            data: [],
+            pagination: { page, limit, total: 0, pages: 0, hasNext: false, hasPrev: page > 1 },
+          };
+        }
+        cleanFilters.ClienteId = { $in: matchingCustomers.map((c) => c._id) };
+      }
+      const query = applyTenantFilter({ ...cleanFilters, isDeleted: false }, tenantId);
+      // Free-text `search` (kept for backwards compat) also targets Consecutivo
+      // — previous $or matched fields that don't exist on the OT schema.
       if (search) {
-        const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.Consecutivo = new RegExp(escaped, 'i');
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([

@@ -8,6 +8,25 @@ import { Tenant } from '../models/tenant.model.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 
 /**
+ * HTML-escape a value that will be interpolated into the PDF template. Fed
+ * into a Puppeteer-backed renderer, so any unescaped `<`/`>`/`"`/`'`/`&`
+ * would run as real markup (or script) inside a browser engine — see the
+ * client-portal-review-and-sign security audit (Critical #1). Applied at
+ * `prepareData` time so every downstream string interpolation is safe by
+ * construction. Returns `'N/A'` for nullish inputs to preserve existing
+ * template fallback behavior.
+ */
+function esc(value) {
+  if (value === null || value === undefined || value === '') return 'N/A';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Servicio para generar PDF de Hojas de Trabajo
  */
 class SheetWorkPDFService {
@@ -181,6 +200,7 @@ class SheetWorkPDFService {
               <div class="header-company">${data.tenantName}</div>
               <div class="header-nit">NIT: ${data.tenantNit}</div>
               <div class="header-title">HOJA DE TRABAJO</div>
+              ${data.isClientPortal ? '<div class="client-portal-tag">Firmado desde Portal Cliente</div>' : ''}
             </div>
 
             <!-- Caja info -->
@@ -365,15 +385,22 @@ class SheetWorkPDFService {
     const estadoLabel = tieneFirmaResponsable && tieneFirmaCliente ? 'FIRMADA' : 'PENDIENTE';
     const estadoClass = estadoLabel === 'FIRMADA' ? 'firmada' : 'pendiente';
 
+    // All string fields below run through `esc()` because they are
+    // interpolated straight into an HTML template string that the PDF
+    // microservice renders with a real browser engine — see esc() docblock.
+    // Image URLs stay raw (they only reach `src="..."` attributes on <img>
+    // and originate from Firebase Storage under our control, never from
+    // client-supplied data).
+
     // Preparar datos del cliente
     const cliente = {
-      razonSocial: sheetWork.clienteId?.Razonsocial || 'N/A',
-      nit: sheetWork.clienteId?.Nit || 'N/A',
-      ciudad: sheetWork.clienteId?.Ciudad || 'N/A',
-      direccion: sheetWork.clienteId?.Direccion || 'N/A',
-      departamento: sheetWork.clienteId?.Departamento || 'N/A',
-      telefono: sheetWork.clienteId?.TelContacto || 'N/A',
-      email: sheetWork.clienteId?.Email || '',
+      razonSocial: esc(sheetWork.clienteId?.Razonsocial),
+      nit: esc(sheetWork.clienteId?.Nit),
+      ciudad: esc(sheetWork.clienteId?.Ciudad),
+      direccion: esc(sheetWork.clienteId?.Direccion),
+      departamento: esc(sheetWork.clienteId?.Departamento),
+      telefono: esc(sheetWork.clienteId?.TelContacto),
+      email: sheetWork.clienteId?.Email ? esc(sheetWork.clienteId.Email) : '',
     };
 
     // Preparar equipos desde los reports
@@ -381,17 +408,17 @@ class SheetWorkPDFService {
       const equipoData = report.equipoSnapshot || report.Equipo || {};
 
       return {
-        consecutivo: report.consecutivo || 'N/A',
-        nombre: equipoData.ItemText || equipoData.nombre || 'N/A',
-        marca: equipoData.Marca || 'N/A',
-        modelo: equipoData.Modelo || 'N/A',
-        serie: equipoData.Serie || 'N/A',
-        sede: equipoData.Sede || 'N/A',
-        inventario: equipoData.Inventario || 'N/A',
-        ubicacion: equipoData.Ubicacion || 'N/A',
-        servicio: equipoData.Servicio || 'N/A',
-        estadoOperativo: report.estadoOperativo || 'N/A',
-        tipoMtto: report.tipoMtto || 'N/A',
+        consecutivo: esc(report.consecutivo),
+        nombre: esc(equipoData.ItemText || equipoData.nombre),
+        marca: esc(equipoData.Marca),
+        modelo: esc(equipoData.Modelo),
+        serie: esc(equipoData.Serie),
+        sede: esc(equipoData.Sede),
+        inventario: esc(equipoData.Inventario),
+        ubicacion: esc(equipoData.Ubicacion),
+        servicio: esc(equipoData.Servicio),
+        estadoOperativo: esc(report.estadoOperativo),
+        tipoMtto: esc(report.tipoMtto),
       };
     });
 
@@ -401,40 +428,51 @@ class SheetWorkPDFService {
     // Preparar firmas
     const firmaResponsable = {
       imagen: sheetWork.firmaResponsableFile || '',
-      nombre: sheetWork.fullNameResponsable || 'N/A',
-      cargo: sheetWork.cargoResponsable || 'N/A',
+      nombre: esc(sheetWork.fullNameResponsable),
+      cargo: esc(sheetWork.cargoResponsable),
     };
 
+    // firmaCliente.nombre/cargo carry client-supplied `signerName`/`cargo`
+    // from POST /public/client-view/:token/sign — must be HTML-escaped or a
+    // caller can inject markup / scripts into the PDF renderer's browser
+    // engine (security audit Critical #1 for change B).
     const firmaCliente = {
       imagen: sheetWork.firmaFile || '',
-      nombre: sheetWork.personaRecibe || 'N/A',
-      cargo: sheetWork.cargoRecibe || 'N/A',
+      nombre: esc(sheetWork.personaRecibe),
+      cargo: esc(sheetWork.cargoRecibe),
     };
 
     const tieneFirmas = !!firmaResponsable.imagen || !!firmaCliente.imagen;
 
-    // Preparar contacto del tenant
+    // Client-portal variant (change B, design D8/8.5): sheets signed from the
+    // public client portal render a small badge in the header. `source` is
+    // read straight off the lean SheetWork doc — default 'field' for
+    // pre-existing sheets (retrocompat D14).
+    const isClientPortal = sheetWork.source === 'client-portal';
+
+    // Preparar contacto del tenant (each part escaped before joining).
     const tenantContacto = [
-      tenant.telefono ? `Tel: ${tenant.telefono}` : '',
-      tenant.email ? `Email: ${tenant.email}` : '',
+      tenant.telefono ? `Tel: ${esc(tenant.telefono)}` : '',
+      tenant.email ? `Email: ${esc(tenant.email)}` : '',
     ]
       .filter(Boolean)
       .join(' | ') || 'N/A';
 
     return {
-      // Tenant
-      tenantName: tenant.name || 'N/A',
-      tenantNit: tenant.nit || 'N/A',
+      // Tenant (all text fields escaped; logoUrl stays raw — only used in
+      // an <img src="..."> attribute and originates from Firebase Storage).
+      tenantName: esc(tenant.name),
+      tenantNit: esc(tenant.nit),
       logoUrl: tenant.logoUrl || '',
-      tenantDireccion: tenant.direccion || 'N/A',
+      tenantDireccion: esc(tenant.direccion),
       tenantContacto,
 
       // Hoja de trabajo
-      numeroHoja: sheetWork.numeroHoja || 'N/A',
-      fecha: formatDate(sheetWork.createdAt),
-      estadoLabel,
-      estadoClass,
-      observaciones: observacionesConsolidadas,
+      numeroHoja: esc(sheetWork.numeroHoja),
+      fecha: esc(formatDate(sheetWork.createdAt)),
+      estadoLabel,          // internal constant — not user-controlled
+      estadoClass,          // internal constant — not user-controlled
+      observaciones: esc(observacionesConsolidadas),
 
       // Cliente
       cliente,
@@ -447,6 +485,7 @@ class SheetWorkPDFService {
       tieneFirmas,
       firmaResponsable,
       firmaCliente,
+      isClientPortal,
     };
   }
 
@@ -682,6 +721,18 @@ class SheetWorkPDFService {
       color: var(--primary);
       margin-top: 4px;
       letter-spacing: 1px;
+    }
+    .client-portal-tag {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 1px 8px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--white);
+      font-size: 6.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
     }
 
     .header-info-box {

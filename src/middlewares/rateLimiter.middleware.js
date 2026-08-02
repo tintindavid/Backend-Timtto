@@ -9,6 +9,12 @@ import {
   PUBLIC_TICKET_CREATE_WINDOW_MS,
   PUBLIC_TICKET_CREATE_MAX,
 } from '../constants/serviceQr.constants.js';
+import {
+  CLIENT_PORTAL_READ_WINDOW_MS,
+  CLIENT_PORTAL_READ_MAX,
+  CLIENT_PORTAL_READ_IP_WINDOW_MS,
+  CLIENT_PORTAL_READ_IP_MAX,
+} from '../constants/clientPortal.constants.js';
 
 export const rateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -97,5 +103,39 @@ export const publicTicketCreateLimiter = rateLimit({
     PUBLIC_TICKET_CREATE_WINDOW_MS,
     'RATE_LIMIT_PUBLIC_TICKET_CREATE',
     'Demasiadas solicitudes. Espera un momento antes de crear más tickets.'
+  ),
+});
+
+/**
+ * Client portal (public read) — per-token limiter. 60 req/min (design D7).
+ * Mounted on every /api/public/client-view/* route, keyed by req.params.token.
+ */
+export const clientPortalReadLimiter = rateLimit({
+  windowMs: CLIENT_PORTAL_READ_WINDOW_MS,
+  max: CLIENT_PORTAL_READ_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `cpr:tok:${req.params.token || 'no-token'}`,
+  handler: buildLimitHandler(
+    CLIENT_PORTAL_READ_WINDOW_MS,
+    'RATE_LIMIT_CLIENT_PORTAL_READ',
+    'Demasiadas solicitudes al portal cliente. Intenta en un momento.'
+  ),
+});
+
+/**
+ * Client portal (public read) — per-IP backstop limiter. 60 req/min.
+ * Catches token-enumeration attempts that rotate the token param per request.
+ */
+export const clientPortalReadIpLimiter = rateLimit({
+  windowMs: CLIENT_PORTAL_READ_IP_WINDOW_MS,
+  max: CLIENT_PORTAL_READ_IP_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `cpr:ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`,
+  handler: buildLimitHandler(
+    CLIENT_PORTAL_READ_IP_WINDOW_MS,
+    'RATE_LIMIT_CLIENT_PORTAL_READ_IP',
+    'Demasiadas solicitudes desde tu IP. Intenta en un momento.'
   ),
 });

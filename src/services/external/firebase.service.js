@@ -270,6 +270,49 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Uploads a generated PDF buffer to Firebase Storage (client-portal sheets,
+   * change B design D8 — SheetWork PDFs generated in background need a
+   * persisted public URL for `GET /sheets` polling). Mirrors `uploadEvidencia`
+   * but for `application/pdf`.
+   * @param {Buffer} fileBuffer - PDF buffer
+   * @param {string} filename - Suggested filename (sanitized), e.g. "HT-0001.pdf"
+   * @param {string} folder - Target folder (default: sheetwork/pdfs)
+   * @returns {Promise<{ url: string, storagePath: string }>}
+   */
+  async uploadPdf(fileBuffer, filename, folder = 'sheetwork/pdfs') {
+    try {
+      const storage = getFirebaseStorage();
+
+      const maxSize = 10 * 1024 * 1024;
+      if (fileBuffer.length > maxSize) {
+        throw new ApiError(400, 'El PDF es demasiado grande. Máximo 10MB.', 'FILE_TOO_LARGE');
+      }
+
+      const safeName = (filename || 'documento.pdf').replace(/[^a-zA-Z0-9-_.]/g, '-');
+      const storagePath = `${folder}/${uuidv4()}-${safeName}`;
+      const storageRef = ref(storage, storagePath);
+
+      const metadata = {
+        contentType: 'application/pdf',
+        customMetadata: {
+          originalName: safeName,
+          uploadedAt: new Date().toISOString(),
+        },
+      };
+
+      await uploadBytes(storageRef, fileBuffer, metadata);
+      const url = await getDownloadURL(storageRef);
+
+      logger.info('PDF uploaded to Firebase Storage', { storagePath });
+      return { url, storagePath };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error uploading PDF to Firebase Storage:', error);
+      throw new ApiError(500, 'Error uploading PDF to storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
    * Deletes a file from Firebase Storage by its stored path.
    * Best-effort: never throws on missing file; logs warning instead.
    * @param {string} storagePath - Path stored on the document (e.g. reportes/evidencias/uuid.jpg)
