@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.5.0...v2.6.0) (2026-08-02)
+
+
+### Features
+
+* **client-portal:** public read-only + review + sign + note per report ([d10751e](https://github.com/tintindavid/Backend-Timtto/commit/d10751e3a1c8641c968987f0291cceb5bbdbeda4))
+
 # [2.5.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.4.2...v2.5.0) (2026-07-14)
 
 
