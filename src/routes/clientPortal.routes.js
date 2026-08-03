@@ -124,4 +124,16 @@ router.get(
   clientPortalController.getSheetPdf
 );
 
+// ZIP with one PDF per report of a signed sheet (2026-08-04). Same
+// token+sheet scoping as the sheet PDF endpoint above — client sees only
+// the reports that ended up in a hoja they themselves signed under THIS
+// access token.
+router.get(
+  '/:token/sheets/:sheetId/reports-pdf',
+  clientPortalReadIpLimiter,
+  clientPortalReadLimiter,
+  resolveClientToken,
+  clientPortalController.getSheetReportsZip
+);
+
 export default router;
