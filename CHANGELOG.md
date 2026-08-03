@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.7.0...v2.8.0) (2026-08-03)
+
+
+### Features
+
+* **portal-cliente:** sheet-reports ZIP + summary estadoOperativo/fechaProcesado ([c085950](https://github.com/tintindavid/Backend-Timtto/commit/c0859503f1647eb36203d0abd961c342ac714c34))
+
 # [2.7.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.6.0...v2.7.0) (2026-08-03)
 
 
