@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.6.0...v2.7.0) (2026-08-03)
+
+
+### Features
+
+* **portal-cliente:** permission-based access + técnico attribution ([8a3bc25](https://github.com/tintindavid/Backend-Timtto/commit/8a3bc25024eb4032bea7b23974876a4aa7e44f6f))
+
 # [2.6.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.5.0...v2.6.0) (2026-08-02)
 
 
