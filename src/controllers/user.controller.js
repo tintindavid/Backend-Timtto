@@ -20,10 +20,10 @@ export class UserController {
 
   async list(req, res, next) {
     try {
-      const { page, limit, sortBy, order, search, name, email, role, roleId, ...filters } = req.query;
+      const { page, limit, sortBy, order, search, name, email, role, roleId, hasFirma, ...filters } = req.query;
       const result = await userService.list(
         filters,
-        { page, limit, sortBy, order, search, name, email, role, roleId },
+        { page, limit, sortBy, order, search, name, email, role, roleId, hasFirma },
         req.tenantId,
       );
       res.json(successResponse(result.data, 'Usuarios recuperados exitosamente', 200, result.pagination));

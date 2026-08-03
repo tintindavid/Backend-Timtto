@@ -232,6 +232,50 @@ describe('POST /public/client-view/:token/sign', () => {
     assert.equal(capturedErr.code, 'TOKEN_CREATOR_INVALID');
   });
 
+  it('uses attributionUserId firma over createdBy when both are populated (2026-08-03)', async () => {
+    const attributed = {
+      _id: '507f1f77bcf86cd799439099',
+      fullName: 'Attributed Tech',
+      role: 'technician',
+      fileFirma: 'https://cdn/firma-attributed.png',
+      isDeleted: false,
+    };
+    ClientAccessToken.findById = () => mockPopulateQuery({
+      createdBy: activeCreator(),
+      attributionUserId: attributed,
+    });
+    Report.find = () => mockQuery([reviewedReport(R1)]);
+    OT.find = () => mockQuery([
+      { _id: OT_A_ID, Consecutivo: 'OT-A', ClienteId: 'cliente-1', reportes: [R1] },
+    ]);
+    firebaseStorageService.uploadEvidencia = async () => ({ url: 'https://cdn/firma.png', storagePath: 'x' });
+    Counter.findOneAndUpdate = () => ({ lean: () => Promise.resolve({ seq: 1 }) });
+    let insertedDocs = null;
+    SheetWork.insertMany = async (docs) => {
+      insertedDocs = docs;
+      return docs.map((d, i) => ({ ...d, _id: `sheet-${i + 1}` }));
+    };
+    Report.bulkWrite = async () => ({ matchedCount: 1, modifiedCount: 1 });
+    Report.updateMany = async () => ({});
+
+    const req = {
+      tenantId: 'tenant-1',
+      tokenId: TOKEN_ID,
+      otIds: [OT_A_ID],
+      headers: {},
+      body: {
+        reportIds: [R1],
+        signature: { imagePng: VALID_SIGNATURE_BASE64, signerName: 'Cliente', signerId: '1' },
+      },
+    };
+    const res = buildRes();
+    await clientPortalController.sign(req, res, (err) => { if (err) throw err; });
+
+    assert.equal(insertedDocs[0].firmaResponsableFile, 'https://cdn/firma-attributed.png');
+    assert.equal(insertedDocs[0].fullNameResponsable, 'Attributed Tech');
+    assert.equal(String(insertedDocs[0].responsable), attributed._id);
+  });
+
   it('409 TOKEN_CREATOR_INVALID when createdBy has no fileFirma', async () => {
     ClientAccessToken.findById = () => mockPopulateQuery({ createdBy: activeCreator({ fileFirma: null }) });
 

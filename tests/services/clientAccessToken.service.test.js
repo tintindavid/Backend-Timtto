@@ -111,16 +111,62 @@ describe('ClientAccessTokenService', () => {
       assert.equal(otFindCalled, false, 'must fail fast before touching OT.find');
     });
 
-    it('throws USER_SIGNATURE_MISSING (400) when the user does not exist for the tenant', async () => {
+    it('throws ATTRIBUTION_USER_NOT_FOUND (400) when the user does not exist for the tenant', async () => {
+      // Change 2026-08-03: null user is now distinct from "exists but no
+      // firma" — the modal needs to differentiate to render the right toast.
       stub(User, 'findOne', () => mockQuery(null));
 
       await assert.rejects(
         () => clientAccessTokenService.create({ clienteId: CLIENTE_ID, otIds: [OT_ID_1] }, TENANT, USER_ID),
         (err) => {
-          assert.equal(err.code, 'USER_SIGNATURE_MISSING');
+          assert.equal(err.code, 'ATTRIBUTION_USER_NOT_FOUND');
           return true;
         },
       );
+    });
+
+    it('persists attributionUserId when the body provides one, and looks up that user (not the caller)', async () => {
+      const OTHER_TECH = '507f1f77bcf86cd799439077';
+      let userQueryFilter = null;
+      stub(User, 'findOne', (filter) => {
+        userQueryFilter = filter;
+        return mockQuery({ fileFirma: 'firma-tech.png' });
+      });
+      stub(OT, 'find', () => mockQuery([{ _id: OT_ID_1, ClienteId: CLIENTE_ID }]));
+      let savedAttribution = null;
+      ClientAccessToken.prototype.save = async function () {
+        savedAttribution = this.attributionUserId;
+        await this.validate();
+        return this;
+      };
+
+      await clientAccessTokenService.create(
+        { clienteId: CLIENTE_ID, otIds: [OT_ID_1], attributionUserId: OTHER_TECH },
+        TENANT,
+        USER_ID,
+      );
+
+      assert.equal(userQueryFilter._id, OTHER_TECH, 'must validate firma of the attributed user, not caller');
+      assert.equal(String(savedAttribution), OTHER_TECH);
+    });
+
+    it('defaults attributionUserId to the caller when the body omits it', async () => {
+      stub(User, 'findOne', () => mockQuery({ fileFirma: 'firma.png' }));
+      stub(OT, 'find', () => mockQuery([{ _id: OT_ID_1, ClienteId: CLIENTE_ID }]));
+      let savedAttribution = null;
+      ClientAccessToken.prototype.save = async function () {
+        savedAttribution = this.attributionUserId;
+        await this.validate();
+        return this;
+      };
+
+      await clientAccessTokenService.create(
+        { clienteId: CLIENTE_ID, otIds: [OT_ID_1] },
+        TENANT,
+        USER_ID,
+      );
+
+      assert.equal(String(savedAttribution), USER_ID);
     });
 
     it('throws OT_NOT_AVAILABLE (400) when an otId is missing/soft-deleted (length mismatch)', async () => {

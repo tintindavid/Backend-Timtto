@@ -7,6 +7,10 @@ const objectId = Joi.string().hex().length(24);
 export const createClientAccessTokenDto = Joi.object({
   clienteId: objectId.required(),
   otIds: Joi.array().items(objectId.required()).min(1).required(),
+  // Optional: user whose signature will appear on the future HTs
+  // (2026-08-03). Defaults to the caller if omitted. Service validates
+  // that this user has fileFirma before persisting.
+  attributionUserId: objectId.optional(),
 }).unknown(false);
 
 /** GET /api/client-tokens */

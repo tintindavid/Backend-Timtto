@@ -49,6 +49,14 @@ const ClientAccessTokenSchema = new Schema(
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
+    /* User whose signature will appear on every HT auto-generated from this
+       token (2026-08-03). Immutable after creation. Defaults to createdBy
+       when the request body omits it; the create-time DTO validates that
+       this user has User.fileFirma. Optional (not required) so legacy
+       tokens created before this field existed still load — the sign
+       flow falls back to createdBy when null. */
+    attributionUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+
     revokedAt: { type: Date, default: null },
     revokedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
 
