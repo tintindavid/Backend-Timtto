@@ -19,21 +19,28 @@ import { CLIENT_TOKEN_LENGTH } from '../constants/clientPortal.constants.js';
 export class ClientAccessTokenService {
   /**
    * Creates a token granting read-only access to `otIds` (all must belong to
-   * `clienteId`, none may be soft-deleted). Fail-fast if `createdBy` has no
-   * `fileFirma` (design D6 — prerequisite of the follow-up signature change).
+   * `clienteId`, none may be soft-deleted). Fail-fast if the ATTRIBUTED user
+   * has no `fileFirma`. `attributionUserId` (optional in the body) is the
+   * user whose signature will appear on the future HTs; if omitted, defaults
+   * to the caller. Change 2026-08-03: previously the check was on the caller
+   * (createdBy); now the caller may attribute a different técnico as long as
+   * that user has a firma uploaded.
    */
-  async create({ clienteId, otIds }, tenantId, userId) {
+  async create({ clienteId, otIds, attributionUserId }, tenantId, userId) {
     requireTenant(tenantId);
 
-    const user = await User.findOne(applyTenantFilter({ _id: userId }, tenantId))
+    const attribUserId = attributionUserId || userId;
+    const attribUser = await User.findOne(applyTenantFilter({ _id: attribUserId }, tenantId))
       .select('fileFirma')
       .lean();
-    if (!user || !user.fileFirma) {
-      throw new ApiError(
-        400,
-        'Tu perfil no tiene firma cargada. Súbela desde tu perfil antes de emitir accesos cliente.',
-        'USER_SIGNATURE_MISSING'
-      );
+    if (!attribUser) {
+      throw new ApiError(400, 'Usuario atribuido no encontrado', 'ATTRIBUTION_USER_NOT_FOUND');
+    }
+    if (!attribUser.fileFirma) {
+      const msg = String(attribUserId) === String(userId)
+        ? 'Tu perfil no tiene firma cargada. Súbela desde tu perfil antes de emitir accesos cliente.'
+        : 'El técnico seleccionado no tiene firma cargada. Selecciona otro o pídele que la suba.';
+      throw new ApiError(400, msg, 'USER_SIGNATURE_MISSING');
     }
 
     // Single query for all otIds — OT's default pre('find') already excludes
@@ -64,6 +71,7 @@ export class ClientAccessTokenService {
       token,
       status: 'active',
       createdBy: userId,
+      attributionUserId: attribUserId,
     });
     // Defensive, DB-free cross-check at the model layer (see model comment).
     doc.otClienteIds = ots.map((ot) => ot.ClienteId);
@@ -134,7 +142,8 @@ export class ClientAccessTokenService {
     }
     const doc = await ClientAccessToken.findOne(applyTenantFilter({ _id: id }, tenantId))
       .populate('otIds', 'Consecutivo EstadoOt Avance')
-      .populate('createdBy', 'fullName');
+      .populate('createdBy', 'fullName')
+      .populate('attributionUserId', 'fullName');
     // Cross-tenant lookups never match the filter above — 404, no existence leak.
     if (!doc) {
       throw new ApiError(404, 'Acceso no encontrado', 'NOT_FOUND', { id });

@@ -164,7 +164,7 @@ export class ClientPortalService {
       Report.findOne({ _id: reportId, tenantId })
         .populate('ClienteId')
         .populate({ path: 'Equipo', populate: { path: 'SedeId' } })
-        .populate('ResponsableMtto', 'fullName role')
+        .populate('ResponsableMtto', 'fullName role fileFirma')
         .populate('orden', 'Consecutivo TipoServicio')
         .populate(
           'hojaDeTrabajo',
@@ -174,6 +174,7 @@ export class ClientPortalService {
       tokenId
         ? ClientAccessToken.findById(tokenId)
             .populate({ path: 'createdBy', select: 'fullName role fileFirma' })
+            .populate({ path: 'attributionUserId', select: 'fullName role fileFirma' })
             .lean()
         : Promise.resolve(null),
     ]);
@@ -190,28 +191,51 @@ export class ClientPortalService {
     const tenantData = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
 
     // Synthesize a hojaDeTrabajo when there isn't a real one yet, so the
-    // template's firma section renders the token creator as technician and a
-    // status line for the client slot instead of "N/A".
+    // template's firma section renders a real técnico as signer and a status
+    // line for the client slot instead of "N/A".
+    //
+    // Precedence for the técnico firma (2026-08-03):
+    //  1. Report.ResponsableMtto (per-report técnico) when they have fileFirma
+    //  2. Token.attributionUserId (immutable at token creation) when set
+    //  3. Token.createdBy (legacy tokens predating attributionUserId)
     let hojaDeTrabajo = report.hojaDeTrabajo;
-    if (!hojaDeTrabajo && tokenDoc?.createdBy) {
-      const reviewed = report.clientReview?.reviewedAt
-        ? new Date(report.clientReview.reviewedAt).toLocaleString('es-CO', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          })
-        : null;
-      hojaDeTrabajo = {
-        firmaResponsableFile: tokenDoc.createdBy.fileFirma || '',
-        fullNameResponsable: tokenDoc.createdBy.fullName || 'N/A',
-        cargoResponsable: tokenDoc.createdBy.role || 'Técnico',
-        firmaFile: '',
-        personaRecibe: reviewed ? 'Recibido a satisfacción' : '(pendiente de revisión)',
-        cargoRecibe: reviewed ? reviewed : '',
-      };
+    if (!hojaDeTrabajo && tokenDoc) {
+      const respMtto = report.ResponsableMtto;
+      const attrib = tokenDoc.attributionUserId;
+      const creator = tokenDoc.createdBy;
+      const source = (respMtto && respMtto.fileFirma) ? respMtto
+        : (attrib && attrib.fileFirma) ? attrib
+        : creator;
+      if (source) {
+        const reviewed = report.clientReview?.reviewedAt
+          ? new Date(report.clientReview.reviewedAt).toLocaleString('es-CO', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            })
+          : null;
+        hojaDeTrabajo = {
+          firmaResponsableFile: source.fileFirma || '',
+          fullNameResponsable: source.fullName || 'N/A',
+          cargoResponsable: source.role || 'Técnico',
+          firmaFile: '',
+          personaRecibe: reviewed ? 'Recibido a satisfacción' : '(pendiente de revisión)',
+          cargoRecibe: reviewed ? reviewed : '',
+        };
+      }
     }
 
     const fullReport = { ...report, hojaDeTrabajo, repuestos };
-    return generateHTMLFromReport(fullReport, tenantData || {}, getHTMLTemplate());
+    const html = generateHTMLFromReport(fullReport, tenantData || {}, getHTMLTemplate());
+    // Portal-only visual shrink (2026-08-03 UX ask): the template base is 14px
+    // and every rule is written in px, so a body font-size override wouldn't
+    // cascade. `zoom: 0.857` (≈ -2px on the 14px base) scales every rendered
+    // size uniformly. Injected AFTER the template renders so the actual PDF
+    // pipeline (pdfReports.controller.js) is unaffected — clients still
+    // receive the deliverable at the original size.
+    return html.replace(
+      '<head>',
+      '<head><style>html{zoom:0.857}</style>'
+    );
   }
 
   /** Summary shape for the consolidated (list) view — no evidences/activities. */
@@ -425,19 +449,24 @@ export class ClientPortalService {
     logger.info('signAndCreateSheets: start', { signedBatchId, tenantId, tokenId });
 
     try {
-      // 1. Token creator must be able to sign (D5).
-      const token = await ClientAccessToken.findById(tokenId).populate({
-        path: 'createdBy',
-        select: 'fullName role fileFirma isDeleted',
-      });
-      const creator = token?.createdBy;
-      if (!creator || creator.isDeleted === true || !creator.fileFirma) {
+      // 1. The attributed técnico must be able to sign (D5, updated 2026-08-03).
+      // Precedence: attributionUserId when present (new tokens), else
+      // createdBy (legacy tokens). The chosen user's firma is what stamps
+      // every HT in this batch. Reason it is NOT per-report: SheetWork
+      // carries a single top-level firma; splitting reports across
+      // multiple sheets to honor per-report responsables is a follow-up.
+      const token = await ClientAccessToken.findById(tokenId)
+        .populate({ path: 'createdBy', select: 'fullName role fileFirma isDeleted' })
+        .populate({ path: 'attributionUserId', select: 'fullName role fileFirma isDeleted' });
+      const attributed = token?.attributionUserId || token?.createdBy;
+      if (!attributed || attributed.isDeleted === true || !attributed.fileFirma) {
         throw new ApiError(
           409,
           'Este acceso no puede firmar HTs. Solicite un nuevo acceso al administrador.',
           'TOKEN_CREATOR_INVALID'
         );
       }
+      const creator = attributed;
 
       // 2. Load reports scoped to this tenant. A count mismatch means some
       // reportIds are foreign (different tenant) or nonexistent — return the
@@ -707,18 +736,18 @@ export class ClientPortalService {
   async previewSignAsHtml(tenantId, tokenId, otIds, body) {
     requireTenant(tenantId);
 
-    const token = await ClientAccessToken.findById(tokenId).populate({
-      path: 'createdBy',
-      select: 'fullName role fileFirma isDeleted',
-    });
-    const creator = token?.createdBy;
-    if (!creator || creator.isDeleted === true || !creator.fileFirma) {
+    const token = await ClientAccessToken.findById(tokenId)
+      .populate({ path: 'createdBy', select: 'fullName role fileFirma isDeleted' })
+      .populate({ path: 'attributionUserId', select: 'fullName role fileFirma isDeleted' });
+    const attributed = token?.attributionUserId || token?.createdBy;
+    if (!attributed || attributed.isDeleted === true || !attributed.fileFirma) {
       throw new ApiError(
         409,
         'Este acceso no puede firmar HTs. Solicite un nuevo acceso al administrador.',
         'TOKEN_CREATOR_INVALID'
       );
     }
+    const creator = attributed;
 
     const reportIds = (body.reportIds || []).map(String);
     if (reportIds.length === 0) {

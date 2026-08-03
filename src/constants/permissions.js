@@ -110,6 +110,14 @@ export const PERMISSIONS = {
   // PDF reports (batch)
   PDF_REPORTS_GENERATE: 'pdf-reports:generate',
 
+  // Portal cliente — permite crear accesos (tokens) para que un cliente
+  // revise sus OTs desde /portal/:token. Antes gateado por role=admin,
+  // ahora por este permiso para que biomedicos u otros roles designados
+  // por el admin del tenant puedan emitirlos. Constant name in Spanish
+  // per user request (2026-08-03); value follows the resource:action
+  // convention aligned with the /api/v1/client-tokens route.
+  PORTAL_CLIENTE_CREAR: 'client-access-tokens:create',
+
   // Cronogramas
   CRONOGRAMAS_READ: 'cronogramas:read',
   CRONOGRAMAS_CREATE: 'cronogramas:create',

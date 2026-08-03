@@ -13,6 +13,10 @@ export const queryUserDto = Joi.object({
   email: Joi.string().allow('').optional(),
   role: Joi.string().valid('admin', 'technician', 'user').optional(),
   roleId: Joi.string().hex().length(24).optional().allow(''),
+  // true → only users with fileFirma; false → only users WITHOUT fileFirma;
+  // omitted → no filter. Used by the client-portal "crear acceso" modal to
+  // populate the attribution selector (2026-08-03).
+  hasFirma: Joi.boolean().optional(),
   fields: Joi.string().optional(),
   populate: Joi.string().optional(),
 });

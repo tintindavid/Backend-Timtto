@@ -121,6 +121,7 @@ export class UserService {
         email,
         role,
         roleId,
+        hasFirma,
       } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
@@ -143,6 +144,16 @@ export class UserService {
       }
       if (role) query.role = role;
       if (roleId) query.roleId = roleId;
+      if (hasFirma === true) {
+        query.fileFirma = { $exists: true, $nin: [null, ''] };
+      } else if (hasFirma === false) {
+        query.$or = [
+          ...(query.$or || []),
+          { fileFirma: { $exists: false } },
+          { fileFirma: null },
+          { fileFirma: '' },
+        ];
+      }
 
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
 
