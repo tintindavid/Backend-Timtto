@@ -137,6 +137,20 @@ export class ClientPortalController {
       res.redirect(302, url);
     } catch (err) { next(err); }
   }
+
+  async getSheetReportsZip(req, res, next) {
+    try {
+      const { zipBuffer, filename } = await clientPortalService.getSheetReportsZip(
+        req.tenantId,
+        req.tokenId,
+        req.params.sheetId
+      );
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', zipBuffer.length);
+      return res.status(200).end(zipBuffer);
+    } catch (err) { next(err); }
+  }
 }
 
 export const clientPortalController = new ClientPortalController();
