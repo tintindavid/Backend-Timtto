@@ -47,3 +47,22 @@ export const CLIENT_NOTE_MAX_LENGTH = 1000;
 
 /** PNG magic bytes (first 8 bytes of any valid PNG file). */
 export const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Minimum fraction of decoded pixels that must be neither white nor fully
+ * transparent for `signature.imagePng` to be accepted (design D4,
+ * portal-signature-flow). Below this ratio the PNG is considered blank
+ * (empty canvas submission) and rejected with `INVALID_SIGNATURE_IMAGE`.
+ */
+export const MIN_SIGNATURE_MARKED_RATIO = 0.005;
+
+/**
+ * Maximum total pixel count (width × height) accepted by the blank-PNG
+ * validator (portal-signature-flow). Guards against decompression bombs:
+ * `MAX_SIGNATURE_PNG_BYTES` only bounds the compressed payload, but a highly
+ * compressible PNG can decode to ~1 GB of raw RGBA and block the event
+ * loop. 2000×2000 = 4M pixels is generous for a signature (the client-side
+ * cap is 4000×4000, but any legit signature comfortably fits under this
+ * server-side ceiling).
+ */
+export const MAX_SIGNATURE_TOTAL_PIXELS = 4_000_000;

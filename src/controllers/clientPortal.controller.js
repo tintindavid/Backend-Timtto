@@ -127,6 +127,21 @@ export class ClientPortalController {
     } catch (err) { next(err); }
   }
 
+  /** POST /:token/sheets/:sheetId/sign — late-sign an empty-firma sheet. */
+  async signExistingSheet(req, res, next) {
+    try {
+      const meta = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+      const data = await clientPortalService.signExistingSheet(
+        req.tenantId,
+        req.tokenId,
+        req.params.sheetId,
+        req.body,
+        meta
+      );
+      res.status(200).json(successResponse(data, 'Hoja de trabajo firmada'));
+    } catch (err) { next(err); }
+  }
+
   async getSheetPdf(req, res, next) {
     try {
       const { url } = await clientPortalService.getSheetPdfLocation(

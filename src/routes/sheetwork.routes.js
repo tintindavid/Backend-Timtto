@@ -19,6 +19,13 @@ router.get('/', authorize(PERMISSIONS.SHEETWORK_READ), validate(querySheetWorkDt
 router.get('/:id/pdf', authorize(PERMISSIONS.SHEETWORK_READ), sheetWorkController.generatePDF);
 
 router.get('/:id', authorize(PERMISSIONS.SHEETWORK_READ), sheetWorkController.getById);
+
+// Admin retro-mitigation (sheet-report-closure spec): closes only the
+// Procesado reports linked to this sheet. Same permission as other
+// sheet-mutating routes (no granular "sheetwork:close-reports" permission
+// exists yet).
+router.post('/:sheetId/close-reports', authorize(PERMISSIONS.SHEETWORK_UPDATE), sheetWorkController.closeReports);
+
 router.put('/:id', authorize(PERMISSIONS.SHEETWORK_UPDATE), validate(updateSheetWorkDto, 'body'), sheetWorkController.update);
 router.patch('/:id', authorize(PERMISSIONS.SHEETWORK_UPDATE), validate(updateSheetWorkDto, 'body'), sheetWorkController.update);
 router.delete('/:id', authorize(PERMISSIONS.SHEETWORK_DELETE), sheetWorkController.delete);

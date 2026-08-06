@@ -14,6 +14,7 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 import { computeSignedContentHash } from '../utils/contentHash.util.js';
 import { getHTMLTemplate, generateHTMLFromReport } from '../utils/htmlTemplateGenerator.js';
+import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import SheetWorkPDFService from './sheetworkPDF.service.js';
 import BulkPDFGenerator from './bulkPDFGenerator.js';
@@ -673,6 +674,11 @@ export class ClientPortalService {
       // doesn't corrupt the audit trail (sheets exist, reports point at
       // their sheet); it just leaves the report label lagging one step.
       //
+      // design D1 (portal-signature-flow): reports move to `Cerrado` (not
+      // `Procesado`) — feature parity with the admin sheet-creation flow
+      // (sheetwork.service.js#create), so `OT.Avance`/`EstadoOt` and the
+      // ticket cascade below actually have something to react to.
+      //
       // Also stamps `fechaFinalizdo` because the admin OT view's
       // "Reportes Cerrados" tab filters by that date being set, not by
       // estado. Without this the signed reports would linger in the
@@ -685,7 +691,7 @@ export class ClientPortalService {
         [
           {
             $set: {
-              estado: 'Procesado',
+              estado: 'Cerrado',
               fechaFinalizdo: { $ifNull: ['$fechaFinalizdo', signedAt] },
             },
           },
@@ -696,6 +702,43 @@ export class ClientPortalService {
           err: String(estadoErr),
         });
       });
+
+      // 10c. Recompute Avance/EstadoOt for every OT touched by this batch
+      // (design D1) — same pattern as sheetwork.service.js#create /
+      // ot.service.js. Best-effort: a failure here leaves the OT badge
+      // stale but never corrupts the report/sheet state already committed.
+      const otIdsInBatch = [...new Set(groups.map((g) => String(g.ot._id)))];
+      for (const otId of otIdsInBatch) {
+        try {
+          const total = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, tenantId));
+          const closed = await Report.countDocuments(
+            applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, tenantId)
+          );
+          const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
+          let nuevoEstado = 'Pendiente';
+          if (closed === total && total > 0) nuevoEstado = 'Cerrado';
+          else if (closed > 0) nuevoEstado = 'En Progreso';
+          await OT.findOneAndUpdate(applyTenantFilter({ _id: otId }, tenantId), {
+            $set: { Avance: avance, EstadoOt: nuevoEstado },
+          });
+        } catch (otErr) {
+          logger.warn('signAndCreateSheets: OT progress recompute failed (non-fatal)', {
+            signedBatchId,
+            otId,
+            err: String(otErr),
+          });
+        }
+      }
+
+      // 10d. Ticket cascade (design D2) — never breaks the signature flow.
+      try {
+        await triggerTicketCascadeOnClose(reportIds, tenantId);
+      } catch (cascadeErr) {
+        logger.warn('signAndCreateSheets: ticket cascade failed (non-fatal)', {
+          signedBatchId,
+          err: String(cascadeErr),
+        });
+      }
 
       // Note: `sheetIds` above is declared as ObjectId[] for the revert
       // filter; re-shape to string[] for the API response.
@@ -895,6 +938,11 @@ export class ClientPortalService {
         signedAt: d.clientSignature?.signedAt || null,
         pdfStatus: d.pdfStatus,
         pdfUrl: d.PdfHojaTrabajo || null,
+        // Drives the "Firmar hoja" late-sign icon on the portal history —
+        // rendered only when this field is null/empty. Without exposing it
+        // the frontend fell back to `!undefined === true` and showed the
+        // icon on every row, including already-signed sheets.
+        firmaFile: d.firmaFile || null,
       })),
     };
   }
@@ -921,6 +969,117 @@ export class ClientPortalService {
     }
 
     return { url: sheet.PdfHojaTrabajo };
+  }
+
+  /**
+   * Late-sign: attaches a client signature to a `SheetWork` whose
+   * `firmaFile` is still empty (design D3/D7, portal-signature-flow).
+   * Scoped to the SAME token that originally created the sheet (gate D12,
+   * same as `getSheetPdfLocation`/`getSheetReportsZip`) — a fresh or
+   * different token for the same client can never late-sign a sheet it
+   * didn't create; a mismatch resolves to the same 404 as a nonexistent
+   * sheet (no existence leak).
+   *
+   * Only `SheetWork` fields are mutated here — the linked `Report`s are
+   * already `Cerrado` (post-D1) or handled separately by the admin
+   * close-reports control (D6); this endpoint never touches `Report`.
+   *
+   * @param {string} tenantId
+   * @param {string} tokenId
+   * @param {string} sheetId
+   * @param {{ signature: { imagePng, signerName, signerId?, cargo?, observaciones? } }} body
+   * @param {{ ip?: string, userAgent?: string }} [meta]
+   */
+  async signExistingSheet(tenantId, tokenId, sheetId, body, meta = {}) {
+    requireTenant(tenantId);
+
+    if (!mongoose.isValidObjectId(sheetId)) {
+      throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    }
+
+    // Pre-check for a clear 404 vs 409 distinction (and to have the
+    // signedBatchId handy). The mutating write below is atomic so we don't
+    // depend on this read for correctness under concurrency.
+    const preSheet = await SheetWork.findOne({
+      _id: sheetId,
+      tenantId,
+      'clientSignature.tokenId': tokenId,
+      isDeleted: false,
+    }).lean();
+    if (!preSheet) {
+      throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    }
+    if (preSheet.firmaFile) {
+      throw new ApiError(409, 'Esta hoja de trabajo ya fue firmada.', 'SHEET_ALREADY_SIGNED');
+    }
+
+    const signatureBuffer = Buffer.from(body.signature.imagePng, 'base64');
+    const { url: firmaFileUrl } = await firebaseStorageService.uploadEvidencia(
+      signatureBuffer,
+      `firma-${sheetId}-late.png`,
+      'image/png',
+      'client-portal/firmas'
+    );
+
+    const setUpdate = {
+      firmaFile: firmaFileUrl,
+      personaRecibe: body.signature.signerName,
+      cargoRecibe: body.signature.cargo || '',
+      estado: 'Firmada',
+      // Audit trail (spec "Late-sign preserves audit trail"):
+      // `signedBatchId`, `contentHash`, `tokenId`, `ip`, `userAgent` MUST
+      // stay unchanged so a signer-dispute investigation later can trace
+      // back to the ORIGINAL requester. Only `signedAt` is refreshed to
+      // reflect when the signature was actually captured.
+      'clientSignature.signedAt': new Date(),
+      pdfStatus: 'pending',
+    };
+    if (typeof body.signature.observaciones === 'string' && body.signature.observaciones.trim() !== '') {
+      setUpdate.observaciones = body.signature.observaciones;
+    }
+
+    // Atomic check-and-set closes the concurrency race: two clients hitting
+    // the endpoint at the same moment both pass the pre-check, both upload a
+    // PNG to Firebase, and without this filter both would call save() with
+    // the LAST write winning silently. The `firmaFile: $in [null, '']`
+    // clause makes the loser's update match zero documents so we can
+    // surface a 409 instead of dropping the signature on the floor. `null`
+    // in `$in` also matches the absent-field case.
+    const sheet = await SheetWork.findOneAndUpdate(
+      {
+        _id: sheetId,
+        tenantId,
+        'clientSignature.tokenId': tokenId,
+        isDeleted: false,
+        firmaFile: { $in: [null, ''] },
+      },
+      { $set: setUpdate },
+      { new: true }
+    );
+    if (!sheet) {
+      // Losing side of a concurrent late-sign race. The PNG we just uploaded
+      // to Firebase is orphaned — accepted trade-off (no delete API wired
+      // for evidence buckets, and the collision is inherently rare on the
+      // portal's low-concurrency profile).
+      throw new ApiError(409, 'Esta hoja de trabajo ya fue firmada.', 'SHEET_ALREADY_SIGNED');
+    }
+
+    logger.info('signExistingSheet: sheet late-signed', { sheetId: String(sheet._id), tenantId });
+
+    // Fire-and-forget PDF regeneration for the whole batch this sheet
+    // belongs to (design D7) — mirrors signAndCreateSheets step 11.
+    const signedBatchId = sheet.clientSignature.signedBatchId;
+    setImmediate(() => {
+      this.generatePdfsForBatch(signedBatchId, tenantId).catch((err) => {
+        logger.warn('signExistingSheet: PDF regeneration failed', {
+          sheetId: String(sheet._id),
+          signedBatchId,
+          err: String(err),
+        });
+      });
+    });
+
+    return { sheetId: String(sheet._id), pdfStatus: 'pending' };
   }
 
   /**

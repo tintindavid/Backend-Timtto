@@ -1,5 +1,6 @@
 'use strict';
 import Joi from 'joi';
+import sharp from 'sharp';
 import {
   MAX_SIGNATURE_PNG_BYTES,
   PNG_MAGIC_BYTES,
@@ -8,6 +9,8 @@ import {
   SIGNER_ID_MIN_LENGTH,
   SIGNER_ID_MAX_LENGTH,
   SIGNER_CARGO_MAX_LENGTH,
+  MIN_SIGNATURE_MARKED_RATIO,
+  MAX_SIGNATURE_TOTAL_PIXELS,
 } from '../constants/clientPortal.constants.js';
 
 const objectId = Joi.string().hex().length(24);
@@ -65,15 +68,97 @@ function validateImagePng(value, helpers) {
   return value;
 }
 
+/**
+ * Rejects blank/transparent PNGs (design D4). Runs AFTER `validateImagePng`
+ * (base64 + size + magic-bytes) has already passed, so `value` is guaranteed
+ * to decode to a well-formed PNG buffer here.
+ *
+ * Decodes with `sharp`, walks every RGBA pixel, and counts the ones that are
+ * neither fully transparent (`a === 0`) nor near-white
+ * (`r,g,b >= 245`) — those are the "marked" (drawn) pixels. If fewer than
+ * `MIN_SIGNATURE_MARKED_RATIO` of all pixels are marked, the image is
+ * considered an empty-canvas submission.
+ *
+ * Joi only supports async validators via `.external()` (`.custom()` cannot
+ * await a Promise — `schema.validateAsync()` is required by the caller,
+ * see `middlewares/validate.middleware.js`). A Joi quirk means
+ * `.messages()` lookups for errors raised inside `.external()` are NOT
+ * resolved the same way as `.custom()` errors, so the friendly Spanish
+ * message + `INVALID_SIGNATURE_IMAGE` HTTP code are applied by
+ * `validate.middleware.js` based on the stable `imagePng.blank` error type
+ * emitted here (see `VALIDATION_ERROR_CODE_OVERRIDES` there). The
+ * `.messages()` entry below is kept as documentation of the type's intent.
+ */
+async function validateNotBlank(value, helpers) {
+  const decoded = Buffer.from(value, 'base64');
+
+  // Guard against decompression bombs BEFORE the raw pixel walk. A highly
+  // compressible PNG (large solid-color regions) can be tiny on the wire
+  // but decode to hundreds of megabytes of raw RGBA, blocking the shared
+  // Node event loop for seconds and DoS-ing the whole tenant pool. Cap
+  // total pixel count at MAX_SIGNATURE_TOTAL_PIXELS (2000x2000-equivalent
+  // — an actual signature never needs more than that). `sharp.metadata()`
+  // only reads the PNG header, so the check is cheap. `limitInputPixels`
+  // on the second `sharp(...)` call is a belt-and-braces cap in case
+  // metadata under-reports the dimensions somehow.
+  let meta;
+  try {
+    meta = await sharp(decoded).metadata();
+  } catch {
+    return helpers.error('imagePng.notPng');
+  }
+  if (!meta.width || !meta.height) {
+    return helpers.error('imagePng.notPng');
+  }
+  if (meta.width * meta.height > MAX_SIGNATURE_TOTAL_PIXELS) {
+    return helpers.error('imagePng.tooLarge');
+  }
+
+  let data;
+  let info;
+  try {
+    ({ data, info } = await sharp(decoded, { limitInputPixels: MAX_SIGNATURE_TOTAL_PIXELS })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true }));
+  } catch {
+    return helpers.error('imagePng.notPng');
+  }
+
+  const totalPx = info.width * info.height;
+  if (totalPx === 0) {
+    return helpers.error('imagePng.blank');
+  }
+
+  let markedPx = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    const isTransparent = a === 0;
+    const isWhite = r >= 245 && g >= 245 && b >= 245;
+    if (!isTransparent && !isWhite) markedPx += 1;
+  }
+
+  if (markedPx / totalPx < MIN_SIGNATURE_MARKED_RATIO) {
+    return helpers.error('imagePng.blank');
+  }
+
+  return value;
+}
+
 const signatureDto = Joi.object({
   imagePng: Joi.string()
     .required()
     .max(MAX_IMAGE_PNG_BASE64_LENGTH)
     .custom(validateImagePng)
+    .external(validateNotBlank)
     .messages({
       'imagePng.invalidBase64': 'La imagen de firma no es un base64 válido',
       'imagePng.tooLarge': `La imagen de firma supera el tamaño máximo permitido (${MAX_SIGNATURE_PNG_BYTES} bytes)`,
       'imagePng.notPng': 'La imagen de firma debe ser un PNG válido',
+      'imagePng.blank': 'La firma parece estar en blanco. Vuelve a firmar o carga una imagen válida.',
     }),
   signerName: Joi.string()
     .trim()
@@ -111,6 +196,16 @@ const signatureDto = Joi.object({
 /** POST /public/client-view/:token/sign */
 export const clientPortalSignDto = Joi.object({
   reportIds: Joi.array().items(objectId.required()).min(1).required(),
+  signature: signatureDto.required(),
+}).unknown(false);
+
+/**
+ * POST /public/client-view/:token/sheets/:sheetId/sign — late-sign a HT
+ * whose `firmaFile` is empty (design D3/D7). Reuses `signatureDto`; the
+ * target sheet comes from the route param, not the body, so `reportIds`
+ * doesn't apply here.
+ */
+export const clientPortalLateSignDto = Joi.object({
   signature: signatureDto.required(),
 }).unknown(false);
 

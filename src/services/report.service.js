@@ -7,8 +7,8 @@ import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
-import { ticketService } from './ticket.service.js';
 import { historyService } from './history.service.js';
+import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import {
   MAX_EVIDENCES,
   ALLOWED_EVIDENCE_MIME,
@@ -239,14 +239,18 @@ export class ReportService {
 
       // Ticket cascade: report transitioning into Cerrado / Cancelado closes
       // the associated ticket (only when the report is isFromTicket=true).
+      // Delegated to the shared helper (utils/ticketCascade.util.js, design
+      // D2 portal-signature-flow) — same wasClosed gate as before so an
+      // unrelated field update on an already-terminal report never
+      // re-triggers the cascade.
       try {
         const wasClosed = previous && (previous.estado === 'Cerrado' || previous.estado === 'Cancelado');
+        // Skip the cascade entirely for non-ticket reports so we don't burn
+        // a DB roundtrip on the hot path — the helper's internal filter
+        // would return empty anyway. `isFromTicket && ticket` mirrors the
+        // pre-refactor inline guard.
         if (!wasClosed && e.isFromTicket && e.ticket) {
-          if (e.estado === 'Cerrado') {
-            await ticketService.closeFromReport(e, panelUser);
-          } else if (e.estado === 'Cancelado') {
-            await ticketService.cancelFromReport(e, panelUser);
-          }
+          await triggerTicketCascadeOnClose([e._id], tenantId, { panelUser });
         }
       } catch (cascadeErr) {
         // Cascade failure is logged but does not roll back the report update —
@@ -427,14 +431,12 @@ export class ReportService {
 
       // Ticket cascade (D14): on transition Cerrado / Cancelado close the
       // associated ticket. Only fires when the report is isFromTicket=true.
+      // Delegated to the shared helper (utils/ticketCascade.util.js).
       try {
         const wasClosed = previous && (previous.estado === 'Cerrado' || previous.estado === 'Cancelado');
+        // Same non-ticket short-circuit as the update() path above.
         if (!wasClosed && updated && updated.isFromTicket && updated.ticket) {
-          if (updated.estado === 'Cerrado') {
-            await ticketService.closeFromReport(updated, panelUser);
-          } else if (updated.estado === 'Cancelado') {
-            await ticketService.cancelFromReport(updated, panelUser);
-          }
+          await triggerTicketCascadeOnClose([updated._id], t, { panelUser });
         }
       } catch (cascadeErr) {
         logger.error('Ticket cascade failed on report procesar', { err: String(cascadeErr) });

@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { clientPortalController } from '../controllers/clientPortal.controller.js';
 import { resolveClientToken } from '../middlewares/resolveClientToken.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { clientPortalSignDto } from '../dtos/clientPortalSign.dto.js';
+import { clientPortalSignDto, clientPortalLateSignDto } from '../dtos/clientPortalSign.dto.js';
 import Joi from 'joi';
 import { CLIENT_NOTE_MAX_LENGTH } from '../constants/clientPortal.constants.js';
 
@@ -122,6 +122,18 @@ router.get(
   clientPortalReadLimiter,
   resolveClientToken,
   clientPortalController.getSheetPdf
+);
+
+// Late-sign a sheet whose `firmaFile` is still empty (design D3/D7). Same
+// rate-limiter chain as `/sign` — this repo has no dedicated write limiter,
+// the read limiters double as the write gate for every portal mutation.
+router.post(
+  '/:token/sheets/:sheetId/sign',
+  clientPortalReadIpLimiter,
+  clientPortalReadLimiter,
+  resolveClientToken,
+  validate(clientPortalLateSignDto, 'body'),
+  clientPortalController.signExistingSheet
 );
 
 // ZIP with one PDF per report of a signed sheet (2026-08-04). Same
