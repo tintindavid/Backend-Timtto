@@ -52,6 +52,19 @@ export class SheetWorkController {
   }
 
   /**
+   * Admin retro-mitigation (sheet-report-closure spec): closes every
+   * `Procesado` report linked to this sheet, recomputes the OT, and fires
+   * the ticket cascade.
+   * POST /api/v1/sheetworks/:sheetId/close-reports
+   */
+  async closeReports(req, res, next) {
+    try {
+      const data = await sheetWorkService.closeReports(req.params.sheetId, req.tenantId);
+      res.status(200).json(successResponse(data, 'Reportes cerrados exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  /**
    * Genera PDF de la hoja de trabajo
    * GET /api/v1/sheet-works/:id/pdf
    */

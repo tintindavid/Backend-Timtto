@@ -13,6 +13,8 @@ import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
 import { SheetWork } from '../../src/models/sheetwork.model.js';
 import { Counter } from '../../src/models/counter.model.js';
+import { Ticket } from '../../src/models/ticket.model.js';
+import { TICKET_STATUS } from '../../src/constants/ticket.constants.js';
 import { clientPortalController } from '../../src/controllers/clientPortal.controller.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
 
@@ -76,12 +78,20 @@ function activeCreator(overrides = {}) {
   };
 }
 
-function reviewedReport(id, otId) {
+function reviewedReport(id, otId, overrides = {}) {
   return {
     _id: id,
     tenantId: 'tenant-1',
     updatedAt: new Date('2026-08-01T00:00:00.000Z'),
     clientReview: { reviewedAt: new Date('2026-08-01T00:00:00.000Z') },
+    // Design D1: after the sign flow, the report ends up `Cerrado`.
+    // `Report.find` is reused by the shared cascade helper
+    // (triggerTicketCascadeOnClose) after the estado bump, so these fixtures
+    // double as the "post-close" snapshot the cascade re-queries.
+    estado: 'Cerrado',
+    isFromTicket: false,
+    ticket: null,
+    ...overrides,
   };
 }
 
@@ -94,9 +104,12 @@ describe('POST /public/client-view/:token/sign', () => {
     delete SheetWork.deleteMany;
     delete Report.updateMany;
     delete Report.bulkWrite;
+    delete Report.countDocuments;
     delete firebaseStorageService.uploadEvidencia;
     delete SheetWork.find;
     delete Counter.findOneAndUpdate;
+    delete OT.findOneAndUpdate;
+    delete Ticket.findOne;
   });
 
   it('happy path across 2 OTs: creates 2 sheets, shared signedBatchId + contentHash, source=client-portal, 202', async () => {
@@ -136,6 +149,17 @@ describe('POST /public/client-view/:token/sign', () => {
     // generatePdfsForBatch runs fire-and-forget after commit (design D8) — stub
     // SheetWork.find so the background job resolves instantly with no work.
     SheetWork.find = () => mockQuery([]);
+
+    // Design D1: after the estado bump, signAndCreateSheets recomputes
+    // Avance/EstadoOt per unique OT touched by the batch (OT_A, OT_B). Every
+    // report of both groups is closed by this batch, so both OTs should end
+    // up at 100% / `Cerrado`.
+    Report.countDocuments = async () => 1; // total === closed for every OT in this fixture
+    const otUpdateCalls = [];
+    OT.findOneAndUpdate = async (filter, update) => {
+      otUpdateCalls.push({ filter, update });
+      return {};
+    };
 
     const req = {
       tenantId: 'tenant-1',
@@ -178,11 +202,20 @@ describe('POST /public/client-view/:token/sign', () => {
     // also stamp `fechaFinalizdo` conditionally via $ifNull without
     // clobbering a date the technician already set.
     assert.ok(Array.isArray(updateManyCalls[0].update), 'estado bump must be a pipeline update');
-    assert.equal(updateManyCalls[0].update[0].$set.estado, 'Procesado');
+    // Design D1 (portal-signature-flow): reports close (not `Procesado`) so
+    // they reach feature parity with the admin sheet-creation flow.
+    assert.equal(updateManyCalls[0].update[0].$set.estado, 'Cerrado');
     assert.ok(
       updateManyCalls[0].update[0].$set.fechaFinalizdo?.$ifNull,
       'fechaFinalizdo must be set via $ifNull so existing dates survive'
     );
+
+    // Design D1: OT.Avance/EstadoOt recomputed for every OT touched by the batch.
+    assert.equal(otUpdateCalls.length, 2, 'one OT.findOneAndUpdate per unique OT in the batch');
+    for (const call of otUpdateCalls) {
+      assert.equal(call.update.$set.Avance, 100);
+      assert.equal(call.update.$set.EstadoOt, 'Cerrado');
+    }
   });
 
   it('400 SIGN_REQUIRES_REVIEW when a report has no clientReview.reviewedAt', async () => {
@@ -257,6 +290,9 @@ describe('POST /public/client-view/:token/sign', () => {
     };
     Report.bulkWrite = async () => ({ matchedCount: 1, modifiedCount: 1 });
     Report.updateMany = async () => ({});
+    Report.countDocuments = async () => 1;
+    OT.findOneAndUpdate = async () => ({});
+    SheetWork.find = () => mockQuery([]);
 
     const req = {
       tenantId: 'tenant-1',
@@ -343,5 +379,52 @@ describe('POST /public/client-view/:token/sign', () => {
     assert.equal(capturedErr.code, 'REPORT_ALREADY_SIGNED');
     assert.ok(deleteManyFilter, 'SheetWork.deleteMany must be called to roll back');
     assert.equal(typeof deleteManyFilter['clientSignature.signedBatchId'], 'string');
+  });
+
+  it('dispatches the ticket-closure cascade when a signed report was ticket-linked (design D2)', async () => {
+    ClientAccessToken.findById = () => mockPopulateQuery({ createdBy: activeCreator() });
+    const TICKET_ID = '507f1f77bcf86cd799439077';
+    // Post-close snapshot: triggerTicketCascadeOnClose re-queries Report.find
+    // (same mocked static, reused) and only acts on reports whose
+    // isFromTicket/ticket/estado make them cascade-eligible.
+    Report.find = () => mockQuery([reviewedReport(R1, OT_A_ID, { isFromTicket: true, ticket: TICKET_ID })]);
+    OT.find = () => mockQuery([
+      { _id: OT_A_ID, Consecutivo: 'OT-A', ClienteId: 'cliente-1', reportes: [R1] },
+    ]);
+    firebaseStorageService.uploadEvidencia = async () => ({ url: 'https://cdn/firma.png', storagePath: 'x' });
+    Counter.findOneAndUpdate = () => ({ lean: () => Promise.resolve({ seq: 1 }) });
+    SheetWork.insertMany = async (docs) => docs.map((d, i) => ({ ...d, _id: `sheet-${i + 1}` }));
+    Report.bulkWrite = async () => ({ matchedCount: 1, modifiedCount: 1 });
+    Report.updateMany = async () => ({});
+    Report.countDocuments = async () => 1;
+    OT.findOneAndUpdate = async () => ({});
+    SheetWork.find = () => mockQuery([]);
+
+    const ticketDoc = {
+      _id: TICKET_ID,
+      tenantId: 'tenant-1',
+      status: TICKET_STATUS.PENDIENTE,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      save: async function save() { this.saved = true; },
+      toJSON() { return { ...this }; },
+    };
+    Ticket.findOne = () => ticketDoc;
+
+    const req = {
+      tenantId: 'tenant-1',
+      tokenId: TOKEN_ID,
+      otIds: [OT_A_ID],
+      headers: {},
+      body: {
+        reportIds: [R1],
+        signature: { imagePng: VALID_SIGNATURE_BASE64, signerName: 'Cliente Test', signerId: '12345' },
+      },
+    };
+    const res = buildRes();
+    await clientPortalController.sign(req, res, (err) => { if (err) throw err; });
+
+    assert.equal(res.statusCode, 202);
+    assert.equal(ticketDoc.status, TICKET_STATUS.CERRADO, 'ticket must close when its report was signed/closed');
+    assert.equal(ticketDoc.saved, true);
   });
 });

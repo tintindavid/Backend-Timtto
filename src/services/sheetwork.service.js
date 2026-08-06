@@ -5,6 +5,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
+import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 export class SheetWorkService {
 
   async create(data, tenantId) {
@@ -207,6 +208,86 @@ export class SheetWorkService {
       if (err instanceof ApiError) throw err;
       logger.error('Error actualizando sheetWork:', err);
       throw new ApiError(500, 'Error actualizando SheetWork', 'UPDATE_ERROR');
+    }
+  }
+
+  /**
+   * Admin retro-mitigation (design D6, sheet-report-closure spec): closes
+   * every `Procesado` report linked to this specific sheet
+   * (`hojaDeTrabajo === sheetId`), recomputes the parent OT's
+   * `Avance`/`EstadoOt`, and dispatches the ticket-closure cascade. Scoped
+   * narrowly to the sheet's own reports — never touches reports of another
+   * sheet or reports in a different estado (e.g. `Cancelado`).
+   *
+   * @param {string} sheetId
+   * @param {string} tenantId
+   * @returns {Promise<{ modifiedCount: number }>}
+   */
+  async closeReports(sheetId, tenantId) {
+    try {
+      requireTenant(tenantId);
+
+      const sheet = await SheetWork.findOne(applyTenantFilter({ _id: sheetId, isDeleted: false }, tenantId)).lean();
+      if (!sheet) {
+        throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND', { id: sheetId });
+      }
+
+      const now = new Date();
+      const result = await Report.updateMany(
+        applyTenantFilter({ hojaDeTrabajo: sheetId, isDeleted: false, estado: 'Procesado' }, tenantId),
+        [
+          {
+            $set: {
+              estado: 'Cerrado',
+              fechaFinalizdo: { $ifNull: ['$fechaFinalizdo', now] },
+            },
+          },
+        ]
+      );
+
+      // Recompute Avance/EstadoOt for the sheet's OT — same pattern as
+      // create() above / clientPortal.service.js#signAndCreateSheets.
+      const otId = sheet.otId;
+      if (otId) {
+        try {
+          const total = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, tenantId));
+          const closed = await Report.countDocuments(
+            applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, tenantId)
+          );
+          const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
+          let nuevoEstado = 'Pendiente';
+          if (closed === total && total > 0) nuevoEstado = 'Cerrado';
+          else if (closed > 0) nuevoEstado = 'En Progreso';
+          await OT.findOneAndUpdate(applyTenantFilter({ _id: otId }, tenantId), {
+            $set: { Avance: avance, EstadoOt: nuevoEstado },
+          });
+        } catch (otErr) {
+          logger.warn('closeReports: OT progress recompute failed (non-fatal)', { sheetId, err: String(otErr) });
+        }
+      }
+
+      // Ticket cascade for the reports this call actually closed.
+      try {
+        const closedReports = await Report.find(
+          applyTenantFilter({ hojaDeTrabajo: sheetId, isDeleted: false, estado: 'Cerrado' }, tenantId)
+        )
+          .select('_id')
+          .lean();
+        await triggerTicketCascadeOnClose(closedReports.map((r) => r._id), tenantId);
+      } catch (cascadeErr) {
+        logger.warn('closeReports: ticket cascade failed (non-fatal)', { sheetId, err: String(cascadeErr) });
+      }
+
+      logger.info('SheetWork closeReports: reports closed', {
+        sheetId,
+        tenantId,
+        modifiedCount: result.modifiedCount,
+      });
+      return { modifiedCount: result.modifiedCount };
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error closing reports for sheetWork:', err);
+      throw new ApiError(500, 'Error cerrando reportes de la hoja de trabajo', 'CLOSE_REPORTS_ERROR');
     }
   }
 

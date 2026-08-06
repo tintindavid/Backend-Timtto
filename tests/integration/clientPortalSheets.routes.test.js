@@ -57,6 +57,7 @@ describe('GET /public/client-view/:token/sheets', () => {
           clientSignature: { tokenId: TOKEN_A, signedAt: new Date('2026-08-01T00:00:00.000Z') },
           pdfStatus: 'ready',
           PdfHojaTrabajo: 'https://cdn/ht.pdf',
+          firmaFile: 'https://cdn/firma.png',
         },
       ];
       return mockQuery(all.filter((s) => String(s.clientSignature.tokenId) === String(filter['clientSignature.tokenId'])));
@@ -69,8 +70,30 @@ describe('GET /public/client-view/:token/sheets', () => {
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.data.sheets.length, 1);
     assert.equal(res.body.data.sheets[0].otConsecutivo, 'OT-A');
+    assert.equal(res.body.data.sheets[0].firmaFile, 'https://cdn/firma.png');
     assert.equal(capturedFilter['clientSignature.tokenId'], TOKEN_A);
     assert.equal(capturedFilter.tenantId, 'tenant-1');
+  });
+
+  it('exposes firmaFile as null when the sheet was created without a drawn signature', async () => {
+    SheetWork.find = () => mockQuery([
+      {
+        _id: SHEET_ID,
+        numeroHoja: 'H0002',
+        otId: { _id: OT_ID, Consecutivo: 'OT-B' },
+        clientSignature: { tokenId: TOKEN_A, signedAt: new Date('2026-08-01T00:00:00.000Z') },
+        pdfStatus: 'ready',
+        PdfHojaTrabajo: 'https://cdn/ht2.pdf',
+        firmaFile: '',
+      },
+    ]);
+
+    const req = { tenantId: 'tenant-1', tokenId: TOKEN_A };
+    const res = buildRes();
+    await clientPortalController.getSheets(req, res, (err) => { throw err; });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.sheets[0].firmaFile, null);
   });
 
   it('excludes sheets from another token entirely (empty result)', async () => {

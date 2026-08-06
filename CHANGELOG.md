@@ -1,3 +1,17 @@
+## [Unreleased] (2026-08-05)
+
+
+### Features
+
+* **portal-cliente:** sign endpoint now closes reports (`Procesado` → `Cerrado`) instead of leaving them `Procesado`, recomputes the parent OT's `Avance`/`EstadoOt`, and dispatches the ticket-closure cascade — reaching parity with the admin sheet-creation flow
+* **portal-cliente:** new endpoint `POST /public/client-view/:token/sheets/:sheetId/sign` lets a client attach a signature to a work sheet created without one (empty `firmaFile`), scoped to the token that originally created the sheet
+* **sheetwork:** new admin endpoint `POST /api/v1/sheetworks/:sheetId/close-reports` closes the `Procesado` reports linked to a specific sheet, recomputes OT progress and dispatches the ticket cascade — retro-mitigation for HTs signed before the portal-sign fix
+* **portal-cliente:** `clientPortalSignDto`/`clientPortalLateSignDto` reject blank or fully transparent signature PNGs with `INVALID_SIGNATURE_IMAGE` (400), decoded via `sharp` (added as a direct dependency, pinned `0.35.3` — was not previously installed, transitive or otherwise)
+
+### Refactor
+
+* **reports:** ticket-closure cascade extracted from `report.service.js` into `utils/ticketCascade.util.js`, now shared by `signAndCreateSheets`, `sheetwork.service.js#closeReports`, and `report.service.js`'s own `update`/`procesar` flows
+
 # [2.8.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.7.0...v2.8.0) (2026-08-03)
 
 
