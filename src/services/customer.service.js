@@ -6,6 +6,7 @@ import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { buildCsv } from '../utils/csvBuilder.util.js';
+import { escapeRegex } from '../utils/escapeRegex.util.js';
 
 export class CustomerService {
   /**
@@ -81,7 +82,7 @@ export class CustomerService {
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
 
-      const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // escapeRegex extracted to src/utils/escapeRegex.util.js (2026-08-11)
 
       if (search) {
         const rx = new RegExp(escapeRegex(search), 'i');

@@ -1,3 +1,15 @@
+## [Unreleased] (2026-08-11)
+
+
+### Bug Fixes
+
+* **protocolomtto/items:** `list` services now search on the model's real field names — `nombre`/`Descripcion` for protocols and `Nombre`/`Observacion` for items. Previously the `$or` clause pointed to `name/description/title/email`, which do not exist on either model, so the `search` query param silently matched nothing on the backend even when the frontend sent it. Also escapes regex metacharacters via the new shared `escapeRegex.util.js`, closing a catastrophic-backtracking DoS vector (`search=.*` used to build `/.*/i` over the whole collection).
+* **customer.service:** switched from an inline `escapeRegex` const to the shared `utils/escapeRegex.util.js` — behavior unchanged, single source of truth.
+
+### Features
+
+* **pdf-reports:** `POST /api/v1/pdf-reports/bulk` accepts an optional `fileNameConfig: { tokens: string[] }` body (tokens: `consecutivo | serial | inventario | item | fecha`, order-preserving, unique, non-empty). Each PDF inside the returned ZIP is named from the tokens in the requested order, sanitized (NFD accent fold, Windows-reserved chars stripped, whitespace/underscore runs collapsed, capped at 120 chars). Absent/empty config falls back to the current hardcoded `consecutivo item inventario` pattern — every existing caller (client-portal `getSheetReportsZip`, etc.) stays working with zero change.
+
 # [2.10.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.9.0...v2.10.0) (2026-08-11)
 
 

@@ -2,6 +2,7 @@ import { Items } from '../models/items.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { escapeRegex } from '../utils/escapeRegex.util.js';
 
 export class ItemsService {
   async create(data, tenantId) {
@@ -24,8 +25,8 @@ export class ItemsService {
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
       if (search) {
-        const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        const rx = new RegExp(escapeRegex(search), 'i');
+        query.$or = [{ Nombre: rx }, { Observacion: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([
