@@ -1,0 +1,10 @@
+'use strict';
+
+export const SHEET_SIGN_TOKEN_TTL_DAYS = 7;
+export const SHEET_SIGN_TOKEN_TTL_MS = SHEET_SIGN_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+export const SHEET_SIGN_MESSAGE_MAX = 500;
+
+export const SHEET_SIGN_CORREOUSADOS_MAX = 20;
+
+export const SHEET_SIGN_TOKEN_LENGTH = 32;

@@ -12,6 +12,10 @@ const CustomerSchema = new Schema({
     Logo: { type: String,  trim: true }, 
     TelContacto: { type: String,  trim: true },
     UserContacto: { type: String,  trim: true },
+    correousados: {
+      type: [{ type: String, trim: true, lowercase: true }],
+      default: [],
+    },
       tenantId: { type: String, required: true },
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },

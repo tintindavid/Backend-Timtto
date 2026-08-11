@@ -142,6 +142,134 @@ async function sendForgotPasswordEmail({ to, firstName, resetLink }) {
   });
 }
 
+function formatExpiresAt(expiresAt) {
+  if (!expiresAt) return '';
+  const d = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-CO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Sends the "please sign this sheet" email to a client (or delegate) when
+ * an admin creates a remote sign request or resends one.
+ */
+async function sendSheetSignRequestEmail({ to, otConsecutivo, sheetNumero, requesterName, message, signUrl, expiresAt }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'sheet-sign-request' });
+    return { sent: false, skipped: true };
+  }
+
+  const vars = {
+    to,
+    otConsecutivo: otConsecutivo || '',
+    sheetNumero: sheetNumero || '',
+    requesterName: requesterName || 'TIMTTO',
+    message: message || '',
+    signUrl,
+    expiresAtFormatted: formatExpiresAt(expiresAt),
+  };
+  const [html, text] = await Promise.all([
+    renderTemplate('sheet-sign-request.hbs', vars),
+    renderTemplate('sheet-sign-request.txt.hbs', vars),
+  ]);
+
+  return _send({
+    to,
+    subject: `Firma requerida — HT ${sheetNumero || ''}`.trim(),
+    html,
+    text,
+    templateName: 'sheet-sign-request',
+  });
+}
+
+/** Confirmation to the client after they signed. */
+async function sendSheetSignedClientEmail({ to, sheetNumero, otConsecutivo, signerName, signUrl, expiresAt }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'sheet-signed-client' });
+    return { sent: false, skipped: true };
+  }
+  const vars = {
+    to,
+    sheetNumero: sheetNumero || '',
+    otConsecutivo: otConsecutivo || '',
+    signerName: signerName || '',
+    signUrl,
+    expiresAtFormatted: formatExpiresAt(expiresAt),
+  };
+  const [html, text] = await Promise.all([
+    renderTemplate('sheet-signed-client.hbs', vars),
+    renderTemplate('sheet-signed-client.txt.hbs', vars),
+  ]);
+  return _send({
+    to,
+    subject: `Firmaste la HT ${sheetNumero || ''}`.trim(),
+    html,
+    text,
+    templateName: 'sheet-signed-client',
+  });
+}
+
+/** Notification to the TIMTTO user who requested the signature. */
+async function sendSheetSignedRequesterEmail({ to, sheetNumero, otConsecutivo, signerName, signUrl, expiresAt }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'sheet-signed-requester' });
+    return { sent: false, skipped: true };
+  }
+  const vars = {
+    to,
+    sheetNumero: sheetNumero || '',
+    otConsecutivo: otConsecutivo || '',
+    signerName: signerName || 'El cliente',
+    signUrl,
+    expiresAtFormatted: formatExpiresAt(expiresAt),
+  };
+  const [html, text] = await Promise.all([
+    renderTemplate('sheet-signed-requester.hbs', vars),
+    renderTemplate('sheet-signed-requester.txt.hbs', vars),
+  ]);
+  return _send({
+    to,
+    subject: `${signerName || 'El cliente'} firmó la HT ${sheetNumero || ''}`.trim(),
+    html,
+    text,
+    templateName: 'sheet-signed-requester',
+  });
+}
+
+/**
+ * Sends the client-portal access link to a recipient (usually the client).
+ * Requested from the admin panel via `POST /client-tokens/:id/send`.
+ */
+async function sendClientPortalLinkEmail({ to, clienteName, portalUrl, requesterName }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'client-portal-link' });
+    return { sent: false, skipped: true };
+  }
+  const vars = {
+    to,
+    clienteName: clienteName || '',
+    portalUrl,
+    requesterName: requesterName || 'TIMTTO',
+  };
+  const [html, text] = await Promise.all([
+    renderTemplate('client-portal-link.hbs', vars),
+    renderTemplate('client-portal-link.txt.hbs', vars),
+  ]);
+  return _send({
+    to,
+    subject: 'Acceso a tu portal — TIMTTO',
+    html,
+    text,
+    templateName: 'client-portal-link',
+  });
+}
+
 // Startup diagnostic — visible en logs de producción al arrancar el servidor
 (() => {
   if (!env.NOTIFICATIONS_ENABLED) {
@@ -162,4 +290,8 @@ export const emailService = {
   sendWelcomeEmail,
   sendPasswordResetEmail,
   sendForgotPasswordEmail,
+  sendSheetSignRequestEmail,
+  sendSheetSignedClientEmail,
+  sendSheetSignedRequesterEmail,
+  sendClientPortalLinkEmail,
 };

@@ -57,6 +57,16 @@ const ClientAccessTokenSchema = new Schema(
        flow falls back to createdBy when null. */
     attributionUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
 
+    /* Send-link audit trail (client-token-edit-and-send). Absent on legacy
+       tokens. Single-record subdoc (D3): the UI only needs "N envíos, último
+       a x@y.com el <fecha>" — no need for a full array. */
+    emailHistory: {
+      lastEmail: { type: String, trim: true, lowercase: true, default: null },
+      lastSentAt: { type: Date, default: null },
+      lastSentBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+      sendCount: { type: Number, default: 0 },
+    },
+
     revokedAt: { type: Date, default: null },
     revokedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
 

@@ -7,6 +7,9 @@ import { PERMISSIONS } from '../constants/permissions.js';
 import { createSheetWorkDto } from '../dtos/createSheetWork.dto.js';
 import { updateSheetWorkDto } from '../dtos/updateSheetWork.dto.js';
 import { querySheetWorkDto } from '../dtos/querySheetWork.dto.js';
+import { remoteSignRequestDto } from '../dtos/remoteSignRequest.dto.js';
+import { resendSignRequestDto } from '../dtos/resendSignRequest.dto.js';
+import { signInPlaceDto } from '../dtos/publicSheetSign.dto.js';
 
 const router = Router();
 router.use(authenticate);
@@ -14,6 +17,26 @@ router.use(authenticate);
 router.post('/', authorize(PERMISSIONS.SHEETWORK_CREATE), validate(createSheetWorkDto, 'body'), sheetWorkController.create);
 router.get('/ot/:otId', authorize(PERMISSIONS.SHEETWORK_READ), sheetWorkController.listByOt);
 router.get('/', authorize(PERMISSIONS.SHEETWORK_READ), validate(querySheetWorkDto, 'query'), sheetWorkController.list);
+
+// Remote signature flow (sheetwork-remote-signature spec).
+router.post(
+  '/remote-sign-request',
+  authorize(PERMISSIONS.SHEETWORK_CREATE),
+  validate(remoteSignRequestDto, 'body'),
+  sheetWorkController.remoteSignRequest
+);
+router.post(
+  '/:sheetId/resend-sign-request',
+  authorize(PERMISSIONS.SHEETWORK_UPDATE),
+  validate(resendSignRequestDto, 'body'),
+  sheetWorkController.resendSignRequest
+);
+router.post(
+  '/:sheetId/sign-inplace',
+  authorize(PERMISSIONS.SHEETWORK_UPDATE),
+  validate(signInPlaceDto, 'body'),
+  sheetWorkController.signInPlace
+);
 
 // Ruta para generar PDF (debe ir ANTES de /:id para evitar conflictos)
 router.get('/:id/pdf', authorize(PERMISSIONS.SHEETWORK_READ), sheetWorkController.generatePDF);

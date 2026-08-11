@@ -61,6 +61,7 @@ import platformAnalyticsRoutes from './routes/platformAnalytics.routes.js';
 import myTenantRoutes from './routes/myTenant.routes.js';
 import clientAccessTokenRoutes from './routes/clientAccessToken.routes.js';
 import clientPortalRoutes from './routes/clientPortal.routes.js';
+import publicSheetSignRoutes from './routes/publicSheetSign.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -247,6 +248,10 @@ app.use('/public/tickets', publicTicketRoutes);
 // convention (/public/tickets); frontend `publicPortal.service.ts` strips
 // `/api/v1` from VITE_API_URL and hits `${origin}/public/client-view/...`.
 app.use('/public/client-view', clientPortalRoutes);
+
+// Remote sheet-sign — public token-gated read/sign of one SheetWork
+// (sheetwork-remote-signature spec). Same mount pattern as /public/client-view.
+app.use('/public/sheet-sign', publicSheetSignRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));

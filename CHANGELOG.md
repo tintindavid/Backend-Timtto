@@ -1,23 +1,32 @@
+## [Unreleased] (2026-08-10)
+
+
+### Features
+
+* **sheetwork:** remote signature flow — new admin endpoint `POST /api/v1/sheetwork/remote-sign-request` creates a HT in `EnviadaAFirmar`, issues a 7-day `SheetWorkSignToken`, and dispatches a Resend email with a `/firma/<token>` link. Recipient email is `$addToSet`-appended to `Customer.correousados` (soft cap 20). Requires the caller's `User.fileFirma` to be set — same prerequisite as the on-site flow; missing signature returns 409 `USER_HAS_NO_SIGNATURE` and no sheet is created. The requester's `fileFirma`, `fullName`, and `role` are baked into `SheetWork.firmaResponsableFile` / `fullNameResponsable` / `cargoResponsable` at creation so the client's PDF preview and the final signed PDF both render the responsible technician's signature block.
+* **sheetwork:** new admin endpoint `POST /api/v1/sheetwork/:sheetId/resend-sign-request` reuses the active token or upserts a new one; increments `resendCount`; updates the sheet + customer email; re-dispatches the request email.
+* **sheetwork:** new admin endpoint `POST /api/v1/sheetwork/:sheetId/sign-inplace` closes an `EnviadaAFirmar` HT on-site (reports → Cerrado, OT recompute, cascade, PDF regen) and marks the outstanding remote token as `superseded`.
+* **sheetwork:** new public endpoints `GET|POST /public/sheet-sign/:token` — the client reads the sheet's PDF-preview HTML, submits a signature (canvas or upload), triggers the shared closure, renews the token to `signedAt + 7d`, and receives + notifies the requester via confirmation emails without PDF attachment.
+* **sheetwork:** `SheetWork.estado` enum extended with `EnviadaAFirmar`; new subdoc `remoteSignRequest` on `SheetWork`; new `correousados` array on `Customer`; new collection `sheet_work_sign_tokens`.
+* **client-tokens:** new admin endpoint `PATCH /api/v1/client-tokens/:id/ots` appends OTs to an active token via `$addToSet`. Every submitted OT must belong to the token's `clienteId`; revoked tokens return 409 `TOKEN_REVOKED`. `clienteId` and `attributionUserId` remain immutable.
+* **client-tokens:** new admin endpoint `POST /api/v1/client-tokens/:id/send` dispatches the portal link by email via Resend and records `emailHistory: { lastEmail, lastSentAt, lastSentBy, sendCount }` on the token doc. Attempt is recorded even when Resend fails or `NOTIFICATIONS_ENABLED=false`; the `emailSent` flag reflects the transport outcome. Recipient email is `$addToSet`-appended to `Customer.correousados` (shared pool with the sheetwork-remote-signature flow).
+* **email:** Handlebars templates + `emailService` methods: `sheet-sign-request`, `sheet-signed-client`, `sheet-signed-requester`, `client-portal-link` (each with `.txt.hbs` counterpart).
+
+### Refactor
+
+* **signatures:** sharp-based blank-PNG validator extracted from `clientPortalSign.dto.js` into `utils/validateSignaturePng.util.js`; consumed by the portal DTO and the new `publicSheetSign.dto.js` — behavior unchanged.
+* **customers:** `_pushCorreoUsado` extracted from `sheetWorkService` into `utils/customerCorreosUsados.util.js` — `sheetWorkService` and the new `clientAccessTokenService.sendLink` share one implementation of `$addToSet` + soft-cap truncation.
+
+### Rollout requirements
+
+* **notifications:** both the remote signature flow and the client-tokens send-link flow require `NOTIFICATIONS_ENABLED=true` and a valid `SMTP_PASSWORD` (Resend API key) in production. Without both, the endpoints still create the sheets/tokens and record the attempt but return `emailSent: false`; the admin sees a yellow toast and can resend from the row.
+
 # [2.9.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.8.0...v2.9.0) (2026-08-06)
 
 
 ### Features
 
 * **portal:** close reports on client sign + late-sign + image upload ([8b0d3db](https://github.com/tintindavid/Backend-Timtto/commit/8b0d3db0b139fab4a18ea3c52c394173c9c3df0e))
-
-## [Unreleased] (2026-08-05)
-
-
-### Features
-
-* **portal-cliente:** sign endpoint now closes reports (`Procesado` → `Cerrado`) instead of leaving them `Procesado`, recomputes the parent OT's `Avance`/`EstadoOt`, and dispatches the ticket-closure cascade — reaching parity with the admin sheet-creation flow
-* **portal-cliente:** new endpoint `POST /public/client-view/:token/sheets/:sheetId/sign` lets a client attach a signature to a work sheet created without one (empty `firmaFile`), scoped to the token that originally created the sheet
-* **sheetwork:** new admin endpoint `POST /api/v1/sheetworks/:sheetId/close-reports` closes the `Procesado` reports linked to a specific sheet, recomputes OT progress and dispatches the ticket cascade — retro-mitigation for HTs signed before the portal-sign fix
-* **portal-cliente:** `clientPortalSignDto`/`clientPortalLateSignDto` reject blank or fully transparent signature PNGs with `INVALID_SIGNATURE_IMAGE` (400), decoded via `sharp` (added as a direct dependency, pinned `0.35.3` — was not previously installed, transitive or otherwise)
-
-### Refactor
-
-* **reports:** ticket-closure cascade extracted from `report.service.js` into `utils/ticketCascade.util.js`, now shared by `signAndCreateSheets`, `sheetwork.service.js#closeReports`, and `report.service.js`'s own `update`/`procesar` flows
 
 # [2.8.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.7.0...v2.8.0) (2026-08-03)
 

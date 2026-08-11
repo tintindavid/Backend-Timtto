@@ -9,6 +9,8 @@ import {
   createClientAccessTokenDto,
   queryClientAccessTokensDto,
 } from '../dtos/clientAccessToken.dto.js';
+import { addOtsToClientTokenDto } from '../dtos/addOtsToClientToken.dto.js';
+import { sendClientTokenLinkDto } from '../dtos/sendClientTokenLink.dto.js';
 
 const router = Router();
 
@@ -27,6 +29,8 @@ router.post('/', validate(createClientAccessTokenDto, 'body'), clientAccessToken
 router.get('/', validate(queryClientAccessTokensDto, 'query'), clientAccessTokenController.list);
 router.get('/:id', clientAccessTokenController.getById);
 router.patch('/:id/revoke', clientAccessTokenController.revoke);
+router.patch('/:id/ots', validate(addOtsToClientTokenDto, 'body'), clientAccessTokenController.addOts);
+router.post('/:id/send', validate(sendClientTokenLinkDto, 'body'), clientAccessTokenController.sendLink);
 router.delete('/:id', clientAccessTokenController.softDelete);
 
 export default router;
