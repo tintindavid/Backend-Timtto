@@ -1,3 +1,10 @@
+# [2.11.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.10.0...v2.11.0) (2026-08-11)
+
+
+### Features
+
+* **pdf-reports): dynamic filename builder + fix(listings:** server-side search ([7972866](https://github.com/tintindavid/Backend-Timtto/commit/7972866d5f4454006dc4a24ebc61c018daa9e71d))
+
 ## [Unreleased] (2026-08-11)
 
 
