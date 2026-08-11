@@ -64,6 +64,40 @@ export class SheetWorkController {
     } catch (err) { next(err); }
   }
 
+  /** POST /api/v1/sheetwork/remote-sign-request */
+  async remoteSignRequest(req, res, next) {
+    try {
+      const data = await sheetWorkService.remoteSignRequest(req.body, req.tenantId, req.user?.userId || req.user?.id);
+      res.status(201).json(successResponse(data, 'Solicitud de firma enviada', 201));
+    } catch (err) { next(err); }
+  }
+
+  /** POST /api/v1/sheetwork/:sheetId/resend-sign-request */
+  async resendSignRequest(req, res, next) {
+    try {
+      const data = await sheetWorkService.resendSignRequest(
+        req.params.sheetId,
+        req.body,
+        req.tenantId,
+        req.user?.userId || req.user?.id
+      );
+      res.status(200).json(successResponse(data, 'Solicitud reenviada'));
+    } catch (err) { next(err); }
+  }
+
+  /** POST /api/v1/sheetwork/:sheetId/sign-inplace */
+  async signInPlace(req, res, next) {
+    try {
+      const data = await sheetWorkService.signInPlace(
+        req.params.sheetId,
+        req.body,
+        req.tenantId,
+        req.user?.userId || req.user?.id
+      );
+      res.status(200).json(successResponse(data, 'Hoja firmada en sitio'));
+    } catch (err) { next(err); }
+  }
+
   /**
    * Genera PDF de la hoja de trabajo
    * GET /api/v1/sheet-works/:id/pdf

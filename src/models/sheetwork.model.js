@@ -18,7 +18,7 @@ const SheetWorkSchema = new Schema({
   cargoResponsable: { type: String,  trim: true },
   firmaResponsableFile: { type: String,  trim: true },
   observaciones: { type: String, trim: true },
-  estado: { type: String, enum: ['Borrador', 'Firmada'], default: 'Borrador' },
+  estado: { type: String, enum: ['Borrador', 'EnviadaAFirmar', 'Firmada'], default: 'Borrador' },
   reports: [
     { type: Schema.Types.ObjectId, ref: 'Report' }
   ],
@@ -37,6 +37,19 @@ const SheetWorkSchema = new Schema({
   },
   pdfStatus: { type: String, enum: ['pending', 'ready', 'error'], default: 'ready' }, // default 'ready' for retrocompat with existing sheets
   pdfGenerationError: { type: String, default: null },
+
+  /* Remote sign request (sheetwork-remote-signature spec). Present only on
+     sheets created via `POST /api/v1/sheetwork/remote-sign-request`; absent
+     on sheets created through the on-site flow. `tokenId` refs the live
+     SheetWorkSignToken (one per sheet, unique). */
+  remoteSignRequest: {
+    tokenId: { type: Schema.Types.ObjectId, ref: 'SheetWorkSignToken', default: null },
+    email: { type: String, trim: true, lowercase: true, default: null },
+    requestedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    requestedAt: { type: Date, default: null },
+    message: { type: String, trim: true, default: null },
+    resendCount: { type: Number, default: 0 },
+  },
 
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
@@ -57,6 +70,10 @@ SheetWorkSchema.index(
 SheetWorkSchema.index(
   { tenantId: 1, 'clientSignature.tokenId': 1 },
   { partialFilterExpression: { 'clientSignature.tokenId': { $exists: true } } }
+);
+SheetWorkSchema.index(
+  { tenantId: 1, 'remoteSignRequest.tokenId': 1 },
+  { partialFilterExpression: { 'remoteSignRequest.tokenId': { $exists: true } } }
 );
 
 // Exclude sensitive fields

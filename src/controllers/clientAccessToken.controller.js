@@ -38,6 +38,27 @@ export class ClientAccessTokenController {
       res.status(204).send();
     } catch (err) { next(err); }
   }
+
+  /** PATCH /:id/ots */
+  async addOts(req, res, next) {
+    try {
+      const data = await clientAccessTokenService.addOts(req.params.id, req.body.otIds, req.tenantId);
+      res.json(successResponse(data, 'OTs añadidas al acceso'));
+    } catch (err) { next(err); }
+  }
+
+  /** POST /:id/send */
+  async sendLink(req, res, next) {
+    try {
+      const data = await clientAccessTokenService.sendLink(
+        req.params.id,
+        req.body.email,
+        req.tenantId,
+        req.user?.userId
+      );
+      res.json(successResponse(data, 'Solicitud de envío procesada'));
+    } catch (err) { next(err); }
+  }
 }
 
 export const clientAccessTokenController = new ClientAccessTokenController();

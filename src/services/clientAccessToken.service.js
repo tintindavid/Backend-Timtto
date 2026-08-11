@@ -5,11 +5,14 @@ import { nanoid } from 'nanoid';
 import { ClientAccessToken } from '../models/clientAccessToken.model.js';
 import { OT } from '../models/ot.model.js';
 import { User } from '../models/user.model.js';
+import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { pushCorreoUsado } from '../utils/customerCorreosUsados.util.js';
 import { env } from '../config/env.js';
 import { CLIENT_TOKEN_LENGTH } from '../constants/clientPortal.constants.js';
+import { emailService } from './external/email.service.js';
 
 /**
  * ClientAccessTokenService — admin CRUD for the opaque client-portal token
@@ -170,6 +173,157 @@ export class ClientAccessTokenService {
     await doc.save();
     logger.info('ClientAccessToken revoked', { tenantId, id });
     return doc.toJSON();
+  }
+
+  /**
+   * Appends OTs to an active token via `$addToSet`. Every submitted OT must
+   * belong to the token's clienteId; length mismatch or cross-tenant → 400.
+   * Revoked tokens → 409; missing / soft-deleted / cross-tenant → 404.
+   * Returns the token populated (otIds with summary + creator names) so the
+   * frontend can render without a refetch.
+   */
+  async addOts(id, otIds, tenantId) {
+    requireTenant(tenantId);
+    if (!mongoose.isValidObjectId(id)) {
+      throw new ApiError(404, 'Acceso no encontrado', 'NOT_FOUND', { id });
+    }
+    const uniqueRequested = Array.from(new Set((otIds || []).map(String)));
+    if (uniqueRequested.length === 0) {
+      throw new ApiError(400, 'Debes indicar al menos una OT', 'OT_LIST_EMPTY');
+    }
+
+    const doc = await ClientAccessToken.findOne(applyTenantFilter({ _id: id }, tenantId));
+    if (!doc) {
+      throw new ApiError(404, 'Acceso no encontrado', 'NOT_FOUND', { id });
+    }
+    if (doc.status === 'revoked') {
+      throw new ApiError(409, 'El acceso está revocado y no puede editarse', 'TOKEN_REVOKED');
+    }
+
+    // Single query — misses (missing / soft-deleted / cross-tenant) all
+    // manifest as a length mismatch, same pattern as `create`.
+    const ots = await OT.find(applyTenantFilter({ _id: { $in: uniqueRequested } }, tenantId))
+      .select('ClienteId')
+      .lean();
+    if (ots.length !== uniqueRequested.length) {
+      throw new ApiError(400, 'Una o más OT no están disponibles', 'OT_NOT_AVAILABLE');
+    }
+
+    const clienteId = String(doc.clienteId);
+    const mismatched = ots.some((ot) => String(ot.ClienteId) !== clienteId);
+    if (mismatched) {
+      throw new ApiError(
+        400,
+        'Todas las OT deben pertenecer al mismo cliente del acceso',
+        'OT_CLIENT_MISMATCH'
+      );
+    }
+
+    // Filter out OTs already in the token — the model's pre('validate') hook
+    // cross-checks against clienteId via the transient `otClienteIds` virtual,
+    // and $addToSet handles dedupe at the DB layer, but doing it here too
+    // lets us short-circuit when nothing new is being added.
+    const existing = new Set(doc.otIds.map(String));
+    const toAppend = uniqueRequested.filter((otId) => !existing.has(otId));
+
+    if (toAppend.length > 0) {
+      await ClientAccessToken.updateOne(
+        applyTenantFilter({ _id: doc._id }, tenantId),
+        { $addToSet: { otIds: { $each: toAppend } } }
+      );
+    }
+
+    logger.info('ClientAccessToken addOts', {
+      tenantId,
+      id: doc._id.toString(),
+      appended: toAppend.length,
+      requested: uniqueRequested.length,
+    });
+
+    // Return the populated token so the UI updates in place.
+    return this.getById(String(doc._id), tenantId);
+  }
+
+  /**
+   * Dispatches the portal link to `email` via the transactional email
+   * service and records the attempt on `emailHistory`. Failure to send
+   * (Resend down, notifications disabled) STILL records the attempt so
+   * the audit trail reflects intent (D6).
+   */
+  async sendLink(id, email, tenantId, userId) {
+    requireTenant(tenantId);
+    if (!mongoose.isValidObjectId(id)) {
+      throw new ApiError(404, 'Acceso no encontrado', 'NOT_FOUND', { id });
+    }
+    const normalized = String(email || '').toLowerCase().trim();
+    if (!normalized) {
+      throw new ApiError(400, 'Correo requerido', 'EMAIL_REQUIRED');
+    }
+
+    const doc = await ClientAccessToken.findOne(applyTenantFilter({ _id: id }, tenantId));
+    if (!doc) {
+      throw new ApiError(404, 'Acceso no encontrado', 'NOT_FOUND', { id });
+    }
+    if (doc.status === 'revoked') {
+      throw new ApiError(409, 'El acceso está revocado y no puede reenviarse', 'TOKEN_REVOKED');
+    }
+
+    const customer = await Customer.findOne(applyTenantFilter({ _id: doc.clienteId }, tenantId))
+      .select('Razonsocial')
+      .lean();
+    const requester = userId
+      ? await User.findById(userId).select('fullName').lean()
+      : null;
+
+    const baseUrl = (env.PUBLIC_APP_BASE_URL || '').replace(/\/+$/, '');
+    const portalUrl = `${baseUrl}/portal/${doc.token}`;
+
+    let emailSent = false;
+    if (env.NOTIFICATIONS_ENABLED) {
+      try {
+        const result = await emailService.sendClientPortalLinkEmail({
+          to: normalized,
+          clienteName: customer?.Razonsocial || 'Cliente',
+          portalUrl,
+          requesterName: requester?.fullName || 'TIMTTO',
+        });
+        emailSent = Boolean(result?.sent);
+      } catch (err) {
+        logger.warn('sendLink: email dispatch failed', {
+          tokenId: String(doc._id),
+          err: String(err),
+        });
+      }
+    }
+
+    // Record the attempt regardless of transport outcome (D6).
+    const now = new Date();
+    await ClientAccessToken.updateOne(
+      applyTenantFilter({ _id: doc._id }, tenantId),
+      {
+        $set: {
+          'emailHistory.lastEmail': normalized,
+          'emailHistory.lastSentAt': now,
+          'emailHistory.lastSentBy': userId || null,
+        },
+        $inc: { 'emailHistory.sendCount': 1 },
+      }
+    );
+
+    await pushCorreoUsado(doc.clienteId, tenantId, normalized);
+
+    logger.info('ClientAccessToken sendLink', {
+      tenantId,
+      id: doc._id.toString(),
+      emailSent,
+    });
+
+    return {
+      id: doc._id.toString(),
+      email: normalized,
+      sentAt: now,
+      emailSent,
+    };
   }
 
   /** Soft-deletes a token. Only allowed once the token is revoked. */
