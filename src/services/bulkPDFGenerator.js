@@ -3,13 +3,15 @@ import JSZip from 'jszip';
 import PDFMicroserviceClient from './pdfMicroserviceClient.js';
 import { logger } from '../config/logger.config.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { buildBulkPdfFilename } from '../utils/filenameSanitize.util.js';
 
 export default class BulkPDFGenerator {
   constructor(pdfClient = null) {
     this.pdfClient = pdfClient || new PDFMicroserviceClient();
   }
 
-  async generateBulkPDFs(reports = [], htmlGenerator) {
+  async generateBulkPDFs(reports = [], htmlGenerator, options = {}) {
+    this.fileNameConfig = options.fileNameConfig || null;
     const zip = new JSZip();
     const results = { successful: 0, failed: 0, errors: [] };
     const total = reports.length;
@@ -49,10 +51,20 @@ export default class BulkPDFGenerator {
   }
 
   generateFileName(report, index = 0) {
+    // Config-driven path (pdf-reports-filename-builder): if the caller passed
+    // a valid `fileNameConfig.tokens`, use the shared sanitizer. Missing or
+    // empty config falls back to the legacy pattern below for backward
+    // compatibility with every existing caller (e.g. clientPortal's
+    // getSheetReportsZip which invokes the generator directly without opts).
+    const tokens = this.fileNameConfig?.tokens;
+    if (Array.isArray(tokens) && tokens.length > 0) {
+      const configured = buildBulkPdfFilename(report, tokens);
+      if (configured) return configured;
+    }
     const numeroReporte = (report.consecutivo || report._id || `report_${index}`).toString();
-    const safe = numeroReporte.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const item= (report.equipoSnapshot.ItemText.toUpperCase()).replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const inventario = (report.equipoSnapshot.Inventario)
+    const safe = numeroReporte.replace(/[^a-zA-Z0-9-_.]/g, '_');
+    const item = (report.equipoSnapshot?.ItemText?.toUpperCase() || 'SN').replace(/[^a-zA-Z0-9-_.]/g, '_');
+    const inventario = report.equipoSnapshot?.Inventario || 'SN';
     return `${safe} ${item} ${inventario}.pdf`;
   }
 

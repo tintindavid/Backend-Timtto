@@ -14,7 +14,7 @@ export async function generateBulkPDFs(req, res, next) {
   try {
     const tenantId = req.tenantId;
 
-    const { reportIds, filters = {}, otId, sheetworkId } = req.body; // parámetros opcionales
+    const { reportIds, filters = {}, otId, sheetworkId, fileNameConfig } = req.body; // parámetros opcionales
     let query = {};  
 
     if (reportIds && Array.isArray(reportIds) && reportIds.length) {  // cuando se proporcionan reportIds específicos  
@@ -56,7 +56,11 @@ export async function generateBulkPDFs(req, res, next) {
 
     const generator = new BulkPDFGenerator();
     const template = getHTMLTemplate();
-    const zipBuffer = await generator.generateBulkPDFs(reportsWithRepuestos, (report) => generateHTMLFromReport(report,tenantData, template));
+    const zipBuffer = await generator.generateBulkPDFs(
+      reportsWithRepuestos,
+      (report) => generateHTMLFromReport(report, tenantData, template),
+      { fileNameConfig }
+    );
 
     const iso = new Date().toISOString().split('T')[0];
     const fileName = `reportes_${iso}_${Date.now()}.zip`;
