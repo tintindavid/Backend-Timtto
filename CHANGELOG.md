@@ -1,3 +1,10 @@
+# [2.12.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.11.0...v2.12.0) (2026-08-13)
+
+
+### Features
+
+* **sheetwork:** share signed HT via download link + portal widening + fixes ([02b1198](https://github.com/tintindavid/Backend-Timtto/commit/02b1198fd04ea649535ef7a3107ee598f7adce85)), closes [ot.service.js#update](https://github.com/ot.service.js/issues/update) [utils/mongoSession.util.js#runWithTransactionFallback](https://github.com/utils/mongoSession.util.js/issues/runWithTransactionFallback)
+
 ## [Unreleased] (2026-08-11)
 
 
