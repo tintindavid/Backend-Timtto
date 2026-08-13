@@ -1,3 +1,21 @@
+## [Unreleased] (2026-08-11)
+
+
+### Bug Fixes
+
+* **portal-cliente:** HTs firmadas desde el portal ahora reciben el numeroHoja `${OT.Consecutivo}-N` (ej. `OT000029-2`) — antes se generaba con el contador global `HNNNN` (ej. `H0004`), quedando inconsistentes con las HTs del flujo admin de la misma OT. Ambos flujos comparten ahora `sheetWorkService._resolveNumeroHoja`. Sin migración: HTs históricas conservan su nombre; el contador global `SHEET` se preserva como fallback para OTs sin `Consecutivo`.
+* **ot:** `PUT /api/v1/ots/:id` was crashing in dev with `Transaction numbers are only allowed on a replica set member or mongos` (MongoServerError code 20) because `ot.service.js#update` wraps the OT-completion side effects (inventory decrement + repuestos status flip + trazabilidad record) in a MongoDB transaction. Prod runs Atlas (replica set) so the txn path succeeds, but local standalone `mongod` throws. Fixed via a new shared helper `utils/mongoSession.util.js#runWithTransactionFallback` — attempts the transactional path first, catches code 20 specifically, and re-runs the same block without a session. Preserves atomic semantics in prod, unblocks dev. Logs a one-shot `warn` when the fallback triggers.
+
+### Features
+
+* **sheetwork:** share a signed HT via a one-off download link — new admin endpoint `POST /api/v1/sheetwork/:sheetId/share` issues a `SheetWorkDownloadToken` (3 downloads / 3 days, optional `allowReports` for 2 reports-ZIP downloads), records `shareHistory` on the sheet, appends the recipient email to `Customer.correousados`, and dispatches a Resend email. Reissue overwrites the previous token — the old URL 404s.
+* **sheetwork:** new public endpoints `GET /public/sheet-download/:token` (metadata), `GET /public/sheet-download/:token/pdf` (streams the HT PDF, atomic counter increment, 410 on exhaustion), `GET /public/sheet-download/:token/reports.zip` (only when `allowReports: true`, 410 on exhaustion). Same mount pattern as `/public/sheet-sign` — rate limiters before the token resolver.
+* **email:** new Handlebars templates `sheet-share-download.hbs` + `.txt.hbs` and `emailService.sendSheetShareDownloadEmail`.
+
+### Refactor
+
+* **portal:** `clientPortalService.getSheetsForToken` / `getSheetPdfLocation` / `getSheetReportsZip` now filter by `otId ∈ token.otIds` + `firmaFile` non-empty, replacing the previous `clientSignature.tokenId === currentToken` gate. Portal reads open — the client sees the full signed history of the OTs in their token's scope, including HTs signed under a previous token or on-site. The write path `signExistingSheet` keeps the D12 gate unchanged.
+
 # [2.11.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.10.0...v2.11.0) (2026-08-11)
 
 

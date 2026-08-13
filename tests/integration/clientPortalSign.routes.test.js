@@ -5,7 +5,7 @@
  * (change B, design D6/D9). Mocks every Mongoose model static + the
  * Firebase upload boundary, drives controller -> service directly.
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ClientAccessToken } from '../../src/models/clientAccessToken.model.js';
@@ -109,7 +109,18 @@ describe('POST /public/client-view/:token/sign', () => {
     delete SheetWork.find;
     delete Counter.findOneAndUpdate;
     delete OT.findOneAndUpdate;
+    delete OT.findOne;
+    delete SheetWork.countDocuments;
     delete Ticket.findOne;
+  });
+
+  // sheetWorkService._resolveNumeroHoja (called from portal sign since 2026-08-12)
+  // needs OT.findOne (Consecutivo lookup) and SheetWork.countDocuments (per-OT
+  // sheet counter). Default stubs so tests don't hang on real DB calls; individual
+  // tests can override if they care about the resulting numeroHoja.
+  beforeEach(() => {
+    OT.findOne = () => mockQuery(null); // triggers the global-counter fallback in _resolveNumeroHoja
+    SheetWork.countDocuments = async () => 0;
   });
 
   it('happy path across 2 OTs: creates 2 sheets, shared signedBatchId + contentHash, source=client-portal, 202', async () => {
@@ -426,5 +437,55 @@ describe('POST /public/client-view/:token/sign', () => {
     assert.equal(res.statusCode, 202);
     assert.equal(ticketDoc.status, TICKET_STATUS.CERRADO, 'ticket must close when its report was signed/closed');
     assert.equal(ticketDoc.saved, true);
+  });
+
+  it('portal-signed sheets get numeroHoja `${OT.Consecutivo}-N` (matches admin flow)', async () => {
+    // Override the beforeEach stubs so _resolveNumeroHoja hits its happy path
+    // (OT has Consecutivo → OT-scoped naming instead of the global H0001 fallback).
+    OT.findOne = () => mockQuery({ _id: OT_A_ID, Consecutivo: 'OT000029' });
+    SheetWork.countDocuments = async () => 1; // 1 existing sheet → next is `-2`
+
+    ClientAccessToken.findById = () => mockPopulateQuery({ createdBy: activeCreator() });
+    Report.find = () => mockQuery([reviewedReport(R1)]);
+    OT.find = () => mockQuery([
+      { _id: OT_A_ID, Consecutivo: 'OT000029', ClienteId: 'cliente-1', reportes: [R1] },
+    ]);
+    firebaseStorageService.uploadEvidencia = async () => ({ url: 'https://cdn/firma.png', storagePath: 'x' });
+    Counter.findOneAndUpdate = () => ({ lean: () => Promise.resolve({ seq: 999 }) });
+    let insertedDocs = null;
+    SheetWork.insertMany = async (docs) => {
+      insertedDocs = docs;
+      return docs.map((d, i) => ({ ...d, _id: `sheet-${i + 1}` }));
+    };
+    Report.bulkWrite = async (ops) => {
+      const total = ops.reduce((n, op) => n + op.updateMany.filter._id.$in.length, 0);
+      return { matchedCount: total, modifiedCount: total };
+    };
+    Report.updateMany = async (f) => ({ matchedCount: f._id.$in.length, modifiedCount: f._id.$in.length });
+    SheetWork.deleteMany = async () => ({ deletedCount: 0 });
+    SheetWork.find = () => mockQuery([]);
+    Report.countDocuments = async () => 1;
+    OT.findOneAndUpdate = async () => ({});
+
+    const req = {
+      tenantId: 'tenant-1',
+      clienteId: 'cliente-1',
+      otIds: [OT_A_ID],
+      tokenId: 'tok-1',
+      body: {
+        reportIds: [R1],
+        signature: { imagePng: 'aGk=', signerName: 'X', signerId: 'Y' },
+      },
+      ip: '1.2.3.4',
+      get: () => 'ua',
+    };
+    const res = buildRes();
+    await clientPortalController.sign(req, res, (err) => { if (err) throw err; });
+
+    assert.equal(res.statusCode, 202);
+    assert.equal(insertedDocs.length, 1);
+    // The fix: numeroHoja follows the OT scope, not the global H-counter.
+    assert.equal(insertedDocs[0].numeroHoja, 'OT000029-2');
+    assert.doesNotMatch(insertedDocs[0].numeroHoja, /^H\d/, 'must NOT fall back to the H-prefixed global counter');
   });
 });

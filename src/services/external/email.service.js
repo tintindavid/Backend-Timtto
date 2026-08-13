@@ -243,6 +243,49 @@ async function sendSheetSignedRequesterEmail({ to, sheetNumero, otConsecutivo, s
 }
 
 /**
+ * Sends a one-off download link for a signed HT
+ * (sheetwork-share-and-portal-widening).
+ */
+async function sendSheetShareDownloadEmail({
+  to,
+  sheetNumero,
+  otConsecutivo,
+  tenantName,
+  downloadUrl,
+  expiresAt,
+  downloadsAllowed,
+  allowReports,
+  reportDownloadsAllowed,
+}) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'sheet-share-download' });
+    return { sent: false, skipped: true };
+  }
+  const vars = {
+    to,
+    sheetNumero: sheetNumero || '',
+    otConsecutivo: otConsecutivo || '',
+    tenantName: tenantName || 'TIMTTO',
+    downloadUrl,
+    expiresAtFormatted: formatExpiresAt(expiresAt),
+    downloadsAllowed,
+    allowReports: Boolean(allowReports),
+    reportDownloadsAllowed: reportDownloadsAllowed || 0,
+  };
+  const [html, text] = await Promise.all([
+    renderTemplate('sheet-share-download.hbs', vars),
+    renderTemplate('sheet-share-download.txt.hbs', vars),
+  ]);
+  return _send({
+    to,
+    subject: `Descargar HT ${sheetNumero || ''}`.trim(),
+    html,
+    text,
+    templateName: 'sheet-share-download',
+  });
+}
+
+/**
  * Sends the client-portal access link to a recipient (usually the client).
  * Requested from the admin panel via `POST /client-tokens/:id/send`.
  */
@@ -294,4 +337,5 @@ export const emailService = {
   sendSheetSignedClientEmail,
   sendSheetSignedRequesterEmail,
   sendClientPortalLinkEmail,
+  sendSheetShareDownloadEmail,
 };

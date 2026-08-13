@@ -18,6 +18,7 @@ import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import SheetWorkPDFService from './sheetworkPDF.service.js';
 import BulkPDFGenerator from './bulkPDFGenerator.js';
+import { sheetWorkService } from './sheetwork.service.js';
 import { logger } from '../config/logger.config.js';
 import { SIGN_BATCH_ID_LENGTH } from '../constants/clientPortal.constants.js';
 
@@ -534,15 +535,14 @@ export class ClientPortalService {
         'client-portal/firmas'
       );
 
-      // 7. Build one SheetWork per OT group (D9: numeroHoja reuses the same
-      // 'SHEET' counter key as the field flow's fallback path — atomic and
-      // safe under the concurrent multi-tab scenario this endpoint must
-      // tolerate, unlike the OT-local count used by the presencial happy
-      // path in sheetwork.service.js#create).
+      // 7. Build one SheetWork per OT group. Uses the same numeroHoja
+      // resolver as the on-site admin flow so portal-signed HTs get
+      // `${OT.Consecutivo}-N` (e.g. `OT000029-2`) instead of the global
+      // `HNNNN` fallback — previously produced inconsistent numbering
+      // between the two flows for the same OT (2026-08-12 fix).
       const docs = [];
       for (const group of groups) {
-        const seq = await getNextSequence(tenantId, 'SHEET');
-        const numeroHoja = formatConsecutivo('H', seq, 4);
+        const numeroHoja = await sheetWorkService._resolveNumeroHoja(group.ot._id, tenantId);
         docs.push({
           tenantId,
           clienteId: group.ot.ClienteId,
@@ -920,13 +920,27 @@ export class ClientPortalService {
     }
   }
 
-  /** List sheets signed under the current token only (design D12). */
+  /**
+   * List all SIGNED sheets whose OT is in the current token's scope
+   * (sheetwork-share-and-portal-widening — reads open, D12 stays on writes).
+   * Includes sheets signed under a different token or on-site, as long as the
+   * OT is one of the token's `otIds` and `firmaFile` is populated.
+   */
   async getSheetsForToken(tenantId, tokenId) {
     requireTenant(tenantId);
 
-    const sheets = await SheetWork.find({ tenantId, 'clientSignature.tokenId': tokenId, isDeleted: false })
+    const token = await ClientAccessToken.findById(tokenId).select('otIds').lean();
+    const otIds = token?.otIds || [];
+    if (otIds.length === 0) return { sheets: [] };
+
+    const sheets = await SheetWork.find({
+      tenantId,
+      otId: { $in: otIds },
+      firmaFile: { $exists: true, $ne: null, $nin: [''] },
+      isDeleted: false,
+    })
       .populate({ path: 'otId', select: 'Consecutivo' })
-      .sort({ 'clientSignature.signedAt': -1 })
+      .sort({ 'clientSignature.signedAt': -1, updatedAt: -1 })
       .lean();
 
     return {
@@ -935,19 +949,22 @@ export class ClientPortalService {
         numeroHoja: d.numeroHoja || null,
         otId: d.otId ? String(d.otId._id) : null,
         otConsecutivo: d.otId ? d.otId.Consecutivo : null,
-        signedAt: d.clientSignature?.signedAt || null,
+        signedAt: d.clientSignature?.signedAt || d.updatedAt || null,
         pdfStatus: d.pdfStatus,
         pdfUrl: d.PdfHojaTrabajo || null,
-        // Drives the "Firmar hoja" late-sign icon on the portal history —
-        // rendered only when this field is null/empty. Without exposing it
-        // the frontend fell back to `!undefined === true` and showed the
-        // icon on every row, including already-signed sheets.
+        // firmaFile always populated post-widening (we filter on it), but
+        // exposed for API-shape consistency with previous versions.
         firmaFile: d.firmaFile || null,
       })),
     };
   }
 
-  /** Resolves the PDF URL of a sheet, scoped to the current token (D12). */
+  /**
+   * Resolves the PDF URL of a sheet — widened to allow any signed sheet
+   * whose OT is in the current token's scope
+   * (sheetwork-share-and-portal-widening). D12 remains only on writes
+   * (`signExistingSheet`).
+   */
   async getSheetPdfLocation(tenantId, tokenId, sheetId) {
     requireTenant(tenantId);
 
@@ -955,7 +972,18 @@ export class ClientPortalService {
       throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
     }
 
-    const sheet = await SheetWork.findOne({ _id: sheetId, tenantId, 'clientSignature.tokenId': tokenId }).lean();
+    const token = await ClientAccessToken.findById(tokenId).select('otIds').lean();
+    const otIds = token?.otIds || [];
+    if (otIds.length === 0) {
+      throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    }
+
+    const sheet = await SheetWork.findOne({
+      _id: sheetId,
+      tenantId,
+      otId: { $in: otIds },
+      firmaFile: { $exists: true, $ne: null, $nin: [''] },
+    }).lean();
     if (!sheet) {
       throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
     }
@@ -1000,6 +1028,12 @@ export class ClientPortalService {
     // Pre-check for a clear 404 vs 409 distinction (and to have the
     // signedBatchId handy). The mutating write below is atomic so we don't
     // depend on this read for correctness under concurrency.
+    //
+    // Note (sheetwork-share-and-portal-widening): read-only endpoints
+    // (`getSheetsForToken`, `getSheetPdfLocation`, `getSheetReportsZip`)
+    // widened to `otId ∈ token.otIds`. This write endpoint keeps the D12
+    // gate on purpose — a fresh/different token must never late-sign a
+    // sheet it didn't create.
     const preSheet = await SheetWork.findOne({
       _id: sheetId,
       tenantId,
@@ -1083,16 +1117,10 @@ export class ClientPortalService {
   }
 
   /**
-   * Generates a ZIP with one PDF per report of a signed sheet (2026-08-04
-   * client-portal transparency ask). Mirrors the admin `POST /pdf-reports/bulk
-   * { sheetworkId }` behavior but scoped to the current token:
-   *   - Sheet must have been signed under THIS token (same
-   *     `clientSignature.tokenId` gate the sheet PDF endpoint uses).
-   *   - Reports are the ones whose `hojaDeTrabajo === sheetId` — the
-   *     canonical link used by the admin bulk endpoint.
-   * Returns the ZIP buffer + filename; the controller sets Content-Type /
-   * Content-Disposition. Runs the PDF microservice synchronously — throughput
-   * is fine at the client-portal scale (a few HTs per session).
+   * Generates a ZIP with one PDF per report of a signed sheet — widened to
+   * any signed sheet whose OT is in the current token's scope
+   * (sheetwork-share-and-portal-widening). D12 remains only on writes
+   * (`signExistingSheet`).
    */
   async getSheetReportsZip(tenantId, tokenId, sheetId) {
     requireTenant(tenantId);
@@ -1101,10 +1129,17 @@ export class ClientPortalService {
       throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
     }
 
+    const token = await ClientAccessToken.findById(tokenId).select('otIds').lean();
+    const otIds = token?.otIds || [];
+    if (otIds.length === 0) {
+      throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    }
+
     const sheet = await SheetWork.findOne({
       _id: sheetId,
       tenantId,
-      'clientSignature.tokenId': tokenId,
+      otId: { $in: otIds },
+      firmaFile: { $exists: true, $ne: null, $nin: [''] },
       isDeleted: false,
     }).lean();
     if (!sheet) {

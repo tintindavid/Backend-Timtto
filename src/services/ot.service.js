@@ -11,6 +11,7 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 import { ticketService } from './ticket.service.js';
 import { historyService } from './history.service.js';
+import { runWithTransactionFallback } from '../utils/mongoSession.util.js';
 
 export class OTService {
   async create(data, tenantId, user) {
@@ -192,9 +193,16 @@ export class OTService {
       requireTenant(t);
 
       let updatedOt = null;
-      await session.withTransaction(async () => {
-        // Wrap completion side effects in one transaction to avoid partial sync states.
-        const currentOt = await OT.findOne(applyTenantFilter({ _id: id }, t)).session(session);
+
+      // Wrap completion side effects in one transaction to avoid partial
+      // sync states. Falls back to a non-transactional path on standalone
+      // MongoDB (dev) — see utils/mongoSession.util.js. Prod is Atlas
+      // (replica set) so the txn path always wins there.
+      const doUpdate = async (sess) => {
+        const sessOpts = sess ? { session: sess } : {};
+        const withSess = (q) => (sess ? q.session(sess) : q);
+
+        const currentOt = await withSess(OT.findOne(applyTenantFilter({ _id: id }, t)));
         if (!currentOt) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
         previousEstado = currentOt.EstadoOt;
 
@@ -203,24 +211,6 @@ export class OTService {
           if (typeof data.TipoServicio !== 'undefined' && data.TipoServicio !== currentOt.TipoServicio) {
             throw new ApiError(409, 'No se puede cambiar TipoServicio en una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
           }
-          // Block reassigning reportes array via update (use dedicated methods).
-          if (typeof data.reportes !== 'undefined') {
-            throw new ApiError(409, 'No se pueden modificar los reportes de una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
-          }
-        }
-
-        // Detect transition to Cancelado for the ticket cascade hook (D14).
-        cascadeCancelOt =
-          currentOt.isFromTicket &&
-          currentOt.EstadoOt !== 'Cancelado' &&
-          data.EstadoOt === 'Cancelado';
-
-        // isFromTicket guards (design D19): TipoServicio change is rejected.
-        if (currentOt.isFromTicket) {
-          if (typeof data.TipoServicio !== 'undefined' && data.TipoServicio !== currentOt.TipoServicio) {
-            throw new ApiError(409, 'No se puede cambiar TipoServicio en una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
-          }
-          // Block reassigning reportes array via update (use dedicated methods).
           if (typeof data.reportes !== 'undefined') {
             throw new ApiError(409, 'No se pueden modificar los reportes de una OT originada por tickets', 'OT_LOCKED_FROM_TICKET');
           }
@@ -235,24 +225,24 @@ export class OTService {
         updatedOt = await OT.findOneAndUpdate(
           applyTenantFilter({ _id: id }, t),
           { $set: data },
-          { new: true, runValidators: true, session }
+          { new: true, runValidators: true, ...sessOpts }
         );
 
         const isCompleting = currentOt.EstadoOt !== 'Completado' && data.EstadoOt === 'Completado';
         if (!isCompleting) return;
 
-        const repuestos = await Repuestos.find(
-          applyTenantFilter({ OrdenId: currentOt._id, EstadoSolicitud: 'En Proceso' }, t)
-        ).session(session);
+        const repuestos = await withSess(
+          Repuestos.find(applyTenantFilter({ OrdenId: currentOt._id, EstadoSolicitud: 'En Proceso' }, t))
+        );
 
         for (const repuesto of repuestos) {
           const qty = Number(repuesto.CantidadInstalacion || 0);
           if (repuesto.InventarioItemId && qty > 0) {
-            // Atomic decrement with stock guard; fails transaction if stock is insufficient.
+            // Atomic decrement with stock guard; fails the (txn or plain) op if stock is insufficient.
             const inv = await InventarioRepuesto.findOneAndUpdate(
               applyTenantFilter({ _id: repuesto.InventarioItemId, stockActual: { $gte: qty } }, t),
               { $inc: { stockActual: -qty } },
-              { new: true, session }
+              { new: true, ...sessOpts }
             );
             if (!inv) {
               throw new ApiError(400, 'Insufficient stock', 'INSUFFICIENT_STOCK', {
@@ -266,21 +256,26 @@ export class OTService {
           repuesto.EstadoAnterior = previousStatus;
           repuesto.EstadoSolicitud = 'Instalado';
           repuesto.FechaInstalacion = repuesto.FechaInstalacion || new Date();
-          await repuesto.save({ session });
+          await repuesto.save(sessOpts);
 
-          await RepuestoTrazabilidad.create([{
-            tenantId: t,
-            SolicitudRepuestoId: repuesto._id,
-            Status: 'Instalado',
-            EstadoActual: 'Instalado',
-            EstadoA: 'Instalado',
-            EstadoAnterior: previousStatus,
-            EstadoNuevo: 'Instalado',
-            FechaHoraCambio: new Date(),
-            Comentarios: `Automatic: OT ${String(currentOt._id)} completed`,
-          }], { session });
+          await RepuestoTrazabilidad.create(
+            [{
+              tenantId: t,
+              SolicitudRepuestoId: repuesto._id,
+              Status: 'Instalado',
+              EstadoActual: 'Instalado',
+              EstadoA: 'Instalado',
+              EstadoAnterior: previousStatus,
+              EstadoNuevo: 'Instalado',
+              FechaHoraCambio: new Date(),
+              Comentarios: `Automatic: OT ${String(currentOt._id)} completed`,
+            }],
+            sess ? { session: sess } : undefined
+          );
         }
-      });
+      };
+
+      await runWithTransactionFallback(session, doUpdate);
 
       logger.info('OT actualizado: ' + id);
 

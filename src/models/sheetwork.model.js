@@ -51,6 +51,15 @@ const SheetWorkSchema = new Schema({
     resendCount: { type: Number, default: 0 },
   },
 
+  /* Share-download history (sheetwork-share-and-portal-widening). Single-record
+     subdoc mirroring the pattern on ClientAccessToken.emailHistory. */
+  shareHistory: {
+    lastEmail: { type: String, trim: true, lowercase: true, default: null },
+    lastSentAt: { type: Date, default: null },
+    lastSentBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    sendCount: { type: Number, default: 0 },
+  },
+
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

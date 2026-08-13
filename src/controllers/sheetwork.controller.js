@@ -85,6 +85,19 @@ export class SheetWorkController {
     } catch (err) { next(err); }
   }
 
+  /** POST /api/v1/sheetwork/:sheetId/share */
+  async shareSignedSheet(req, res, next) {
+    try {
+      const data = await sheetWorkService.shareSignedSheet(
+        req.params.sheetId,
+        req.body,
+        req.tenantId,
+        req.user?.userId || req.user?.id
+      );
+      res.status(200).json(successResponse(data, 'Link de descarga enviado'));
+    } catch (err) { next(err); }
+  }
+
   /** POST /api/v1/sheetwork/:sheetId/sign-inplace */
   async signInPlace(req, res, next) {
     try {
