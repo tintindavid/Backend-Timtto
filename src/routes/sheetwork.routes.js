@@ -10,6 +10,7 @@ import { querySheetWorkDto } from '../dtos/querySheetWork.dto.js';
 import { remoteSignRequestDto } from '../dtos/remoteSignRequest.dto.js';
 import { resendSignRequestDto } from '../dtos/resendSignRequest.dto.js';
 import { signInPlaceDto } from '../dtos/publicSheetSign.dto.js';
+import { shareSignedSheetDto } from '../dtos/shareSignedSheet.dto.js';
 
 const router = Router();
 router.use(authenticate);
@@ -36,6 +37,14 @@ router.post(
   authorize(PERMISSIONS.SHEETWORK_UPDATE),
   validate(signInPlaceDto, 'body'),
   sheetWorkController.signInPlace
+);
+
+// Share signed HT via download link (sheetwork-share-and-portal-widening).
+router.post(
+  '/:sheetId/share',
+  authorize(PERMISSIONS.SHEETWORK_UPDATE),
+  validate(shareSignedSheetDto, 'body'),
+  sheetWorkController.shareSignedSheet
 );
 
 // Ruta para generar PDF (debe ir ANTES de /:id para evitar conflictos)

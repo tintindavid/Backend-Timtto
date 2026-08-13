@@ -3,6 +3,7 @@ import { Report } from '../models/report.model.js';
 import { OT } from '../models/ot.model.js';
 import { Customer } from '../models/customer.model.js';
 import { User } from '../models/user.model.js';
+import { Tenant } from '../models/tenant.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -11,6 +12,7 @@ import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import { validateSignaturePng } from '../utils/validateSignaturePng.util.js';
 import { pushCorreoUsado } from '../utils/customerCorreosUsados.util.js';
 import { sheetWorkSignTokenService } from './sheetWorkSignToken.service.js';
+import { sheetWorkDownloadTokenService } from './sheetWorkDownloadToken.service.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import SheetWorkPDFService from './sheetworkPDF.service.js';
 import { emailService } from './external/email.service.js';
@@ -686,6 +688,94 @@ export class SheetWorkService {
 
     logger.info('signInPlace: sheet signed', { sheetId: String(sheet._id), tenantId });
     return { sheetId: String(sheet._id), estado: 'Firmada', pdfStatus: 'pending' };
+  }
+
+  /**
+   * Issues (or reissues) a one-off download token for a signed HT and sends
+   * the download link by email. Sheet must be `Firmada` — 409 otherwise.
+   * Counters reset on every reissue.
+   */
+  async shareSignedSheet(sheetId, { email, allowReports }, tenantId, userId) {
+    requireTenant(tenantId);
+    const normEmail = String(email || '').toLowerCase().trim();
+
+    const sheet = await SheetWork.findOne(applyTenantFilter({ _id: sheetId, isDeleted: false }, tenantId));
+    if (!sheet) throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    if (sheet.estado !== 'Firmada' || !sheet.firmaFile) {
+      throw new ApiError(409, 'La hoja aún no está firmada', 'SHEET_NOT_SIGNED');
+    }
+
+    const tokenDoc = await sheetWorkDownloadTokenService.createForSheet({
+      tenantId,
+      sheetId: sheet._id,
+      otId: sheet.otId,
+      clienteId: sheet.clienteId,
+      email: normEmail,
+      issuedBy: userId,
+      allowReports: Boolean(allowReports),
+    });
+
+    const now = new Date();
+    await SheetWork.updateOne(
+      { _id: sheet._id },
+      {
+        $set: {
+          'shareHistory.lastEmail': normEmail,
+          'shareHistory.lastSentAt': now,
+          'shareHistory.lastSentBy': userId || null,
+        },
+        $inc: { 'shareHistory.sendCount': 1 },
+      }
+    );
+
+    await pushCorreoUsado(sheet.clienteId, tenantId, normEmail);
+
+    let emailSent = false;
+    if (env.NOTIFICATIONS_ENABLED) {
+      try {
+        const [ot, tenant] = await Promise.all([
+          OT.findById(sheet.otId).select('Consecutivo').lean(),
+          Tenant.findOne({ tenantId }).select('name').lean(),
+        ]);
+        const baseUrl = (env.PUBLIC_APP_URL || '').replace(/\/+$/, '');
+        const downloadUrl = `${baseUrl}/hoja-descarga/${tokenDoc.token}`;
+        const result = await emailService.sendSheetShareDownloadEmail({
+          to: normEmail,
+          sheetNumero: sheet.numeroHoja,
+          otConsecutivo: ot?.Consecutivo || null,
+          tenantName: tenant?.name || 'TIMTTO',
+          downloadUrl,
+          expiresAt: tokenDoc.expiresAt,
+          downloadsAllowed: tokenDoc.downloadsAllowed,
+          allowReports: tokenDoc.allowReports,
+          reportDownloadsAllowed: tokenDoc.reportDownloadsAllowed,
+        });
+        emailSent = Boolean(result?.sent);
+      } catch (err) {
+        logger.warn('shareSignedSheet: email dispatch failed', {
+          sheetId: String(sheet._id),
+          err: String(err),
+        });
+      }
+    }
+
+    logger.info('shareSignedSheet: token issued', {
+      sheetId: String(sheet._id),
+      tokenId: String(tokenDoc._id),
+      tenantId,
+      allowReports: tokenDoc.allowReports,
+      emailSent,
+    });
+
+    return {
+      sheetId: String(sheet._id),
+      token: tokenDoc.token,
+      expiresAt: tokenDoc.expiresAt,
+      downloadsAllowed: tokenDoc.downloadsAllowed,
+      allowReports: tokenDoc.allowReports,
+      reportDownloadsAllowed: tokenDoc.reportDownloadsAllowed,
+      emailSent,
+    };
   }
 }
 

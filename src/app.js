@@ -62,6 +62,7 @@ import myTenantRoutes from './routes/myTenant.routes.js';
 import clientAccessTokenRoutes from './routes/clientAccessToken.routes.js';
 import clientPortalRoutes from './routes/clientPortal.routes.js';
 import publicSheetSignRoutes from './routes/publicSheetSign.routes.js';
+import publicSheetDownloadRoutes from './routes/publicSheetDownload.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -252,6 +253,10 @@ app.use('/public/client-view', clientPortalRoutes);
 // Remote sheet-sign — public token-gated read/sign of one SheetWork
 // (sheetwork-remote-signature spec). Same mount pattern as /public/client-view.
 app.use('/public/sheet-sign', publicSheetSignRoutes);
+
+// Public download share links for signed HTs
+// (sheetwork-share-and-portal-widening). Same mount pattern (before authenticate).
+app.use('/public/sheet-download', publicSheetDownloadRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));
