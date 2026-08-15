@@ -1,3 +1,10 @@
+# [2.13.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.12.0...v2.13.0) (2026-08-15)
+
+
+### Features
+
+* **notifications:** infra real-time + primer evento sheet.signed ([7f21569](https://github.com/tintindavid/Backend-Timtto/commit/7f215699ce6268ebfde4401ae3def06cd1eb9da0))
+
 # [2.12.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.11.0...v2.12.0) (2026-08-13)
 
 
