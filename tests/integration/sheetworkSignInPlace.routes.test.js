@@ -3,17 +3,24 @@
  *
  * DB-free tests for POST /api/v1/sheetwork/:sheetId/sign-inplace.
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 
 import { SheetWork } from '../../src/models/sheetwork.model.js';
 import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
+import { Customer } from '../../src/models/customer.model.js';
 import { SheetWorkSignToken } from '../../src/models/sheetWorkSignToken.model.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
 import { sheetWorkController } from '../../src/controllers/sheetwork.controller.js';
 import { sheetWorkSignTokenService } from '../../src/services/sheetWorkSignToken.service.js';
+import { notificationService } from '../../src/services/notification.service.js';
+
+/** Query stub supporting `.select().lean()` (OT.findOne / Customer.findOne). */
+function selectLeanQuery(result) {
+  return { select: () => ({ lean: () => Promise.resolve(result) }), lean: () => Promise.resolve(result) };
+}
 
 function buildRes() {
   return {
@@ -50,15 +57,30 @@ const OT_ID = '507f1f77bcf86cd799439010';
 const USER_ID = '507f1f77bcf86cd799439099';
 
 describe('POST /api/v1/sheetwork/:sheetId/sign-inplace', () => {
+  const originalEmit = notificationService.emit;
+
+  // notify-on-sheet-signed: `_finalizeSignedSheet('in-place')` now looks up
+  // OT.findOne / Customer.findOne for the `sheet.signed` payload and calls
+  // notificationService.emit once. Fast no-op defaults here — the notify
+  // wiring itself is covered by tests/services/sheetwork.signInPlace.notify.test.js.
+  beforeEach(() => {
+    OT.findOne = () => selectLeanQuery({ _id: OT_ID, Consecutivo: 'OT-1' });
+    Customer.findOne = () => selectLeanQuery({ _id: 'cliente-1', Razonsocial: 'Cliente Test' });
+    notificationService.emit = async () => ({ dispatched: 0, recipients: [] });
+  });
+
   afterEach(() => {
     delete SheetWork.findOne;
     delete Report.updateMany;
     delete Report.countDocuments;
     delete Report.find;
     delete OT.findOneAndUpdate;
+    delete OT.findOne;
+    delete Customer.findOne;
     delete SheetWorkSignToken.updateOne;
     delete firebaseStorageService.uploadEvidencia;
     delete sheetWorkSignTokenService.markSuperseded;
+    notificationService.emit = originalEmit;
   });
 
   it('closes an EnviadaAFirmar sheet, marks the outstanding token superseded, returns 200', async () => {

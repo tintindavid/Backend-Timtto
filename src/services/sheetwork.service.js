@@ -17,6 +17,8 @@ import { firebaseStorageService } from './external/firebase.service.js';
 import SheetWorkPDFService from './sheetworkPDF.service.js';
 import { emailService } from './external/email.service.js';
 import { env } from '../config/env.js';
+import { notificationService } from './notification.service.js';
+import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
 export class SheetWorkService {
 
   async create(data, tenantId) {
@@ -355,7 +357,14 @@ export class SheetWorkService {
    * (in-place fallback + public sign). Marks reports Cerrado, recomputes
    * OT progress, dispatches ticket cascade, kicks off PDF regeneration.
    */
-  async _finalizeSignedSheet(sheet, tenantId) {
+  /**
+   * @param {string} [signedVia] - 'in-place' | 'remote-sign'. Shared by
+   *   `signInPlace` and `publicSheetSign.service.js#signWithToken` — the
+   *   only two callers, each responsible for its own `signedVia`. Omitted
+   *   (falsy) means no `sheet.signed` event is dispatched (defensive, in
+   *   case a future caller doesn't pass one).
+   */
+  async _finalizeSignedSheet(sheet, tenantId, signedVia = null) {
     const sheetId = sheet._id;
     const otId = sheet.otId;
     const reportIds = Array.isArray(sheet.reports) ? sheet.reports : [];
@@ -400,6 +409,40 @@ export class SheetWorkService {
       await triggerTicketCascadeOnClose(reportIds, tenantId);
     } catch (err) {
       logger.warn('_finalizeSignedSheet: ticket cascade failed', { sheetId: String(sheetId), err: String(err) });
+    }
+
+    // `sheet.signed` (notify-on-sheet-signed) — after the signature is
+    // durably persisted (callers already saved/updated the sheet before
+    // invoking this method). One extra lookup for OT.Consecutivo /
+    // Customer.Razonsocial since neither is loaded by the two callers.
+    // Swallowed on failure (design D2) — a bus bug must never surface here.
+    if (signedVia) {
+      try {
+        const [otDoc, customerDoc] = await Promise.all([
+          otId ? OT.findOne(applyTenantFilter({ _id: otId }, tenantId)).select('Consecutivo').lean() : null,
+          sheet.clienteId
+            ? Customer.findOne(applyTenantFilter({ _id: sheet.clienteId }, tenantId)).select('Razonsocial').lean()
+            : null,
+        ]);
+        await notificationService.emit(
+          tenantId,
+          'sheet.signed',
+          buildSheetSignedPayload({
+            sheetId,
+            sheetNumero: sheet.numeroHoja,
+            otId,
+            otConsecutivo: otDoc?.Consecutivo,
+            customerName: customerDoc?.Razonsocial,
+            signedVia,
+          })
+        );
+      } catch (emitErr) {
+        logger.error('_finalizeSignedSheet: sheet.signed emit failed', {
+          sheetId: String(sheetId),
+          signedVia,
+          err: String(emitErr),
+        });
+      }
     }
 
     setImmediate(() => {
@@ -684,7 +727,7 @@ export class SheetWorkService {
 
     await sheetWorkSignTokenService.markSuperseded(sheet._id, userId);
 
-    await this._finalizeSignedSheet(sheet.toObject(), tenantId);
+    await this._finalizeSignedSheet(sheet.toObject(), tenantId, 'in-place');
 
     logger.info('signInPlace: sheet signed', { sheetId: String(sheet._id), tenantId });
     return { sheetId: String(sheet._id), estado: 'Firmada', pdfStatus: 'pending' };

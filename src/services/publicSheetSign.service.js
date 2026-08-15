@@ -171,8 +171,9 @@ export class PublicSheetSignService {
     // Token renewal — extend expiresAt to signedAt + 7d and mark signed
     const renewal = await sheetWorkSignTokenService.renewOnSign(tokenDoc._id, signedAt, meta);
 
-    // Shared closure side-effects (reports → Cerrado, OT recompute, cascade, PDF)
-    await sheetWorkService._finalizeSignedSheet(sheet.toObject(), tenantId);
+    // Shared closure side-effects (reports → Cerrado, OT recompute, cascade,
+    // PDF, and now the `sheet.signed` notification — notify-on-sheet-signed)
+    await sheetWorkService._finalizeSignedSheet(sheet.toObject(), tenantId, 'remote-sign');
 
     // Confirmation emails — fire-and-forget with Promise.allSettled so a single
     // failure doesn't affect the other or the response

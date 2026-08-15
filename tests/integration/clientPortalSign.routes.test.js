@@ -11,12 +11,14 @@ import assert from 'node:assert/strict';
 import { ClientAccessToken } from '../../src/models/clientAccessToken.model.js';
 import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
+import { Customer } from '../../src/models/customer.model.js';
 import { SheetWork } from '../../src/models/sheetwork.model.js';
 import { Counter } from '../../src/models/counter.model.js';
 import { Ticket } from '../../src/models/ticket.model.js';
 import { TICKET_STATUS } from '../../src/constants/ticket.constants.js';
 import { clientPortalController } from '../../src/controllers/clientPortal.controller.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
+import { notificationService } from '../../src/services/notification.service.js';
 
 function buildRes() {
   return {
@@ -112,15 +114,26 @@ describe('POST /public/client-view/:token/sign', () => {
     delete OT.findOne;
     delete SheetWork.countDocuments;
     delete Ticket.findOne;
+    delete Customer.find;
+    notificationService.emit = originalEmit;
   });
 
   // sheetWorkService._resolveNumeroHoja (called from portal sign since 2026-08-12)
   // needs OT.findOne (Consecutivo lookup) and SheetWork.countDocuments (per-OT
   // sheet counter). Default stubs so tests don't hang on real DB calls; individual
   // tests can override if they care about the resulting numeroHoja.
+  //
+  // notify-on-sheet-signed: a successful batch also looks up Customer.find
+  // (for the `sheet.signed` payload's customerName) and calls
+  // notificationService.emit once per signed HT. Both default to fast no-ops
+  // here — the notify wiring itself is covered by
+  // tests/services/clientPortal.signAndCreateSheets.notify.test.js.
+  const originalEmit = notificationService.emit;
   beforeEach(() => {
     OT.findOne = () => mockQuery(null); // triggers the global-counter fallback in _resolveNumeroHoja
     SheetWork.countDocuments = async () => 0;
+    Customer.find = () => mockQuery([]);
+    notificationService.emit = async () => ({ dispatched: 0, recipients: [] });
   });
 
   it('happy path across 2 OTs: creates 2 sheets, shared signedBatchId + contentHash, source=client-portal, 202', async () => {
