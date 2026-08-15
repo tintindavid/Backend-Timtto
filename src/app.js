@@ -63,6 +63,9 @@ import clientAccessTokenRoutes from './routes/clientAccessToken.routes.js';
 import clientPortalRoutes from './routes/clientPortal.routes.js';
 import publicSheetSignRoutes from './routes/publicSheetSign.routes.js';
 import publicSheetDownloadRoutes from './routes/publicSheetDownload.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import notificationRuleRoutes from './routes/notificationRule.routes.js';
+import notificationPreferenceRoutes from './routes/notificationPreference.routes.js';
 
 import { successResponse } from './utils/apiResponse.util.js';
 
@@ -229,6 +232,11 @@ app.use('/api/v1/pdf-reports', pdfReportsRoutes);
 // Ticket por Área module — panel endpoints
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/service-qrs', serviceQrRoutes);
+
+// Real-time notifications infrastructure (history/read + admin rules + self preferences)
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/notification-rules', notificationRuleRoutes);
+app.use('/api/v1/notification-preferences', notificationPreferenceRoutes);
 
 // Client portal — admin CRUD of ClientAccessToken (role admin). Mounted at
 // /api/v1/client-tokens to match the platform-wide convention used by every

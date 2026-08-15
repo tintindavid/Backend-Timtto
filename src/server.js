@@ -1,5 +1,6 @@
 'use strict';
 import process from 'process';
+import http from 'http';
 import mongoose from 'mongoose';
 import app from './app.js';
 import { env } from './config/env.js';
@@ -7,6 +8,7 @@ import { connect } from './config/database.js';
 import { logger } from './config/logger.config.js';
 import { initializeFirebase } from './config/firebase.config.js';
 import { assertJwtConfig } from './config/jwt.config.js';
+import { initSocket } from './socket/index.js';
 
 async function start() {
   try {
@@ -14,7 +16,7 @@ async function start() {
     // Throwing here exits the process before any port binding.
     assertJwtConfig();
     await connect();
-    
+
     // Inicializar Firebase
     try {
       initializeFirebase();
@@ -23,12 +25,18 @@ async function start() {
       logger.warn('No se pudo inicializar Firebase Storage:', firebaseErr.message);
       logger.warn('Las funciones de subida de archivos no estar\u00e1n disponibles');
     }
-    
+
+    // Socket.IO must share the same httpServer as Express (design.md D1) \u2014
+    // no separate port. initSocket() attaches the io.use(...) auth middleware
+    // and returns the Server instance so we can close it on shutdown.
+    const httpServer = http.createServer(app);
+    const io = initSocket(httpServer);
+
     const tryListen = (port) =>
       new Promise((resolve, reject) => {
-        const srv = app.listen(port);
-        srv.on('listening', () => resolve(srv));
-        srv.on('error', (err) => reject(err));
+        httpServer.listen(port);
+        httpServer.once('listening', () => resolve(httpServer));
+        httpServer.once('error', (err) => reject(err));
       });
 
     let server;
@@ -54,6 +62,7 @@ async function start() {
 
     const graceful = async (signal) => {
       logger.info(`Received ${signal}. Closing server...`);
+      io.close();
       server.close(async () => {
         try {
           await mongoose.connection.close();

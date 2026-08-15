@@ -21,6 +21,8 @@ import BulkPDFGenerator from './bulkPDFGenerator.js';
 import { sheetWorkService } from './sheetwork.service.js';
 import { logger } from '../config/logger.config.js';
 import { SIGN_BATCH_ID_LENGTH } from '../constants/clientPortal.constants.js';
+import { notificationService } from './notification.service.js';
+import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
 
 /**
  * ClientPortalService — read-only data shaping for the public client portal.
@@ -670,6 +672,46 @@ export class ClientPortalService {
         );
       }
 
+      // 10a. `sheet.signed` — one emit per HT of THIS batch (design D3,
+      // notify-on-sheet-signed). Every doc in `insertedSheets` is a brand
+      // new SheetWork just created above, so all of them genuinely
+      // transitioned unsigned -> signed; there is no "already signed"
+      // subset to filter out within a single (atomic-or-rolled-back) call —
+      // a conflicting report aborts the WHOLE batch via the 409 thrown
+      // above, before this point is ever reached. Runs AFTER the durable
+      // persist (sheets inserted + reports linked) and is swallowed on
+      // failure so a bus bug never reverts a successful signature.
+      const clienteIds = [...new Set(groups.map((g) => String(g.ot.ClienteId)))];
+      const customers = clienteIds.length
+        ? await Customer.find({ _id: { $in: clienteIds }, tenantId }).select('Razonsocial').lean()
+        : [];
+      const customerNameById = new Map(customers.map((c) => [String(c._id), c.Razonsocial]));
+
+      for (const group of groups) {
+        const sheet = insertedSheets.find((s) => String(s.otId) === String(group.ot._id));
+        if (!sheet) continue;
+        try {
+          await notificationService.emit(
+            tenantId,
+            'sheet.signed',
+            buildSheetSignedPayload({
+              sheetId: sheet._id,
+              sheetNumero: sheet.numeroHoja,
+              otId: group.ot._id,
+              otConsecutivo: group.ot.Consecutivo,
+              customerName: customerNameById.get(String(group.ot.ClienteId)),
+              signedVia: 'portal',
+            })
+          );
+        } catch (emitErr) {
+          logger.error('signAndCreateSheets: sheet.signed emit failed', {
+            signedBatchId,
+            sheetId: String(sheet._id),
+            err: String(emitErr),
+          });
+        }
+      }
+
       // 10b. Estado bump + fechaFinalizdo — best-effort. Failure here
       // doesn't corrupt the audit trail (sheets exist, reports point at
       // their sheet); it just leaves the report label lagging one step.
@@ -1089,7 +1131,9 @@ export class ClientPortalService {
       },
       { $set: setUpdate },
       { new: true }
-    );
+    )
+      .populate('otId', 'Consecutivo')
+      .populate('clienteId', 'Razonsocial');
     if (!sheet) {
       // Losing side of a concurrent late-sign race. The PNG we just uploaded
       // to Firebase is orphaned — accepted trade-off (no delete API wired
@@ -1099,6 +1143,29 @@ export class ClientPortalService {
     }
 
     logger.info('signExistingSheet: sheet late-signed', { sheetId: String(sheet._id), tenantId });
+
+    // `sheet.signed` — after the persist above succeeded. `.populate` on the
+    // update reused this same round-trip instead of two extra lookups
+    // (notify-on-sheet-signed task 2.5). Swallowed on failure (design D2).
+    try {
+      await notificationService.emit(
+        tenantId,
+        'sheet.signed',
+        buildSheetSignedPayload({
+          sheetId: sheet._id,
+          sheetNumero: sheet.numeroHoja,
+          otId: sheet.otId?._id || sheet.otId,
+          otConsecutivo: sheet.otId?.Consecutivo,
+          customerName: sheet.clienteId?.Razonsocial,
+          signedVia: 'portal',
+        })
+      );
+    } catch (emitErr) {
+      logger.error('signExistingSheet: sheet.signed emit failed', {
+        sheetId: String(sheet._id),
+        err: String(emitErr),
+      });
+    }
 
     // Fire-and-forget PDF regeneration for the whole batch this sheet
     // belongs to (design D7) — mirrors signAndCreateSheets step 11.

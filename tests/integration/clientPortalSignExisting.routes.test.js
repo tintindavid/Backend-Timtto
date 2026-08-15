@@ -8,7 +8,7 @@
  * validate(dto) -> controller -> service directly (no supertest in this
  * repo — same convention as tests/integration/clientPortalSign.routes.test.js).
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 
@@ -17,6 +17,7 @@ import { clientPortalController } from '../../src/controllers/clientPortal.contr
 import { clientPortalLateSignDto } from '../../src/dtos/clientPortalSign.dto.js';
 import { validate } from '../../src/middlewares/validate.middleware.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
+import { notificationService } from '../../src/services/notification.service.js';
 
 const TOKEN_ID = '507f1f77bcf86cd799439001';
 const OTHER_TOKEN_ID = '507f1f77bcf86cd799439002';
@@ -72,10 +73,19 @@ function mockSheetLookup({ preSheet, updatedSheet }) {
     capturedPreFilter = filter;
     return { lean: () => Promise.resolve(preSheet) };
   };
+  // notify-on-sheet-signed: the service now chains
+  // `.populate('otId', ...).populate('clienteId', ...)` onto the update
+  // query to build the `sheet.signed` payload without extra round-trips —
+  // the stub must stay awaitable AFTER 0, 1, or 2 `.populate()` calls.
   SheetWork.findOneAndUpdate = (filter, update) => {
     capturedUpdateFilter = filter;
     capturedUpdate = update;
-    return Promise.resolve(updatedSheet);
+    const q = {
+      populate: () => q,
+      then: (resolve, reject) => Promise.resolve(updatedSheet).then(resolve, reject),
+      catch: (reject) => Promise.resolve(updatedSheet).catch(reject),
+    };
+    return q;
   };
   // Fire-and-forget PDF regen path calls SheetWork.find(...).lean().
   SheetWork.find = () => ({ lean: () => Promise.resolve([]) });
@@ -115,11 +125,21 @@ function updatedSheetTemplate(overrides = {}) {
 }
 
 describe('POST /public/client-view/:token/sheets/:sheetId/sign', () => {
+  const originalEmit = notificationService.emit;
+
+  // notify-on-sheet-signed: a successful late-sign now also calls
+  // notificationService.emit once. Default no-op here — the notify wiring
+  // itself is covered by tests/services/clientPortal.signExistingSheet.notify.test.js.
+  beforeEach(() => {
+    notificationService.emit = async () => ({ dispatched: 0, recipients: [] });
+  });
+
   afterEach(() => {
     delete SheetWork.findOne;
     delete SheetWork.findOneAndUpdate;
     delete SheetWork.find;
     delete firebaseStorageService.uploadEvidencia;
+    notificationService.emit = originalEmit;
   });
 
   it('same token + empty firmaFile + valid PNG -> 200 and writes only allowed fields', async () => {
