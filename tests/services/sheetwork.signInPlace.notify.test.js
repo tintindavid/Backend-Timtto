@@ -14,6 +14,7 @@ import { SheetWork } from '../../src/models/sheetwork.model.js';
 import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
 import { Customer } from '../../src/models/customer.model.js';
+import { User } from '../../src/models/user.model.js';
 import { sheetWorkService } from '../../src/services/sheetwork.service.js';
 import { sheetWorkSignTokenService } from '../../src/services/sheetWorkSignToken.service.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
@@ -53,10 +54,24 @@ function stubHappyPath() {
   SheetWork.findOne = () => Promise.resolve(sheetDoc);
   firebaseStorageService.uploadEvidencia = async () => ({ url: 'https://firebase/fake.png' });
   sheetWorkSignTokenService.markSuperseded = async () => {};
+  // Defensive fallback in _finalizeSignedSheet: when reports:[] is empty
+  // we look up by hojaDeTrabajo — mock returns empty to preserve original behavior.
+  Report.find = () => ({ select: () => ({ lean: async () => [] }) });
   Report.countDocuments = async () => 0;
   OT.findOneAndUpdate = async () => ({});
   OT.findOne = () => selectLeanQuery({ _id: OT_ID, Consecutivo: 'OT-1' });
   Customer.findOne = () => selectLeanQuery({ _id: 'cliente-1', Razonsocial: 'Cliente Presencial' });
+  // signInPlace now requires a firmante lookup — provide a valid signer.
+  User.findOne = () => ({
+    lean: () => Promise.resolve({
+      _id: USER_ID,
+      firstName: 'Test',
+      lastName: 'Signer',
+      email: 'test@example.com',
+      role: 'admin',
+      fileFirma: 'https://firebase/signer.png',
+    }),
+  });
   return sheetDoc;
 }
 
@@ -67,10 +82,12 @@ describe('sheetWorkService.signInPlace — sheet.signed notify', () => {
     delete SheetWork.findOne;
     delete firebaseStorageService.uploadEvidencia;
     delete sheetWorkSignTokenService.markSuperseded;
+    delete Report.find;
     delete Report.countDocuments;
     delete OT.findOneAndUpdate;
     delete OT.findOne;
     delete Customer.findOne;
+    delete User.findOne;
     notificationService.emit = originalEmit;
   });
 

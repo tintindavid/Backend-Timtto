@@ -8,8 +8,8 @@ const pdfService = new SheetWorkPDFService();
 export class SheetWorkController {
   async create(req, res, next) {
     try {
-      const data = await sheetWorkService.create(req.body, req.tenantId);
-    
+      const data = await sheetWorkService.create(req.body, req.tenantId, req.user);
+
       res.status(201).json(successResponse(data, 'SheetWork creado exitosamente', 201));
     } catch (err) { next(err); }
   }
@@ -39,7 +39,7 @@ export class SheetWorkController {
 
   async update(req, res, next) {
     try {
-      const data = await sheetWorkService.update(req.params.id, req.body, req.tenantId);
+      const data = await sheetWorkService.update(req.params.id, req.body, req.tenantId, req.user);
       res.json(successResponse(data, 'SheetWork actualizado exitosamente'));
     } catch (err) { next(err); }
   }
@@ -59,7 +59,7 @@ export class SheetWorkController {
    */
   async closeReports(req, res, next) {
     try {
-      const data = await sheetWorkService.closeReports(req.params.sheetId, req.tenantId);
+      const data = await sheetWorkService.closeReports(req.params.sheetId, req.tenantId, req.user);
       res.status(200).json(successResponse(data, 'Reportes cerrados exitosamente'));
     } catch (err) { next(err); }
   }

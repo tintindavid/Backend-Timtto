@@ -12,15 +12,39 @@ export class OTController {
   async list(req, res, next) {
     try {
       const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await oTService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const result = await oTService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.user);
       res.json(successResponse(result.data, 'OTs recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
 
   async getById(req, res, next) {
     try {
-      const data = await oTService.getById(req.params.id, req.tenantId);
+      const data = await oTService.getById(req.params.id, req.tenantId, req.user);
       res.json(successResponse(data, 'OT recuperado exitosamente'));
+    } catch (err) { next(err); }
+  }
+
+  /** POST /api/v1/ots/:id/programacion */
+  async setProgramacion(req, res, next) {
+    try {
+      const { fechaInicio, fechaFin, responsableUserIds } = req.body;
+      const data = await oTService.setProgramacion({
+        otId: req.params.id,
+        tenantId: req.tenantId,
+        fechaInicio,
+        fechaFin,
+        responsableUserIds,
+        actor: req.user,
+      });
+      res.status(201).json(successResponse(data, 'Programación creada exitosamente', 201));
+    } catch (err) { next(err); }
+  }
+
+  /** GET /api/v1/ots/:id/programaciones */
+  async getProgramaciones(req, res, next) {
+    try {
+      const data = await oTService.getProgramaciones({ otId: req.params.id, tenantId: req.tenantId });
+      res.json(successResponse(data, 'Programaciones recuperadas exitosamente'));
     } catch (err) { next(err); }
   }
 

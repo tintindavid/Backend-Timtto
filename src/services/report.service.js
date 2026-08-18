@@ -9,6 +9,8 @@ import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { historyService } from './history.service.js';
 import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
+import { assertUserCanWork } from '../utils/otResponsibility.util.js';
+import { nameShort } from '../utils/nameShort.util.js';
 import {
   MAX_EVIDENCES,
   ALLOWED_EVIDENCE_MIME,
@@ -306,6 +308,14 @@ export class ReportService {
       // Capture previous estado for transition detection (ticket cascade D14).
       const previous = await Report.findOne(applyTenantFilter({ _id: reporteId }, t)).lean();
 
+      // Responsibility guard (ot-responsables-programacion-trazable, design
+      // D3/D7) — MUST run before any mutation. Retro-compat: an OT with no
+      // active programación (or the report has no parent OT) never blocks.
+      if (previous?.orden) {
+        const parentOt = await OT.findOne(applyTenantFilter({ _id: previous.orden }, t)).lean();
+        if (parentOt) assertUserCanWork(panelUser, parentOt);
+      }
+
       // Sanitize incoming payload: only allow fields that exist in schema and map actividadesRealizadas
       const allowed = {};
       if (typeof data.estado !== 'undefined') allowed.estado = data.estado;
@@ -329,6 +339,17 @@ export class ReportService {
           fecha: it.fecha || null,
           observaciones: it.observaciones || '',
         }));
+      }
+
+      // Trazabilidad — quién procesó (independiente del firmante de la HT).
+      // Set only when transitioning INTO 'Procesado' or 'Cerrado' AND we
+      // have a real panelUser (not the public-token path).
+      if (panelUser?.userId && (allowed.estado === 'Procesado' || allowed.estado === 'Cerrado')) {
+        allowed.procesadoPor = {
+          userId: panelUser.userId,
+          snapshotName: nameShort(panelUser) || 'Usuario',
+          fechaProceso: new Date(),
+        };
       }
 
       // Update the report with sanitized data
@@ -422,9 +443,19 @@ export class ReportService {
         const closed = await Report.countDocuments(closedQuery);
 
         const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
+        // Baseline recompute: Pendiente → En Progreso (first report closed)
+        // → Cerrado (all closed). When the OT has an active programación and
+        // no work has started yet, "Pendiente" is stale — the correct
+        // waiting state is "Programada". We look up the OT to preserve that
+        // distinction; anything more advanced is derived from report progress.
         let nuevoEstado = 'Pendiente';
         if (closed === total && total > 0) nuevoEstado = 'Cerrado';
         else if (closed > 0) nuevoEstado = 'En Progreso';
+        else {
+          const otForState = await OT.findOne(applyTenantFilter({ _id: ordenId }, t)).select('programaciones').lean();
+          const hasActiveProgramacion = otForState?.programaciones?.some((p) => p.isActive);
+          if (hasActiveProgramacion) nuevoEstado = 'Programada';
+        }
 
         otUpdated = await OT.findOneAndUpdate(applyTenantFilter({ _id: ordenId }, t), { $set: { Avance: avance, EstadoOt: nuevoEstado } }, { new: true });
       }
@@ -488,6 +519,7 @@ export class ReportService {
 
       return { report: updated, ot: otUpdated };
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error procesando report:', err);
       throw new ApiError(500, 'Error procesando Report', 'PROCESS_ERROR');
     }
@@ -509,6 +541,12 @@ export class ReportService {
       if (!previous) throw new ApiError(404, 'Report no encontrado', 'REPORT_NOT_FOUND', { id: reporteId });
       if (previous.estado !== 'Procesado') {
         throw new ApiError(409, 'Solo reportes en estado Procesado pueden anularse', 'REPORT_NOT_PROCESSED', { estado: previous.estado });
+      }
+
+      // Responsibility guard (design D3/D7) — before the mutating update.
+      if (previous.orden) {
+        const parentOt = await OT.findOne(applyTenantFilter({ _id: previous.orden }, tenantId)).lean();
+        if (parentOt) assertUserCanWork(panelUser, parentOt);
       }
 
       const updated = await Report.findOneAndUpdate(

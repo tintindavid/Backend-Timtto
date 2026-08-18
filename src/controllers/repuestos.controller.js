@@ -64,7 +64,7 @@ export class RepuestosController {
 
   async createOtFromSolicitudes(req, res, next) {
     try {
-      const data = await repuestosService.createOtFromSolicitudes(req.body, req.tenantId);
+      const data = await repuestosService.createOtFromSolicitudes(req.body, req.tenantId, req.user);
       res.status(201).json(successResponse(data, 'OT creada desde solicitudes de repuestos', 201));
     } catch (err) { next(err); }
   }

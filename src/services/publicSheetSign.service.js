@@ -154,6 +154,9 @@ export class PublicSheetSignService {
           observaciones: signature.observaciones || '',
           estado: 'Firmada',
           pdfStatus: 'pending',
+          // Fill in firmadoAt now that the client actually signed. The rest
+          // of firmadoPor was set at remoteSignRequest time (snapshot).
+          'firmadoPor.firmadoAt': signedAt,
           clientSignature: {
             ip: meta.ip || null,
             userAgent: meta.userAgent || null,

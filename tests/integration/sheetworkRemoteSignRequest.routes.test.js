@@ -43,7 +43,7 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
     delete SheetWork.deleteOne;
     delete Customer.updateOne;
     delete Customer.findOne;
-    delete User.findById;
+    delete User.findOne;
     delete SheetWorkSignToken.findOne;
     delete SheetWorkSignToken.findOneAndUpdate;
     delete sheetWorkSignTokenService.createForSheet;
@@ -61,7 +61,7 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
     SheetWork.updateOne = async () => ({});
     Customer.updateOne = async () => ({});
     Customer.findOne = () => ({ select: () => ({ lean: () => Promise.resolve({ correousados: [] }) }) });
-    User.findById = () => ({
+    User.findOne = () => ({
       select: () => ({
         lean: () => Promise.resolve({
           fullName: 'Ana Tester',
@@ -109,7 +109,7 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
     SheetWork.updateOne = async () => ({});
     Customer.updateOne = async () => ({});
     Customer.findOne = () => ({ select: () => ({ lean: () => Promise.resolve({ correousados: [] }) }) });
-    User.findById = () => ({
+    User.findOne = () => ({
       select: () => ({
         lean: () => Promise.resolve({
           fullName: 'Ana Tester',
@@ -145,7 +145,7 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
     SheetWork.updateOne = async () => ({});
     Customer.updateOne = async (_f, update) => { customerUpdate = update; };
     Customer.findOne = () => ({ select: () => ({ lean: () => Promise.resolve({ correousados: [] }) }) });
-    User.findById = () => ({
+    User.findOne = () => ({
       select: () => ({
         lean: () => Promise.resolve({
           fullName: 'Ana Tester',
@@ -178,7 +178,7 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
       const chain = { select: () => chain, lean: () => Promise.resolve(doc) };
       return chain;
     };
-    User.findById = () => ({
+    User.findOne = () => ({
       select: () => ({
         lean: () => Promise.resolve({
           fullName: 'No-Firma User',
@@ -200,28 +200,22 @@ describe('POST /api/v1/sheetwork/remote-sign-request', () => {
     assert.equal(sheetCreated, false, 'must fail-fast before creating any sheet');
   });
 
-  it('returns 409 USER_HAS_NO_SIGNATURE when the requester user is soft-deleted', async () => {
+  it('returns 400 INVALID_FIRMANTE when the requester user is soft-deleted (filtered out by tenant query)', async () => {
     OT.findOne = () => {
       const doc = { _id: OT_ID, tenantId: TENANT, ClienteId: CLIENT_ID, Consecutivo: 'OT-1' };
       const chain = { select: () => chain, lean: () => Promise.resolve(doc) };
       return chain;
     };
-    User.findById = () => ({
-      select: () => ({
-        lean: () => Promise.resolve({
-          fullName: 'Deleted',
-          role: 'admin',
-          fileFirma: 'https://firebase/x.png',
-          isDeleted: true,
-        }),
-      }),
-    });
+    // The new firmante lookup uses {_id, tenantId, isDeleted:false} so a
+    // soft-deleted user is never returned — we simulate that by resolving
+    // to null, which trips the INVALID_FIRMANTE guard.
+    User.findOne = () => ({ select: () => ({ lean: () => Promise.resolve(null) }) });
 
     const req = { tenantId: TENANT, user: { userId: USER_ID }, body: { otId: OT_ID, reportIds: [REPORT_ID], email: 'a@b.com' } };
     let capturedErr = null;
     await sheetWorkController.remoteSignRequest(req, buildRes(), (err) => { capturedErr = err; });
 
-    assert.equal(capturedErr.statusCode, 409);
-    assert.equal(capturedErr.code, 'USER_HAS_NO_SIGNATURE');
+    assert.equal(capturedErr.statusCode, 400);
+    assert.equal(capturedErr.code, 'INVALID_FIRMANTE');
   });
 });

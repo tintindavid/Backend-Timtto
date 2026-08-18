@@ -11,6 +11,7 @@ import { SheetWork } from '../../src/models/sheetwork.model.js';
 import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
 import { Customer } from '../../src/models/customer.model.js';
+import { User } from '../../src/models/user.model.js';
 import { SheetWorkSignToken } from '../../src/models/sheetWorkSignToken.model.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
 import { sheetWorkController } from '../../src/controllers/sheetwork.controller.js';
@@ -67,6 +68,18 @@ describe('POST /api/v1/sheetwork/:sheetId/sign-inplace', () => {
     OT.findOne = () => selectLeanQuery({ _id: OT_ID, Consecutivo: 'OT-1' });
     Customer.findOne = () => selectLeanQuery({ _id: 'cliente-1', Razonsocial: 'Cliente Test' });
     notificationService.emit = async () => ({ dispatched: 0, recipients: [] });
+    // Default firmante lookup — the signInPlace flow now requires a valid
+    // signer with fileFirma. Individual tests may override to test rejection.
+    User.findOne = () => ({
+      lean: () => Promise.resolve({
+        _id: USER_ID,
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@example.com',
+        role: 'admin',
+        fileFirma: 'https://firebase/signer-firma.png',
+      }),
+    });
   });
 
   afterEach(() => {
@@ -77,6 +90,7 @@ describe('POST /api/v1/sheetwork/:sheetId/sign-inplace', () => {
     delete OT.findOneAndUpdate;
     delete OT.findOne;
     delete Customer.findOne;
+    delete User.findOne;
     delete SheetWorkSignToken.updateOne;
     delete firebaseStorageService.uploadEvidencia;
     delete sheetWorkSignTokenService.markSuperseded;

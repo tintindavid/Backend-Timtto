@@ -57,6 +57,16 @@ const ReportSchema = new Schema({
     fechaCancelacion: { type: Date,  trim: true },
     motivoCancelacion: { type: String,  trim: true },
     hojaDeTrabajo: { type: Schema.Types.ObjectId, ref: 'SheetWork'  ,  trim: true },
+    // Trazabilidad: quién procesó el reporte (independiente del que firma
+    // la HT). snapshotName congelado en el momento del `procesar` para
+    // sobrevivir a cambios de nombre / soft-delete del user, mismo patrón
+    // que programaciones[i].responsables (ot-responsables-programacion-trazable).
+    procesadoPor: {
+      _id: false,
+      userId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+      snapshotName: { type: String, trim: true, default: null },
+      fechaProceso: { type: Date, default: null },
+    },
     equipoSnapshot:
       {
         ItemText: { type: String,  trim: true },
@@ -96,10 +106,18 @@ const ReportSchema = new Schema({
     },
     verificationParam: { type: [VerificationParamSchema], default: [] },
     ResponsableMtto: { type: Schema.Types.ObjectId, ref: 'User',  trim: true },
-    /* Tipo de mantenimiento es un Enum.
-       'Diagnostico' (ASCII) is added per design D10 to support reports
-       created from the ticket-area flow (isFromTicket=true). */
-    tipoMtto: { type: String, enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Diagnostico'], trim: true, default: 'Preventivo' },
+    /* Tipo de mantenimiento — enum debe ser un superconjunto del enum de OT.TipoServicio
+       porque report.service copia TipoServicio → tipoMtto tal cual. Ambas variantes de
+       'Diagnóstico' (con y sin tilde) están permitidas por retrocompat: la ASCII vino
+       del ticket-area flow (D10), y la con tilde es la forma canónica del <option> del
+       frontend. Igual para Instalación / Proactivo — sin esto crear una OT con esos
+       TipoServicio falla al construir los Reports. */
+    tipoMtto: {
+      type: String,
+      enum: ['Preventivo', 'Correctivo', 'Predictivo', 'Instalación', 'Proactivo', 'Diagnostico', 'Diagnóstico'],
+      trim: true,
+      default: 'Preventivo',
+    },
 
     /* Ticket-area integration: reports created from a ticket carry the ticket
        reference and the isFromTicket=true flag. Cascades (close/cancel) live

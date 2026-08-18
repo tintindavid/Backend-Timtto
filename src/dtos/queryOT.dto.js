@@ -15,4 +15,7 @@ export const queryOTDto = Joi.object({
   Consecutivo: Joi.string().max(100).allow('').optional(),
   EstadoOt: Joi.string().max(80).allow('').optional(),
   clienteName: Joi.string().max(200).allow('').optional(),
+  // "Mis OTs" tab (ot-responsables-programacion-trazable) — server-side
+  // filter to OTs whose active programación roster includes req.user.userId.
+  mine: Joi.boolean().optional(),
 });

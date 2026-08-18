@@ -19,4 +19,9 @@ export const queryUserDto = Joi.object({
   hasFirma: Joi.boolean().optional(),
   fields: Joi.string().optional(),
   populate: Joi.string().optional(),
+  // Eligibility filter (ot-responsables-programacion-trazable) — only
+  // return users whose role includes this permission string, e.g.
+  // `?permission=ots:can-be-responsible` feeds the OtResponsablesModal
+  // multi-select.
+  permission: Joi.string().optional(),
 });

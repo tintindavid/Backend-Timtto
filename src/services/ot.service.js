@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { OT } from '../models/ot.model.js';
 import { Report } from '../models/report.model.js';
 import { Customer } from '../models/customer.model.js';
@@ -5,6 +6,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { Repuestos } from '../models/repuestos.model.js';
 import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
 import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
+import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -12,6 +14,12 @@ import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 import { ticketService } from './ticket.service.js';
 import { historyService } from './history.service.js';
 import { runWithTransactionFallback } from '../utils/mongoSession.util.js';
+import { computeCanWork } from '../utils/otResponsibility.util.js';
+import { nameShort } from '../utils/nameShort.util.js';
+import { notificationService } from './notification.service.js';
+import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
+import { buildOtNoteAddedPayload } from './notifications/otNoteAddedPayload.util.js';
+import { PERMISSIONS } from '../constants/permissions.js';
 
 export class OTService {
   async create(data, tenantId, user) {
@@ -109,17 +117,29 @@ export class OTService {
     }
   }
 
-  async list(filters = {}, pagination = {}, tenantId) {
+  async list(filters = {}, pagination = {}, tenantId, user) {
     try {
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
       // Whitelist only the filters that make sense on OT (2026-08-02). Older
       // code spread `...filters` directly, which allowed arbitrary query
       // parameters to reach Mongo — including ones with no matching field.
-      const { ClienteId, EstadoOt, Consecutivo, clienteName } = filters;
+      const { ClienteId, EstadoOt, Consecutivo, clienteName, mine } = filters;
       const cleanFilters = {};
       if (ClienteId) cleanFilters.ClienteId = ClienteId;
       if (EstadoOt) cleanFilters.EstadoOt = EstadoOt;
+      // "Mis OTs" tab (ot-responsables-programacion-trazable, design D2):
+      // OTs whose active programación roster contains the caller. Applied
+      // server-side — the frontend MUST NOT filter locally.
+      if (mine === true || mine === 'true') {
+        if (!user?.userId) throw new ApiError(401, 'No autenticado', 'NOT_AUTHENTICATED');
+        cleanFilters.programaciones = {
+          $elemMatch: {
+            isActive: true,
+            'responsables.userId': new mongoose.Types.ObjectId(user.userId),
+          },
+        };
+      }
       // Consecutivo is a partial match — the UI passes fragments like
       // "OT-0012" and expects "OT-001234" to hit. `\\` escapes regex meta
       // chars in the user input.
@@ -166,17 +186,27 @@ export class OTService {
         }
       };
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error listando oTs:', err);
       throw new ApiError(500, 'Error listando OTs', 'LIST_ERROR');
     }
   }
 
-  async getById(id, tenantId) {
+  async getById(id, tenantId, user) {
     try {
       const e = await OT.findOne(applyTenantFilter({ _id: id }, tenantId))
       .populate('ClienteId', 'Razonsocial Ciudad Departamento Email Nit Direccion _id');
       if (!e) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
-      return e;
+      // canWork (design D5/D6): computed per-caller, not persisted on the
+      // schema. Superadmin/admin do NOT bypass — computeCanWork() checks
+      // membership in the active roster regardless of role. Uses
+      // `.toJSON()` (not `.toObject()`) so the schema's toJSON transform
+      // (strips __v/isDeleted/deletedAt) still applies — the raw document
+      // previously reached `res.json()` and got the same transform
+      // implicitly via JSON.stringify.
+      const obj = typeof e.toJSON === 'function' ? e.toJSON() : e;
+      obj.canWork = computeCanWork(user, obj);
+      return obj;
     } catch (err) {
       if (err instanceof ApiError) throw err;
       logger.error('Error obteniendo oT:', err);
@@ -329,6 +359,217 @@ export class OTService {
     }
   }
 
+  /**
+   * Appends a new `ScheduleEntry` to `ot.programaciones` and atomically
+   * flips the previous active entry's `isActive` to false in a single
+   * `updateOne` (design.md D4 — avoids the two-write race between two
+   * concurrent reprogrammings). Validates dates (Requirement "Date
+   * validation on programación") and the roster (D9: same-tenant,
+   * non-deleted, `ots:can-be-responsible`). Emits `ot.responsible.assigned`
+   * once per newly-added userId, excluding the actor (D10) — failures never
+   * abort the write.
+   *
+   * @param {object} params
+   * @param {string} params.otId
+   * @param {string} params.tenantId
+   * @param {Date|string} params.fechaInicio
+   * @param {Date|string} params.fechaFin
+   * @param {string[]} params.responsableUserIds
+   * @param {{ userId?: string, firstName?: string, lastName?: string, email?: string }} params.actor
+   * @returns {Promise<object>} the newly-created entry
+   */
+  async setProgramacion({ otId, tenantId, fechaInicio, fechaFin, responsableUserIds, actor }) {
+    try {
+      requireTenant(tenantId);
+      if (!mongoose.isValidObjectId(otId)) {
+        throw new ApiError(404, 'OT no encontrada', 'NOT_FOUND', { id: otId });
+      }
+
+      const ot = await OT.findOne(applyTenantFilter({ _id: otId }, tenantId));
+      if (!ot) throw new ApiError(404, 'OT no encontrada', 'NOT_FOUND', { id: otId });
+
+      const fi = new Date(fechaInicio);
+      const ff = new Date(fechaFin);
+      if (Number.isNaN(fi.getTime()) || Number.isNaN(ff.getTime()) || !(ff.getTime() > fi.getTime())) {
+        throw new ApiError(400, 'La fecha de fin debe ser posterior a la fecha de inicio', 'VALIDATION_ERROR', {
+          fechaInicio, fechaFin,
+        });
+      }
+
+      const previousActive = (ot.programaciones || []).find((p) => p.isActive) || null;
+      const sameStartDate =
+        previousActive != null && new Date(previousActive.fechaInicio).getTime() === fi.getTime();
+
+      if (!sameStartDate) {
+        const todayUtc = new Date(new Date().toISOString().slice(0, 10));
+        if (fi.getTime() < todayUtc.getTime()) {
+          throw new ApiError(400, 'La fecha de inicio no puede ser anterior a hoy', 'START_DATE_IN_PAST', { fechaInicio });
+        }
+      }
+
+      const ids = Array.isArray(responsableUserIds) ? responsableUserIds : [];
+      if (ids.length === 0) {
+        throw new ApiError(400, 'Debe asignar al menos un responsable', 'VALIDATION_ERROR', { responsableUserIds });
+      }
+      const uniqueIds = [...new Set(ids.map(String))];
+
+      // Roster validation (D9): defense-in-depth even though the frontend
+      // pre-filters the multi-select — the server is the final authority.
+      const users = await User.find({ _id: { $in: uniqueIds }, tenantId, isDeleted: false })
+        .populate('roleId', 'permissions')
+        .lean();
+      const foundIds = new Set(users.map((u) => String(u._id)));
+      const foreignUserIds = uniqueIds.filter((id) => !foundIds.has(id));
+      if (foreignUserIds.length) {
+        throw new ApiError(400, 'Uno o más responsables no pertenecen al tenant', 'INVALID_RESPONSABLE_USER_IDS', {
+          foreignUserIds,
+        });
+      }
+      const ineligibleUserIds = users
+        .filter((u) => !Array.isArray(u.roleId?.permissions) || !u.roleId.permissions.includes(PERMISSIONS.OTS_CAN_BE_RESPONSIBLE))
+        .map((u) => String(u._id));
+      if (ineligibleUserIds.length) {
+        throw new ApiError(400, 'Uno o más responsables no tienen el permiso ots:can-be-responsible', 'INELIGIBLE_RESPONSABLES', {
+          ineligibleUserIds,
+        });
+      }
+
+      const usersById = new Map(users.map((u) => [String(u._id), u]));
+      const responsables = uniqueIds.map((id) => ({
+        userId: id,
+        snapshotName: nameShort(usersById.get(id)),
+      }));
+
+      const newEntry = {
+        _id: new mongoose.Types.ObjectId(),
+        fechaInicio: fi,
+        fechaFin: ff,
+        responsables,
+        isActive: true,
+        createdBy: actor?.userId || null,
+        createdByName: nameShort(actor) || 'Sistema',
+        createdAt: new Date(),
+      };
+
+      // Two constraints force us to split the write:
+      //   1. MongoDB rejects $set on a positional element AND $push on the
+      //      SAME top-level array in one updateOne (path conflict, error 40).
+      //   2. $set with arrayFilters on `programaciones.$[...]` fails with
+      //      "path must exist" (error 2) if the field itself has never been
+      //      written on the document — the case for every OT that has never
+      //      been programmed.
+      //
+      // Solution: skip the flip op entirely when there is no previously-active
+      // entry (fresh assignment). Otherwise use an ordered bulkWrite; Mongo
+      // serializes ops on the same document, preserving design.md D4's
+      // atomicity guarantee without needing a transaction (replica-set-only).
+      const ops = [];
+      if (previousActive) {
+        ops.push({
+          updateOne: {
+            filter: { _id: otId, tenantId },
+            update: { $set: { 'programaciones.$[active].isActive': false } },
+            arrayFilters: [{ 'active.isActive': true }],
+          },
+        });
+      }
+      ops.push({
+        updateOne: {
+          filter: { _id: otId, tenantId },
+          update: { $push: { programaciones: newEntry } },
+        },
+      });
+      await OT.bulkWrite(ops, { ordered: true });
+
+      // State transition: elevate Pendiente → Programada when the first
+      // programación is set. Never overwrite an already-advanced state
+      // (En Progreso, Cerrado, Cancelado, Completado) — reprogramación
+      // preserves whatever the operational flow has reached.
+      // ADVANCED_STATES lists everything that outranks Programada.
+      const ADVANCED_STATES = ['En Progreso', 'Cerrado', 'Cancelado', 'Completado'];
+      const currentEstado = ot.EstadoOt;
+      if (!currentEstado || !ADVANCED_STATES.includes(currentEstado)) {
+        if (currentEstado !== 'Programada') {
+          await OT.updateOne(
+            { _id: otId, tenantId },
+            { $set: { EstadoOt: 'Programada' } },
+          );
+        }
+      }
+
+      // Diff-based notification (D10) — best-effort, never aborts the write.
+      try {
+        const previousUserIds = new Set((previousActive?.responsables || []).map((r) => String(r.userId)));
+        const actorId = String(actor?.userId || '');
+        // newlyAdded = every user in the new roster that wasn't in the
+        // previous active roster. INCLUDES the actor if they added themselves.
+        const newlyAddedIds = uniqueIds.filter((id) => !previousUserIds.has(id));
+        // The actor should NEVER be notified purely for being a role match
+        // (admin who happened to press "Guardar"). But if they added
+        // themselves as a responsable, they SHOULD receive the notification
+        // — it's a legitimate assignment, no different from any other new
+        // responsable. So we only exclude the actor when they did NOT
+        // self-assign.
+        const actorSelfAssigned = actorId && newlyAddedIds.includes(actorId);
+        if (newlyAddedIds.length) {
+          const customer = ot.ClienteId
+            ? await Customer.findById(ot.ClienteId).select('Razonsocial').lean()
+            : null;
+          const payload = buildOtResponsibleAssignedPayload({
+            otId: ot._id,
+            otConsecutivo: ot.Consecutivo,
+            customerName: customer?.Razonsocial,
+            fechaInicio: fi,
+            fechaFin: ff,
+          });
+          // Single emit — the bus unions rule roles + userIds + extras and
+          // then removes anyone in excludeRecipientUserIds. This gives us:
+          //   • Every admin/technician the tenant configured in the rule
+          //     receives the notification (org-level awareness).
+          //   • The newly-added responsables receive it even if their role
+          //     isn't in the rule (they are the target of the assignment).
+          //   • The actor does NOT receive it UNLESS they self-assigned
+          //     (in which case they receive it as a responsable, not as
+          //     a role-match).
+          await notificationService.emit(tenantId, 'ot.responsible.assigned', payload, {
+            extraRecipientUserIds: newlyAddedIds,
+            excludeRecipientUserIds: actorSelfAssigned || !actorId ? [] : [actorId],
+          });
+        }
+      } catch (notifyErr) {
+        logger.error('setProgramacion: notification emit failed', { otId, tenantId, err: String(notifyErr) });
+      }
+
+      logger.info('OT programación creada', { otId, tenantId });
+      return newEntry;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error creando programación OT:', err);
+      throw new ApiError(500, 'Error creando programación', 'SET_PROGRAMACION_ERROR');
+    }
+  }
+
+  /**
+   * Returns the full programación history for an OT, newest-first.
+   * @param {object} params
+   * @param {string} params.otId
+   * @param {string} params.tenantId
+   * @returns {Promise<Array>}
+   */
+  async getProgramaciones({ otId, tenantId }) {
+    try {
+      requireTenant(tenantId);
+      const ot = await OT.findOne(applyTenantFilter({ _id: otId }, tenantId)).select('programaciones').lean();
+      if (!ot) throw new ApiError(404, 'OT no encontrada', 'NOT_FOUND', { id: otId });
+      const programaciones = Array.isArray(ot.programaciones) ? ot.programaciones : [];
+      return [...programaciones].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error listando programaciones OT:', err);
+      throw new ApiError(500, 'Error listando programaciones', 'LIST_PROGRAMACIONES_ERROR');
+    }
+  }
+
   async delete(id, tenantId) {
     try {
       requireTenant(tenantId);
@@ -426,9 +667,13 @@ export class OTService {
       const total = await Report.countDocuments(baseQuery);
       const closed = await Report.countDocuments(applyTenantFilter({ orden: ot._id, isDeleted: false, estado: 'Cerrado' }, t));
       const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
+      // Same recompute rule as report.service.js: Pendiente is only the
+      // baseline when there is no active programación; otherwise the waiting
+      // state is "Programada".
       let nuevoEstado = 'Pendiente';
       if (closed === total && total > 0) nuevoEstado = 'Cerrado';
       else if (closed > 0) nuevoEstado = 'En Progreso';
+      else if (ot.programaciones?.some((p) => p.isActive)) nuevoEstado = 'Programada';
 
       ot.Avance = avance;
       ot.EstadoOt = nuevoEstado;
@@ -497,7 +742,7 @@ export class OTService {
         applyTenantFilter({ _id: otId }, tenantId),
         { $push: { notas: nota } },
         { new: true, runValidators: true },
-      ).select('notas').lean();
+      ).select('notas Consecutivo programaciones').lean();
 
       if (!updated) throw new ApiError(404, 'OT no encontrada', 'OT_NOT_FOUND', { otId });
 
@@ -512,6 +757,37 @@ export class OTService {
         userId: user.userId,
         userName: nota.usuarioNombre,
       });
+
+      // Notify the "conversation" — every user who has EVER left a nota on
+      // this OT plus the current active roster of responsables. Turns the
+      // notas into a mini-chat: whoever posts, everyone in the thread hears
+      // about it (except the actor themselves).
+      // Best-effort: bus failure NEVER aborts the nota persistence.
+      try {
+        const actorId = String(user.userId);
+        const activeEntry = (updated.programaciones || []).find((p) => p.isActive);
+        const responsableIds = (activeEntry?.responsables || []).map((r) => String(r.userId));
+        const priorAuthorIds = (updated.notas || [])
+          .map((n) => (n.usuarioId ? String(n.usuarioId) : null))
+          .filter(Boolean);
+        // Dedupe + exclude actor.
+        const recipients = Array.from(new Set([...responsableIds, ...priorAuthorIds]))
+          .filter((id) => id !== actorId);
+        if (recipients.length > 0) {
+          const payload = buildOtNoteAddedPayload({
+            otId,
+            otConsecutivo: updated.Consecutivo,
+            noteAuthor: nota.usuarioNombre,
+            notePreview: nota.descripcion,
+          });
+          await notificationService.emit(tenantId, 'ot.note.added', payload, {
+            extraRecipientUserIds: recipients,
+            excludeRecipientUserIds: [actorId],
+          });
+        }
+      } catch (notifyErr) {
+        logger.error('addNota: notification emit failed', { otId, tenantId, err: String(notifyErr) });
+      }
 
       return updated.notas || [];
     } catch (err) {

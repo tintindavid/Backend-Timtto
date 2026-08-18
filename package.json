@@ -12,6 +12,9 @@
     "start": "node --enable-source-maps src/server.js",
     "test": "node --test \"tests/**/*.test.js\"",
     "seed:notification-sheet-signed": "node scripts/seed-notification-rule-sheet-signed.js",
+    "migrate:ot-legacy-responsable-to-programaciones": "node scripts/migrate-ot-legacy-responsable-to-programaciones.js",
+    "seed:notification-rule-ot-responsible-assigned": "node scripts/seed-notification-rule-ot-responsible-assigned.js",
+    "seed:notification-rule-ot-note-added": "node scripts/seed-notification-rule-ot-note-added.js",
     "lint": "eslint \"src/**/*.{ts,js}\" --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "prepare": "husky"

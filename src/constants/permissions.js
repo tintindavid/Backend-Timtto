@@ -92,6 +92,13 @@ export const PERMISSIONS = {
   OTS_DELETE: 'ots:delete',
   OTS_CLOSE: 'ots:close',
   OTS_REOPEN: 'ots:reopen',
+  // Programación trazable (ot-responsables-programacion-trazable):
+  // OTS_MANAGE_RESPONSABLES gates POST /ots/:id/programacion (who may
+  // (re)assign responsables). OTS_CAN_BE_RESPONSIBLE is an eligibility
+  // marker, not an action permission — only users whose role carries it may
+  // be *added* to a roster (enforced server-side in ot.service.js#setProgramacion).
+  OTS_MANAGE_RESPONSABLES: 'ots:manage-responsables',
+  OTS_CAN_BE_RESPONSIBLE: 'ots:can-be-responsible',
 
   // Reportes (informes de servicio)
   REPORTS_READ: 'reports:read',

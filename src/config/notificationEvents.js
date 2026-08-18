@@ -16,5 +16,11 @@
  * real business event — fired from the 4 sheet-signing flows
  * (client-portal batch, client-portal late-sign, remote-sign link, panel
  * sign-in-place) via `services/notifications/sheetSignedPayload.util.js`.
+ *
+ * `ot.responsible.assigned` (openspec/changes/ot-responsables-programacion-trazable)
+ * fires once per newly-added userId when an OT's programación roster grows —
+ * see `services/notifications/otResponsibleAssignedPayload.util.js` and
+ * `ot.service.js#setProgramacion` (design D10).
  */
-export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed'];
+export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed', 'ot.responsible.assigned',
+  'ot.note.added'];

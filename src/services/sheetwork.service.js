@@ -8,6 +8,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
+import { nameShort } from '../utils/nameShort.util.js';
 import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import { validateSignaturePng } from '../utils/validateSignaturePng.util.js';
 import { pushCorreoUsado } from '../utils/customerCorreosUsados.util.js';
@@ -19,13 +20,22 @@ import { emailService } from './external/email.service.js';
 import { env } from '../config/env.js';
 import { notificationService } from './notification.service.js';
 import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
+import { assertUserCanWork } from '../utils/otResponsibility.util.js';
 export class SheetWorkService {
 
-  async create(data, tenantId) {
+  async create(data, tenantId, user) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+
+      // Responsibility guard (ot-responsables-programacion-trazable, design
+      // D3/D7) — creating a sheet is "trabajar" on the OT's reports.
+      const guardOtId = data.otId || data.ot || data.orden || data.ordenId;
+      if (guardOtId) {
+        const parentOt = await OT.findOne(applyTenantFilter({ _id: guardOtId }, t)).lean();
+        if (parentOt) assertUserCanWork(user, parentOt);
+      }
 
       // Map frontend field names to model fields
       if (data.recibidoPor && !data.personaRecibe) data.personaRecibe = data.recibidoPor;
@@ -72,7 +82,29 @@ export class SheetWorkService {
       } else {
         data.estado = 'Borrador';
       }
-   
+
+      // Trazabilidad del firmante técnico (report-processor-and-signer-
+      // traceability). En este endpoint el HT nace ya firmada (tab "Firma
+      // en Sitio" del modal Crear HT): el frontend pasa `responsable`
+      // (userId), `fullNameResponsable` y `firmaResponsableFile` del user
+      // seleccionado como firmante. Congelamos snapshot para trazabilidad.
+      if (data.firmaFile && data.responsable && !data.firmadoPor) {
+        try {
+          const firmanteUser = await User.findOne({ _id: data.responsable, tenantId: t, isDeleted: false })
+            .select('firstName lastName email')
+            .lean();
+          if (firmanteUser) {
+            data.firmadoPor = {
+              userId: firmanteUser._id,
+              snapshotName: nameShort(firmanteUser) || (data.fullNameResponsable || 'Usuario'),
+              firmadoAt: new Date(),
+            };
+          }
+        } catch (err) {
+          logger.warn('sheetwork.create: firmadoPor lookup failed (non-fatal)', { err: String(err) });
+        }
+      }
+
       const entity = await SheetWork.create(data);
 
       // despues de crear la hoja de trabajo, marcar los reportes listados como cerrados y vincular hojaDeTrabajo
@@ -126,6 +158,7 @@ export class SheetWorkService {
       logger.info('SheetWork creado: ' + entity._id);
       return { sheetWork: entity, reports: updatedReports };
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando sheetWork:', err);
       throw new ApiError(500, 'Error creando SheetWork', 'CREATE_ERROR');
     }
@@ -211,9 +244,25 @@ export class SheetWorkService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, tenantId, user) {
     try {
-      const e = await SheetWork.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+      // Responsibility guard (design D3/D7) — load the existing sheet
+      // (tenant-scoped) to find its parent OT before applying the update.
+      const t = tenantId || data?.tenantId;
+      const existing = t
+        ? await SheetWork.findOne(applyTenantFilter({ _id: id }, t)).lean()
+        : await SheetWork.findById(id).lean();
+      if (!existing) throw new ApiError(404, 'SheetWork no encontrado', 'NOT_FOUND', { id });
+      if (existing.otId) {
+        const parentOt = await OT.findOne(applyTenantFilter({ _id: existing.otId }, t || existing.tenantId)).lean();
+        if (parentOt) assertUserCanWork(user, parentOt);
+      }
+
+      const e = await SheetWork.findOneAndUpdate(
+        t ? applyTenantFilter({ _id: id }, t) : { _id: id },
+        { $set: data },
+        { new: true, runValidators: true },
+      );
       if (!e) throw new ApiError(404, 'SheetWork no encontrado', 'NOT_FOUND', { id });
       logger.info('SheetWork actualizado: ' + id);
       return e;
@@ -236,13 +285,19 @@ export class SheetWorkService {
    * @param {string} tenantId
    * @returns {Promise<{ modifiedCount: number }>}
    */
-  async closeReports(sheetId, tenantId) {
+  async closeReports(sheetId, tenantId, user) {
     try {
       requireTenant(tenantId);
 
       const sheet = await SheetWork.findOne(applyTenantFilter({ _id: sheetId, isDeleted: false }, tenantId)).lean();
       if (!sheet) {
         throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND', { id: sheetId });
+      }
+
+      // Responsibility guard (design D3/D7) — before mutating any report.
+      if (sheet.otId) {
+        const parentOt = await OT.findOne(applyTenantFilter({ _id: sheet.otId }, tenantId)).lean();
+        if (parentOt) assertUserCanWork(user, parentOt);
       }
 
       const now = new Date();
@@ -367,7 +422,24 @@ export class SheetWorkService {
   async _finalizeSignedSheet(sheet, tenantId, signedVia = null) {
     const sheetId = sheet._id;
     const otId = sheet.otId;
-    const reportIds = Array.isArray(sheet.reports) ? sheet.reports : [];
+    let reportIds = Array.isArray(sheet.reports) ? sheet.reports : [];
+
+    // Defensive fallback: some historic HTs (or edge cases in the remote-sign
+    // pending flow) can end up with sheet.reports empty at signing time.
+    // If empty, look reports up via their back-reference (`hojaDeTrabajo`)
+    // so the closure side-effects still fire.
+    if (reportIds.length === 0) {
+      const linked = await Report.find(
+        applyTenantFilter({ hojaDeTrabajo: sheetId, isDeleted: false }, tenantId)
+      ).select('_id').lean();
+      if (linked.length > 0) {
+        reportIds = linked.map((r) => r._id);
+        logger.info('_finalizeSignedSheet: reports resolved via hojaDeTrabajo back-ref', {
+          sheetId: String(sheetId),
+          count: reportIds.length,
+        });
+      }
+    }
 
     if (reportIds.length) {
       const signedAt = new Date();
@@ -475,7 +547,7 @@ export class SheetWorkService {
    * recipient email on the sheet + customer, and dispatches the request
    * email fire-and-forget.
    */
-  async remoteSignRequest({ otId, reportIds, email, message }, tenantId, userId) {
+  async remoteSignRequest({ otId, reportIds, email, message, firmanteUserId }, tenantId, userId) {
     requireTenant(tenantId);
     const normEmail = String(email || '').toLowerCase().trim();
 
@@ -483,18 +555,25 @@ export class SheetWorkService {
     if (!ot) throw new ApiError(404, 'OT no encontrada', 'OT_NOT_FOUND');
     const clienteId = ot.ClienteId;
 
-    // Fail-fast: the requester's User.fileFirma is baked into the sheet at
-    // creation time so it renders in the PDF preview the client sees AND in
-    // the final signed PDF. Same prerequisite as the on-site flow (which
-    // reads currentUserData.fileFirma) and D6 of the portal-signature-flow.
-    const requester = userId
-      ? await User.findById(userId).select('fullName role fileFirma isDeleted').lean()
+    // Firmante técnico — puede ser distinto al user que tramita la firma.
+    // Default = user en sesión. Debe pertenecer al tenant y tener fileFirma
+    // (se pinta en el PDF preview que ve el cliente y en el PDF firmado).
+    const firmanteId = firmanteUserId ? String(firmanteUserId) : String(userId);
+    const firmante = firmanteId
+      ? await User.findOne({ _id: firmanteId, tenantId, isDeleted: false })
+          .select('firstName lastName fullName email role fileFirma')
+          .lean()
       : null;
-    if (!requester || requester.isDeleted === true || !requester.fileFirma) {
+    if (!firmante) {
+      throw new ApiError(400, 'Firmante inválido: no pertenece al tenant', 'INVALID_FIRMANTE');
+    }
+    if (!firmante.fileFirma) {
       throw new ApiError(
         409,
-        'Tu perfil no tiene firma cargada. Súbela en tu perfil antes de solicitar firmas remotas.',
-        'USER_HAS_NO_SIGNATURE'
+        firmanteUserId
+          ? 'El firmante seleccionado no tiene firma cargada en su perfil.'
+          : 'Tu perfil no tiene firma cargada. Súbela en tu perfil antes de solicitar firmas remotas.',
+        firmanteUserId ? 'FIRMANTE_SIN_FIRMA' : 'USER_HAS_NO_SIGNATURE'
       );
     }
 
@@ -503,16 +582,24 @@ export class SheetWorkService {
     const numeroHoja = await this._resolveNumeroHoja(otId, tenantId);
 
     const now = new Date();
+    const firmanteFullName = firmante.fullName || [firmante.firstName, firmante.lastName].filter(Boolean).join(' ') || firmante.email;
     const sheet = await SheetWork.create({
       tenantId,
       clienteId,
       otId,
       numeroHoja,
       estado: 'EnviadaAFirmar',
-      responsable: userId,
-      firmaResponsableFile: requester.fileFirma,
-      fullNameResponsable: requester.fullName,
-      cargoResponsable: requester.role || '',
+      responsable: firmante._id,
+      firmaResponsableFile: firmante.fileFirma,
+      fullNameResponsable: firmanteFullName,
+      cargoResponsable: firmante.role || '',
+      // Snapshot at request time. `firmadoAt` fills in later when the
+      // client actually signs (see publicSheetSign.service.signWithToken).
+      firmadoPor: {
+        userId: firmante._id,
+        snapshotName: nameShort(firmante) || 'Usuario',
+        firmadoAt: null,
+      },
       reports: validReportIds,
       source: 'field',
       pdfStatus: 'pending',
@@ -693,6 +780,24 @@ export class SheetWorkService {
       throw new ApiError(409, 'Esta hoja ya fue firmada', 'SHEET_ALREADY_SIGNED');
     }
 
+    // Responsibility guard (design D3/D7) — signing in-place is "trabajar".
+    if (sheet.otId) {
+      const parentOt = await OT.findOne(applyTenantFilter({ _id: sheet.otId }, tenantId)).lean();
+      if (parentOt) assertUserCanWork({ userId }, parentOt);
+    }
+
+    // Firmante técnico — puede ser distinto al user que tramita (para
+    // trazabilidad cuando varios técnicos trabajan bajo un mismo usuario).
+    // Default = user en sesión. Debe pertenecer al tenant y tener fileFirma.
+    const firmanteUserId = body?.firmanteUserId ? String(body.firmanteUserId) : String(userId);
+    const firmanteUser = await User.findOne({ _id: firmanteUserId, tenantId, isDeleted: false }).lean();
+    if (!firmanteUser) {
+      throw new ApiError(400, 'Firmante inválido: no pertenece al tenant', 'INVALID_FIRMANTE');
+    }
+    if (!firmanteUser.fileFirma) {
+      throw new ApiError(400, 'El firmante seleccionado no tiene firma registrada en su perfil', 'FIRMANTE_SIN_FIRMA');
+    }
+
     const signature = body?.signature;
     if (!signature?.imagePng) {
       throw new ApiError(400, 'La firma es requerida', 'SIGNATURE_REQUIRED');
@@ -723,6 +828,16 @@ export class SheetWorkService {
     }
     sheet.estado = 'Firmada';
     sheet.pdfStatus = 'pending';
+    // Firmante snapshot: nombre + firma vienen del user seleccionado
+    // (no del user en sesión), para trazabilidad multi-técnico.
+    sheet.responsable = firmanteUser._id;
+    sheet.fullNameResponsable = [firmanteUser.firstName, firmanteUser.lastName].filter(Boolean).join(' ') || firmanteUser.email;
+    sheet.firmaResponsableFile = firmanteUser.fileFirma;
+    sheet.firmadoPor = {
+      userId: firmanteUser._id,
+      snapshotName: nameShort(firmanteUser) || 'Usuario',
+      firmadoAt: signedAt,
+    };
     await sheet.save();
 
     await sheetWorkSignTokenService.markSuperseded(sheet._id, userId);

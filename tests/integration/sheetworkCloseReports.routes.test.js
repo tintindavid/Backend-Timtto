@@ -37,18 +37,29 @@ const R2 = '507f1f77bcf86cd799439022'; // Procesado
 const R3 = '507f1f77bcf86cd799439023'; // Cancelado — must stay untouched
 const TICKET_ID = '507f1f77bcf86cd799439077';
 
+// ot-responsables-programacion-trazable added a responsibility guard at the
+// top of closeReports() that loads the parent OT via OT.findOne(...).lean()
+// — every test below that reaches past the SHEET_NOT_FOUND branch must mock
+// it (an OT with no programaciones is fully permissive, matching the
+// pre-feature behavior these tests assert).
+function stubPermissiveOt() {
+  OT.findOne = () => ({ lean: () => Promise.resolve({ _id: OT_ID, tenantId: TENANT_A, programaciones: [] }) });
+}
+
 describe('POST /api/v1/sheetworks/:sheetId/close-reports', () => {
   afterEach(() => {
     delete SheetWork.findOne;
     delete Report.updateMany;
     delete Report.countDocuments;
     delete Report.find;
+    delete OT.findOne;
     delete OT.findOneAndUpdate;
     delete Ticket.findOne;
   });
 
   it('closes only the Procesado reports of the target sheet; Cancelado reports of the same sheet stay untouched', async () => {
     SheetWork.findOne = () => ({ lean: () => Promise.resolve({ _id: SHEET_ID, tenantId: TENANT_A, otId: OT_ID }) });
+    stubPermissiveOt();
 
     let updateManyFilter = null;
     let updateManyPipeline = null;
@@ -89,6 +100,7 @@ describe('POST /api/v1/sheetworks/:sheetId/close-reports', () => {
 
   it('does not modify reports of a different sheet (hojaDeTrabajo scoping)', async () => {
     SheetWork.findOne = () => ({ lean: () => Promise.resolve({ _id: SHEET_ID, tenantId: TENANT_A, otId: OT_ID }) });
+    stubPermissiveOt();
     let capturedFilter = null;
     Report.updateMany = async (filter) => {
       capturedFilter = filter;
@@ -122,6 +134,7 @@ describe('POST /api/v1/sheetworks/:sheetId/close-reports', () => {
 
   it('recomputes OT.Avance/EstadoOt for the sheet\'s OT', async () => {
     SheetWork.findOne = () => ({ lean: () => Promise.resolve({ _id: SHEET_ID, tenantId: TENANT_A, otId: OT_ID }) });
+    stubPermissiveOt();
     Report.updateMany = async () => ({ matchedCount: 2, modifiedCount: 2 });
     Report.countDocuments = async (filter) => (filter.estado === 'Cerrado' ? 2 : 2); // 100% closed
     const otUpdateCalls = [];
@@ -139,6 +152,7 @@ describe('POST /api/v1/sheetworks/:sheetId/close-reports', () => {
 
   it('dispatches the ticket-closure cascade for the reports it closed', async () => {
     SheetWork.findOne = () => ({ lean: () => Promise.resolve({ _id: SHEET_ID, tenantId: TENANT_A, otId: OT_ID }) });
+    stubPermissiveOt();
     Report.updateMany = async () => ({ matchedCount: 1, modifiedCount: 1 });
     Report.countDocuments = async () => 1;
     OT.findOneAndUpdate = async () => ({});
