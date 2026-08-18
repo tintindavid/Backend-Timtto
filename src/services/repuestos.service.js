@@ -1,12 +1,18 @@
+import mongoose from 'mongoose';
 import { Repuestos } from '../models/repuestos.model.js';
 import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
 import { OT } from '../models/ot.model.js';
 import { Report } from '../models/report.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
+import { User } from '../models/user.model.js';
+import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
+import { nameShort } from '../utils/nameShort.util.js';
+import { notificationService } from './notification.service.js';
+import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
 
 export class RepuestosService {
   async createStatusTrace({ solicitudRepuestoId, estadoAnterior, estadoNuevo, comentarios, tenantId }) {
@@ -190,7 +196,7 @@ export class RepuestosService {
     }
   }
 
-  async createOtFromSolicitudes(data, tenantId) {
+  async createOtFromSolicitudes(data, tenantId, actor) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -198,6 +204,27 @@ export class RepuestosService {
       const repuestoIds = Array.isArray(data.repuestoIds) ? data.repuestoIds : [];
       if (!repuestoIds.length) {
         throw new ApiError(400, 'Debe enviar al menos un repuesto', 'VALIDATION_ERROR');
+      }
+
+      // ── Responsables validation (mirrors ot.service.setProgramacion D9)
+      const responsableUserIds = Array.isArray(data.responsableUserIds) ? data.responsableUserIds : [];
+      if (!responsableUserIds.length) {
+        throw new ApiError(400, 'Debe seleccionar al menos un responsable', 'VALIDATION_ERROR');
+      }
+      const validIds = responsableUserIds.filter((id) => mongoose.isValidObjectId(id));
+      const eligibleUsers = validIds.length
+        ? await User.find({ _id: { $in: validIds }, tenantId: t, isDeleted: false })
+            .populate({ path: 'roleId', select: 'permissions', match: { isDeleted: false } })
+            .lean()
+        : [];
+      const eligibleSet = new Set(eligibleUsers.map((u) => String(u._id)));
+      const foreign = validIds.filter((id) => !eligibleSet.has(String(id)));
+      if (foreign.length) {
+        throw new ApiError(400, 'Uno o más responsables no pertenecen al tenant', 'INVALID_RESPONSABLE_USER_IDS', { foreignUserIds: foreign });
+      }
+      const ineligible = eligibleUsers.filter((u) => !u.roleId?.permissions?.includes('ots:can-be-responsible'));
+      if (ineligible.length) {
+        throw new ApiError(400, 'Uno o más responsables no tienen el permiso ots:can-be-responsible', 'INELIGIBLE_RESPONSABLES', { ineligibleUserIds: ineligible.map((u) => String(u._id)) });
       }
 
       const repuestos = await Repuestos.find(applyTenantFilter({ _id: { $in: repuestoIds } }, t)).lean();
@@ -215,29 +242,75 @@ export class RepuestosService {
         throw new ApiError(400, 'Los repuestos seleccionados no tienen equipo asociado', 'VALIDATION_ERROR');
       }
 
-      let clienteId = repuestos.find((r) => r.ClienteId)?.ClienteId || null;
-      if (!clienteId) {
-        const reportIds = [...new Set(repuestos.map((r) => r.ReporteSolicitudId).filter(Boolean))];
-        if (reportIds.length) {
-          const reports = await Report.find(applyTenantFilter({ _id: { $in: reportIds } }, t)).select('ClienteId').lean();
-          clienteId = reports.find((rp) => rp.ClienteId)?.ClienteId || null;
-        }
+      // ── Same-client validation. Repuestos may carry ClienteId directly OR
+      // reference it via ReporteSolicitudId; resolve both, then require every
+      // repuesto to share exactly ONE ClienteId. Reject if multi-client.
+      const missingClienteReportIds = [...new Set(repuestos.filter((r) => !r.ClienteId).map((r) => String(r.ReporteSolicitudId)).filter(Boolean))];
+      const reportClienteById = new Map();
+      if (missingClienteReportIds.length) {
+        const reports = await Report.find(applyTenantFilter({ _id: { $in: missingClienteReportIds } }, t)).select('ClienteId').lean();
+        reports.forEach((rp) => reportClienteById.set(String(rp._id), rp.ClienteId ? String(rp.ClienteId) : null));
       }
-      if (!clienteId) {
+      const clienteIdsResolved = new Set();
+      for (const r of repuestos) {
+        const resolved = r.ClienteId
+          ? String(r.ClienteId)
+          : (r.ReporteSolicitudId ? reportClienteById.get(String(r.ReporteSolicitudId)) : null);
+        if (resolved) clienteIdsResolved.add(resolved);
+      }
+      if (clienteIdsResolved.size === 0) {
         throw new ApiError(400, 'No fue posible inferir el cliente de los repuestos seleccionados', 'VALIDATION_ERROR');
       }
+      if (clienteIdsResolved.size > 1) {
+        throw new ApiError(400, 'Los repuestos seleccionados pertenecen a clientes diferentes. Selecciona solo repuestos del mismo cliente.', 'MULTIPLE_CLIENTS', { clienteIds: Array.from(clienteIdsResolved) });
+      }
+      const clienteId = Array.from(clienteIdsResolved)[0];
+
+      // ── Programación (analog to ot.service.setProgramacion first entry)
+      const fechaInicio = new Date(data.fechaInicio);
+      const fechaFin = new Date(data.fechaFin);
+      const responsables = eligibleUsers.map((u) => ({
+        userId: u._id,
+        snapshotName: nameShort(u),
+      }));
+      const initialProgramacion = {
+        _id: new mongoose.Types.ObjectId(),
+        fechaInicio,
+        fechaFin,
+        responsables,
+        isActive: true,
+        createdBy: actor?.userId || null,
+        createdByName: nameShort(actor) || 'Sistema',
+        createdAt: new Date(),
+      };
+
+      // Optional initial nota
+      const nota = data.nota && String(data.nota).trim();
+      const notas = nota
+        ? [{
+            descripcion: String(nota).trim(),
+            fecha: new Date(),
+            usuarioId: actor?.userId || null,
+            usuarioNombre: nameShort(actor) || 'Sistema',
+          }]
+        : [];
 
       const nextOtSeq = await getNextSequence(t, 'OT');
       const ot = await OT.create({
         tenantId: t,
         ClienteId: clienteId,
         Consecutivo: formatConsecutivo('OT', nextOtSeq, 6),
-        EstadoOt: 'En Progreso',
+        // With an active programación the OT starts as "Programada" (see
+        // ot-responsables-programacion-trazable state transitions). Once a
+        // technician processes the first report the recompute in
+        // report.service moves it to "En Progreso".
+        EstadoOt: 'Programada',
         FechaCreacion: new Date(),
         Norden: `N${String(nextOtSeq).padStart(6, '0')}`,
         TipoServicio: 'Correctivo',
         OtPrioridad: data.OtPrioridad || 'Media',
-        ResponsableId: data.ResponsableId,
+        programaciones: [initialProgramacion],
+        notas,
       });
 
       // Create one report per unique equipment so OT execution is split by asset.
@@ -298,6 +371,32 @@ export class RepuestosService {
           comentarios: `Automatic: created in OT ${String(ot._id)}`,
           tenantId: t,
         });
+      }
+
+      // Notify newly-assigned responsables (mirrors ot.service.setProgramacion D10).
+      // Best-effort: bus failure NEVER aborts the OT creation.
+      try {
+        const actorId = String(actor?.userId || '');
+        const newlyAddedIds = responsables.map((r) => String(r.userId));
+        const actorSelfAssigned = actorId && newlyAddedIds.includes(actorId);
+        if (newlyAddedIds.length) {
+          const customer = clienteId
+            ? await Customer.findById(clienteId).select('Razonsocial').lean()
+            : null;
+          const payload = buildOtResponsibleAssignedPayload({
+            otId: ot._id,
+            otConsecutivo: ot.Consecutivo,
+            customerName: customer?.Razonsocial,
+            fechaInicio,
+            fechaFin,
+          });
+          await notificationService.emit(t, 'ot.responsible.assigned', payload, {
+            extraRecipientUserIds: newlyAddedIds,
+            excludeRecipientUserIds: actorSelfAssigned || !actorId ? [] : [actorId],
+          });
+        }
+      } catch (notifyErr) {
+        logger.error('createOtFromSolicitudes: notification emit failed', { otId: String(ot._id), tenantId: t, err: String(notifyErr) });
       }
 
       return {

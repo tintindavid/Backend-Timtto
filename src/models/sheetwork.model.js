@@ -19,6 +19,20 @@ const SheetWorkSchema = new Schema({
   firmaResponsableFile: { type: String,  trim: true },
   observaciones: { type: String, trim: true },
   estado: { type: String, enum: ['Borrador', 'EnviadaAFirmar', 'Firmada'], default: 'Borrador' },
+  /**
+   * Firmante técnico de la HT (el que aparece con nombre + firma del lado
+   * de la empresa en el PDF). Independiente del user que TRAMITÓ la firma
+   * (que puede ser distinto — supervisor administrativo, para trazabilidad
+   * cuando varios técnicos trabajan bajo un mismo usuario). Se selecciona
+   * en el momento de sign-inplace o remoteSignRequest y persiste como
+   * snapshot congelado.
+   */
+  firmadoPor: {
+    _id: false,
+    userId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    snapshotName: { type: String, trim: true, default: null },
+    firmadoAt: { type: Date, default: null },
+  },
   reports: [
     { type: Schema.Types.ObjectId, ref: 'Report' }
   ],

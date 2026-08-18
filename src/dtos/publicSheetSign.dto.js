@@ -88,6 +88,9 @@ export const signInPlaceDto = Joi.object({
   personaRecibe: Joi.string().trim().max(SIGNER_NAME_MAX_LENGTH).allow('').optional(),
   cargoRecibe: Joi.string().trim().max(SIGNER_CARGO_MAX_LENGTH).allow('').optional(),
   observaciones: Joi.string().trim().max(2000).allow('').optional(),
+  // Firmante técnico (opcional). Si viene, se usa su nombre + fileFirma
+  // en el PDF en vez de los del user en sesión.
+  firmanteUserId: Joi.string().hex().length(24).optional(),
 }).unknown(false);
 
 export default publicSheetSignDto;

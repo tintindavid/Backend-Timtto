@@ -45,6 +45,10 @@ export class NotificationService {
    * @param {object} [options]
    * @param {string[]} [options.extraRecipientUserIds] - additional recipients,
    *   unioned with the rule's resolved set.
+   * @param {string[]} [options.excludeRecipientUserIds] - recipients to
+   *   drop from the final set AFTER union (rule roles ∪ userIds ∪ extras).
+   *   Common use: the actor of the operation that emitted the event — they
+   *   already know they did the thing, no need to notify themselves.
    * @param {string[]} [options.channelsOverride] - force channels instead of rule.channels.
    *
    * @example
@@ -87,6 +91,12 @@ export class NotificationService {
     const recipientIds = new Set();
     roleRecipients.forEach((u) => recipientIds.add(String(u._id)));
     validExplicit.forEach((u) => recipientIds.add(String(u._id)));
+
+    // Apply exclude AFTER the union — covers the actor who triggered the
+    // event even when their role puts them in `rule.recipients.roles`.
+    (options.excludeRecipientUserIds || []).forEach((id) => {
+      recipientIds.delete(String(id));
+    });
 
     if (recipientIds.size === 0) {
       return { dispatched: 0, recipients: [] };

@@ -65,8 +65,11 @@ function stubHappyPath() {
   sheetWorkSignTokenService.renewOnSign = async (_id, signedAt) => ({
     expiresAt: new Date(signedAt.getTime() + 7 * 24 * 3600 * 1000),
   });
-  // _finalizeSignedSheet's body (before the notify block): reports:[] short-circuits
-  // the Report.updateMany + ticket-cascade Report.find; otId truthy -> countDocuments x2 + findOneAndUpdate.
+  // _finalizeSignedSheet's body: reports:[] triggers the fallback Report.find
+  // by hojaDeTrabajo (added defensively for HTs whose reports[] was never
+  // populated). Mock it to return empty so the block short-circuits like
+  // before. otId truthy -> countDocuments x2 + findOneAndUpdate.
+  Report.find = () => ({ select: () => ({ lean: async () => [] }) });
   Report.countDocuments = async () => 0;
   OT.findOneAndUpdate = async () => ({});
   // notify block: OT.findOne / Customer.findOne for the sheet.signed payload.
@@ -83,6 +86,7 @@ describe('publicSheetSignService.signWithToken — sheet.signed notify', () => {
     delete SheetWork.findOne;
     delete SheetWork.findOneAndUpdate;
     delete firebaseStorageService.uploadEvidencia;
+    delete Report.find;
     delete Report.countDocuments;
     delete OT.findOneAndUpdate;
     delete OT.findOne;

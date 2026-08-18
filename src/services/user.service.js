@@ -122,9 +122,28 @@ export class UserService {
         role,
         roleId,
         hasFirma,
+        permission,
       } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+
+      // Eligibility filter (ot-responsables-programacion-trazable, D9) —
+      // resolve which tenant roles carry `permission`, then scope to users
+      // holding one of those roles. Short-circuits to an empty page when no
+      // role matches, same pattern as the `clienteName` lookup in
+      // ot.service.js#list.
+      if (permission) {
+        const eligibleRoles = await Role.find({ tenantId, isDeleted: false, permissions: permission })
+          .select('_id')
+          .lean();
+        if (eligibleRoles.length === 0) {
+          return {
+            data: [],
+            pagination: { page, limit, total: 0, pages: 0, hasNext: false, hasPrev: page > 1 },
+          };
+        }
+        query.roleId = { $in: eligibleRoles.map((r) => r._id) };
+      }
 
       const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
