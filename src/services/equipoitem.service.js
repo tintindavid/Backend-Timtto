@@ -5,17 +5,128 @@ import { requireTenant } from '../utils/tenant.util.js';
 import { Report } from '../models/report.model.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { ticketService } from './ticket.service.js';
+import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
+
+const DUPLICATE_CHECK_BULK_LIMIT = 500;
 
 export class EquipoItemService {
-  async create(data, tenantId) {
+  /**
+   * Checks whether (tenantId, ClienteId, ItemId, normalize(Marca),
+   * normalize(Serie)) already exists among non-deleted equipos.
+   * No conflict is enforced when `ItemId` is missing or the normalized
+   * serial is not digit-bearing (design.md D3/D8).
+   *
+   * @param {{ClienteId, ItemId, Marca, Serie, excludeId?}} fields
+   * @param {string} tenantId
+   * @returns {Promise<{conflict: boolean, existing?: object}>}
+   */
+  async checkDuplicate({ ClienteId, ItemId, Marca, Serie, excludeId } = {}, tenantId) {
+    try {
+      requireTenant(tenantId);
+
+      const normalizedSerie = normalizeSerial(Serie || '');
+      if (!ItemId || !serialHasDigit(normalizedSerie)) {
+        return { conflict: false };
+      }
+
+      const query = applyTenantFilter({
+        ClienteId,
+        ItemId,
+        Marca: normalizeSerial(Marca),
+        SerieNormalized: normalizedSerie,
+        isDeleted: false,
+        ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+      }, tenantId);
+
+      const existing = await EquipoItem.findOne(query)
+        .collation({ locale: 'en', strength: 2 })
+        .populate('ItemId', 'Nombre')
+        .populate('SedeId', 'nombreSede')
+        .populate('Servicio', 'nombre')
+        .lean();
+
+      if (!existing) return { conflict: false };
+      return { conflict: true, existing };
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error verificando duplicado de equipoItem:', err);
+      throw new ApiError(500, 'Error verificando duplicado de EquipoItem', 'DUPLICATE_CHECK_ERROR');
+    }
+  }
+
+  /**
+   * Bulk variant of checkDuplicate — caps input at 500 rows.
+   *
+   * @param {Array<{rowId, ClienteId, ItemId, Marca, Serie}>} items
+   * @param {string} tenantId
+   * @returns {Promise<Record<string, {conflict: boolean, existing?: object}>>}
+   */
+  async checkDuplicateBulk(items, tenantId) {
+    requireTenant(tenantId);
+    if (!Array.isArray(items) || items.length > DUPLICATE_CHECK_BULK_LIMIT) {
+      throw new ApiError(400, 'Máximo 500 items por request', 'BULK_LIMIT_EXCEEDED');
+    }
+
+    const entries = await Promise.all(
+      items.map(async (item) => [item.rowId, await this.checkDuplicate(item, tenantId)])
+    );
+
+    return Object.fromEntries(entries);
+  }
+
+  /**
+   * Runs checkDuplicate and, on conflict, logs the observability event and
+   * throws the standard 409 EQUIPO_DUPLICATE ApiError.
+   */
+  async _guardDuplicate({ ClienteId, ItemId, Marca, Serie, excludeId }, tenantId, panelUser) {
+    const result = await this.checkDuplicate({ ClienteId, ItemId, Marca, Serie, excludeId }, tenantId);
+    if (result.conflict) {
+      this._logDuplicateDetected({ tenantId, ClienteId, ItemId, Marca, Serie, existing: result.existing, panelUser });
+      throw new ApiError(409, 'Equipo duplicado', 'EQUIPO_DUPLICATE', { existing: result.existing });
+    }
+    return result;
+  }
+
+  _logDuplicateDetected({ tenantId, ClienteId, ItemId, Marca, Serie, existing, panelUser }) {
+    logger.warn('Duplicate equipo detected', {
+      event: 'equipoItem.duplicate.detected',
+      tenantId,
+      ClienteId,
+      ItemId,
+      Marca,
+      SerieNormalized: normalizeSerial(Serie || ''),
+      existingId: existing?._id,
+      attemptedBy: panelUser?.userId || null,
+    });
+  }
+
+  async create(data, tenantId, panelUser = null) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
-      const entity = await EquipoItem.create(data);
+
+      await this._guardDuplicate({ ClienteId: data.ClienteId, ItemId: data.ItemId, Marca: data.Marca, Serie: data.Serie }, t, panelUser);
+
+      let entity;
+      try {
+        entity = await EquipoItem.create(data);
+      } catch (insertErr) {
+        if (insertErr && insertErr.code === 11000) {
+          // Race: another concurrent create won between our guard check and
+          // the insert. Re-fetch the winner and translate to the same 409
+          // shape (design.md D1, spec scenario "E11000 raises 409").
+          const race = await this.checkDuplicate({ ClienteId: data.ClienteId, ItemId: data.ItemId, Marca: data.Marca, Serie: data.Serie }, t);
+          this._logDuplicateDetected({ tenantId: t, ClienteId: data.ClienteId, ItemId: data.ItemId, Marca: data.Marca, Serie: data.Serie, existing: race.existing, panelUser });
+          throw new ApiError(409, 'Equipo duplicado', 'EQUIPO_DUPLICATE', { existing: race.existing });
+        }
+        throw insertErr;
+      }
+
       logger.info('EquipoItem creado: ' + entity._id);
       return entity;
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando equipoItem:', err);
       throw new ApiError(500, 'Error creando EquipoItem', 'CREATE_ERROR');
     }
@@ -88,8 +199,31 @@ export class EquipoItemService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, tenantId, panelUser = null) {
     try {
+      const touchesTuple = ['ItemId', 'Marca', 'Serie'].some((k) => typeof data[k] !== 'undefined');
+
+      if (touchesTuple) {
+        const current = await EquipoItem.findById(id).lean();
+        if (!current) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
+        const t = tenantId || current.tenantId;
+
+        const changed = ['ItemId', 'Marca', 'Serie'].some((k) => {
+          if (typeof data[k] === 'undefined') return false;
+          return String(current[k]) !== String(data[k]);
+        });
+
+        if (changed) {
+          await this._guardDuplicate({
+            ClienteId: current.ClienteId,
+            ItemId: typeof data.ItemId !== 'undefined' ? data.ItemId : current.ItemId,
+            Marca: typeof data.Marca !== 'undefined' ? data.Marca : current.Marca,
+            Serie: typeof data.Serie !== 'undefined' ? data.Serie : current.Serie,
+            excludeId: id,
+          }, t, panelUser);
+        }
+      }
+
       const e = await EquipoItem.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       logger.info('EquipoItem actualizado: ' + id);
@@ -127,7 +261,7 @@ export class EquipoItemService {
     }
   }
 
-  async updateAndSnapshot(equipoId, payload, tenantId) {
+  async updateAndSnapshot(equipoId, payload, tenantId, panelUser = null) {
     try {
       const t = tenantId || payload.tenantId;
       requireTenant(t);
@@ -139,7 +273,28 @@ export class EquipoItemService {
         if (typeof payload[k] !== 'undefined') updateFields[k] = payload[k];
       });
 
-      logger.info('Updating EquipoItem with fields: ',updateFields);  
+      const touchesTuple = ['ItemId', 'Marca', 'Serie'].some((k) => typeof updateFields[k] !== 'undefined');
+      if (touchesTuple) {
+        const current = await EquipoItem.findById(equipoId).lean();
+        if (!current) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id: equipoId });
+
+        const changed = ['ItemId', 'Marca', 'Serie'].some((k) => {
+          if (typeof updateFields[k] === 'undefined') return false;
+          return String(current[k]) !== String(updateFields[k]);
+        });
+
+        if (changed) {
+          await this._guardDuplicate({
+            ClienteId: current.ClienteId,
+            ItemId: typeof updateFields.ItemId !== 'undefined' ? updateFields.ItemId : current.ItemId,
+            Marca: typeof updateFields.Marca !== 'undefined' ? updateFields.Marca : current.Marca,
+            Serie: typeof updateFields.Serie !== 'undefined' ? updateFields.Serie : current.Serie,
+            excludeId: equipoId,
+          }, t, panelUser);
+        }
+      }
+
+      logger.info('Updating EquipoItem with fields: ',updateFields);
       logger.info(equipoId);
       const equipo = await EquipoItem.findByIdAndUpdate(equipoId, { $set: updateFields }, { new: true, runValidators: true })
         .populate('ItemId', 'Nombre ProtocoloId')
@@ -175,6 +330,7 @@ export class EquipoItemService {
       logger.info('Equipo actualizado y snapshot aplicado al Report: ' + equipoId);
       return { equipo, report: updatedReport };
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error actualizando equipo y snapshot:', err);
       throw new ApiError(500, 'Error actualizando Equipo y snapshot', 'UPDATE_SNAPSHOT_ERROR');
     }

@@ -15,6 +15,7 @@
     "migrate:ot-legacy-responsable-to-programaciones": "node scripts/migrate-ot-legacy-responsable-to-programaciones.js",
     "seed:notification-rule-ot-responsible-assigned": "node scripts/seed-notification-rule-ot-responsible-assigned.js",
     "seed:notification-rule-ot-note-added": "node scripts/seed-notification-rule-ot-note-added.js",
+    "db:backfill-serie-normalized": "node src/scripts/backfill-serie-normalized.js",
     "lint": "eslint \"src/**/*.{ts,js}\" --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "prepare": "husky"

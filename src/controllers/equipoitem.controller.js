@@ -6,8 +6,30 @@ export class EquipoItemController {
   async create(req, res, next) {
     try {
 
-      const data = await equipoItemService.create(req.body, req.tenantId);
+      const data = await equipoItemService.create(req.body, req.tenantId, req.user);
       res.status(201).json(successResponse(data, 'EquipoItem creado exitosamente', 201));
+    } catch (err) { next(err); }
+  }
+
+  /**
+   * Pre-check: GET /equipo-items/duplicate-check?ClienteId=&ItemId=&Marca=&Serie=
+   */
+  async duplicateCheck(req, res, next) {
+    try {
+      const { ClienteId, ItemId, Marca, Serie } = req.query;
+      const result = await equipoItemService.checkDuplicate({ ClienteId, ItemId, Marca, Serie }, req.tenantId);
+      res.json(successResponse(result, 'Verificación de duplicado realizada'));
+    } catch (err) { next(err); }
+  }
+
+  /**
+   * Bulk pre-check: POST /equipo-items/duplicate-check/bulk
+   */
+  async duplicateCheckBulk(req, res, next) {
+    try {
+      const { items } = req.body;
+      const results = await equipoItemService.checkDuplicateBulk(items, req.tenantId);
+      res.json(successResponse({ results }, 'Verificación de duplicados realizada'));
     } catch (err) { next(err); }
   }
 
@@ -41,7 +63,7 @@ export class EquipoItemController {
 
   async update(req, res, next) {
     try {
-      const data = await equipoItemService.update(req.params.id, req.body, req.tenantId);
+      const data = await equipoItemService.update(req.params.id, req.body, req.tenantId, req.user);
       res.json(successResponse(data, 'EquipoItem actualizado exitosamente'));
     } catch (err) { next(err); }
   }
@@ -50,7 +72,7 @@ export class EquipoItemController {
     try {
       const equipoId = req.params.id;
       const payload = req.body;
-      const result = await equipoItemService.updateAndSnapshot(equipoId, payload, req.tenantId);
+      const result = await equipoItemService.updateAndSnapshot(equipoId, payload, req.tenantId, req.user);
       res.json(successResponse(result, 'Equipo y snapshot de Report actualizados exitosamente'));
     } catch (err) { next(err); }
   }
