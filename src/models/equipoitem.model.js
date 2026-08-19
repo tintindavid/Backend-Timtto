@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
 
 const { Schema, model } = mongoose;
 
@@ -6,11 +7,15 @@ const EquipoItemSchema = new Schema({
     tenantId: { type: String, required: true },
     ClienteId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     Estado: { type: String, required: true, trim: true },
-    EstadoOperativo: { type: String, default: 'Operativo', trim: true }, // se actualiza cuando se cierra un reporte o se edita un equipo 
+    EstadoOperativo: { type: String, default: 'Operativo', trim: true }, // se actualiza cuando se cierra un reporte o se edita un equipo
     ItemId: { type: Schema.Types.ObjectId, ref: 'Items', required: true},
     Marca: { type: String, required: true, trim: true },
     SedeId: { type: Schema.Types.ObjectId, ref: 'Sedes', required: true },
     Serie: { type: String, required: true, trim: true },
+    // Derived, comparison-only normalization of `Serie` (trim + collapse
+    // spaces + upper-case). null when the normalized serial has no digit —
+    // see equipo-duplicate-detection-and-replace design.md D2/D3.
+    SerieNormalized: { type: String, default: null },
     Servicio: { type: Schema.Types.ObjectId, ref: 'Servicios', required: true},
     Ubicacion: { type: String,  trim: true },
     Cronograma: { type: String,  trim: true },
@@ -45,7 +50,24 @@ EquipoItemSchema.index({ isDeleted: 1 });
 EquipoItemSchema.index({ tenantId: 1, isDeleted: 1 });
 EquipoItemSchema.index({ tenantId: 1, createdAt: -1 });
 
-// Exclude sensitive fields
+// Compound partial unique index enforcing conditional uniqueness on
+// (tenantId, ClienteId, ItemId, Marca, SerieNormalized) — only when the
+// normalized serial is digit-bearing and the row is not soft-deleted.
+// Created live only after the backfill runs and reports zero pre-existing
+// duplicates. Safe to leave in code for fresh DBs; existing envs need the
+// follow-up migration (see design.md D9 / Migration Plan, tasks.md 14.3).
+EquipoItemSchema.index(
+  { tenantId: 1, ClienteId: 1, ItemId: 1, Marca: 1, SerieNormalized: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { SerieNormalized: { $type: 'string' }, isDeleted: false },
+    name: 'equipoitem_dedupe_partial',
+  }
+);
+
+// Exclude sensitive fields. SerieNormalized is intentionally kept (not
+// deleted) in the JSON output — it's helpful for admins/debugging and is
+// not sensitive.
 EquipoItemSchema.set('toJSON', {
   transform: (doc, ret) => {
     delete ret.__v;
@@ -58,6 +80,37 @@ EquipoItemSchema.set('toJSON', {
 // Default exclude soft-deleted
 EquipoItemSchema.pre(/^find/, function(next) {
   this.where({ isDeleted: false });
+  next();
+});
+
+// Recompute SerieNormalized whenever Serie changes (or on insert).
+EquipoItemSchema.pre('save', function (next) {
+  if (this.isNew || this.isModified('Serie')) {
+    const normalized = normalizeSerial(this.Serie || '');
+    this.SerieNormalized = serialHasDigit(normalized) ? normalized : null;
+  }
+  next();
+});
+
+// Recompute SerieNormalized on findOneAndUpdate (findByIdAndUpdate uses this
+// under the hood) whenever the update touches `Serie`. Handles both the
+// `{ $set: { Serie } }` and plain-object `{ Serie }` update forms accepted
+// by Mongoose 8. Does NOT recompute when only `Marca` changes — the partial
+// unique index catches Marca-only collisions on its own.
+EquipoItemSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() || {};
+  const hasSetSerie = update.$set && Object.prototype.hasOwnProperty.call(update.$set, 'Serie');
+  const hasTopLevelSerie = !hasSetSerie && Object.prototype.hasOwnProperty.call(update, 'Serie');
+
+  if (hasSetSerie || hasTopLevelSerie) {
+    const rawSerie = hasSetSerie ? update.$set.Serie : update.Serie;
+    const normalized = normalizeSerial(rawSerie || '');
+    const serieNormalized = serialHasDigit(normalized) ? normalized : null;
+
+    if (!update.$set) update.$set = {};
+    update.$set.SerieNormalized = serieNormalized;
+    this.setUpdate(update);
+  }
   next();
 });
 
