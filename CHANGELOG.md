@@ -1,3 +1,10 @@
+# [2.15.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.14.0...v2.15.0) (2026-08-19)
+
+
+### Features
+
+* **equipos:** guard duplicate creation with replace-guided UX ([bc08122](https://github.com/tintindavid/Backend-Timtto/commit/bc081221a96dec7d7a9f44a482968ac5f67cf828))
+
 # [2.14.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.13.0...v2.14.0) (2026-08-18)
 
 
