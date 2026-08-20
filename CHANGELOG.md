@@ -1,3 +1,10 @@
+## [2.15.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.15.0...v2.15.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **reports,customers:** raise report-by-ot list limit and gate inventario by permission ([88d1a27](https://github.com/tintindavid/Backend-Timtto/commit/88d1a274f567b48729b5fa29877ef8629ca9ce03))
+
 # [2.15.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.14.0...v2.15.0) (2026-08-19)
 
 
