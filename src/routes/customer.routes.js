@@ -20,7 +20,7 @@ router.get('/', authorize(PERMISSIONS.CUSTOMERS_READ), validate(queryCustomerDto
 // CSV export must be registered BEFORE the generic /:id route so the literal
 // "export" segment isn't parsed as an ObjectId.
 router.get('/export', authorize(PERMISSIONS.CUSTOMERS_READ), customerController.exportCsv);
-router.get('/:id/inventario', authorize(PERMISSIONS.CUSTOMERS_READ), customerController.downloadInventario);
+router.get('/:id/inventario', authorize(PERMISSIONS.CUSTOMERS_DOWNLOAD_INVENTARIO), customerController.downloadInventario);
 router.get('/:id', authorize(PERMISSIONS.CUSTOMERS_READ), customerController.getById);
 router.delete('/:id', authorize(PERMISSIONS.CUSTOMERS_DELETE), customerController.delete);
 

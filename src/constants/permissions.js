@@ -41,6 +41,7 @@ export const PERMISSIONS = {
   CUSTOMERS_CREATE: 'customers:create',
   CUSTOMERS_UPDATE: 'customers:update',
   CUSTOMERS_DELETE: 'customers:delete',
+  CUSTOMERS_DOWNLOAD_INVENTARIO: 'customers:download-inventario',
 
   // Sedes
   SEDES_READ: 'sedes:read',
