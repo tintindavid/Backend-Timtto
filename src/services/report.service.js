@@ -103,7 +103,14 @@ export class ReportService {
 
   async listByOt(otId, pagination = {}, tenantId) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
+      // Default `limit` is intentionally high — reports-by-OT is a bounded
+      // relationship view (an OT rarely holds thousands of reports) and every
+      // consumer (OtDetailPage, PDFs, avance-% computations) needs the full
+      // set to compute totals correctly. The old default of 10 silently
+      // truncated OTs whose report count exceeded 100 (the DTO validator's
+      // default fallback), which manifested in production as "reports
+      // disappearing from the OT" — see fix/report-list-limit-and-inventario-permission.
+      const { page = 1, limit = 5000, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ orden: otId, isDeleted: false }, tenantId);
       if (search) {

@@ -78,9 +78,10 @@ export class CustomerController {
         return next(new ApiError(400, "El parámetro 'formato' debe ser 'excel' o 'pdf'", 'INVALID_FORMAT'));
       }
 
-      if (!['admin', 'technician'].includes(req.user?.role)) {
-        return next(new ApiError(403, 'No tienes permiso para descargar inventarios', 'FORBIDDEN'));
-      }
+      // Access control is enforced at the route level via
+      // authorize(PERMISSIONS.CUSTOMERS_DOWNLOAD_INVENTARIO). The previous
+      // hardcoded role check ('admin' | 'technician') locked out any tenant
+      // role that was permission-granted but not one of those two role names.
 
       if (formato === 'excel') {
         const buffer = await inventarioExportService.generateExcel(id, req.tenantId);
