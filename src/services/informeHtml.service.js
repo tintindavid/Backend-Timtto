@@ -18,8 +18,8 @@ export const BASE_STYLES = `
     --text-secondary:#7f8c8d;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; color: var(--text-primary); background:#fff; line-height:1.6; font-size:14px; }
-  .container { max-width:1200px; margin:0 auto; padding:30px 20px; }
+  body { font-family: Arial, Helvetica, sans-serif; color: var(--text-primary); background:#fff; line-height:1.4; font-size:12px; }
+  .container { max-width:1200px; margin:0 auto; padding:10px 16px; }
 
   /* Header */
   .report-header { background:linear-gradient(135deg,var(--primary-color) 0%,var(--secondary-color) 100%); color:#fff; padding:35px; border-radius:12px; margin-bottom:28px; }
@@ -35,20 +35,20 @@ export const BASE_STYLES = `
   .client-logo { max-height:60px; max-width:140px; object-fit:contain; border-radius:4px; }
 
   /* KPI Grid */
-  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:18px; margin-bottom:34px; }
-  .kpi-card { background:#fff; padding:22px; border-radius:12px; border-left:4px solid var(--accent-color); box-shadow:0 4px 15px rgba(0,0,0,.08); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-bottom:14px; }
+  .kpi-card { background:#fff; padding:12px 14px; border-radius:8px; border-left:4px solid var(--accent-color); box-shadow:0 2px 6px rgba(0,0,0,.06); }
   .kpi-card.success { border-left-color:var(--success-color); }
   .kpi-card.warning { border-left-color:var(--warning-color); }
   .kpi-card.danger  { border-left-color:var(--danger-color);  }
   .kpi-card.info    { border-left-color:var(--info-color);    }
-  .kpi-label { font-size:12px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; font-weight:600; }
-  .kpi-value { font-size:34px; font-weight:700; color:var(--text-primary); line-height:1; margin-bottom:6px; }
-  .kpi-description { font-size:12px; color:var(--text-secondary); }
+  .kpi-label { font-size:10px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; font-weight:600; }
+  .kpi-value { font-size:20px; font-weight:700; color:var(--text-primary); line-height:1; margin-bottom:3px; }
+  .kpi-description { font-size:10px; color:var(--text-secondary); }
 
   /* Section */
-  .section { background:#fff; padding:30px; border-radius:12px; margin-bottom:26px; box-shadow:0 4px 15px rgba(0,0,0,.08); }
-  .section-title { font-size:22px; font-weight:700; color:var(--primary-color); margin-bottom:22px; padding-bottom:12px; border-bottom:3px solid var(--accent-color); display:flex; align-items:center; gap:10px; }
-  .section-title::before { content:''; width:6px; height:26px; background:var(--accent-color); border-radius:3px; }
+  .section { background:#fff; padding:14px 16px; border-radius:8px; margin-bottom:10px; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+  .section-title { font-size:14px; font-weight:700; color:var(--primary-color); margin-bottom:8px; padding-bottom:5px; border-bottom:2px solid var(--accent-color); display:flex; align-items:center; gap:8px; }
+  .section-title::before { content:''; width:4px; height:16px; background:var(--accent-color); border-radius:2px; }
 
   /* CSS Bar Charts (PDF-safe, no JS) */
   .css-chart { margin:18px 0; }
@@ -89,13 +89,16 @@ export const BASE_STYLES = `
   .status-badge.en-reparacion         { background:#fff3cd; color:#856404; }
 
   /* Section header (por-OT Sede/Servicio blocks) */
-  .ot-section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid var(--border-color); }
-  .ot-section-title { font-size:17px; font-weight:700; color:var(--primary-color); }
-  .pct-badge { display:inline-block; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700; color:#fff; }
+  .ot-section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--border-color); }
+  .ot-section-title { font-size:12px; font-weight:700; color:var(--primary-color); }
+  .pct-badge { display:inline-block; padding:3px 10px; border-radius:14px; font-size:11px; font-weight:700; color:#fff; }
   .pct-badge.success { background:var(--success-color); }
   .pct-badge.warning  { background:var(--warning-color); }
   .pct-badge.danger   { background:var(--danger-color); }
-  .obs-line { font-size:13px; margin-bottom:8px; line-height:1.6; }
+  .obs-line { font-size:11px; margin-bottom:4px; line-height:1.4; }
+  /* Individual Sede/Servicio blocks — tighter vertical rhythm. */
+  .ot-section-block { margin-bottom:10px; padding-bottom:6px; }
+  .ot-section-block:last-child { margin-bottom:0; padding-bottom:0; }
 
   /* Summary */
   .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin:18px 0; }
@@ -551,33 +554,77 @@ export function buildInformeHtml(payload) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Informe de Mantenimiento — ${esc(meta.periodoLabel)}</title>
   <style>${BASE_STYLES}
-    .tenant-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; margin-bottom:16px; border:2px solid #1a2332; border-radius:6px; background:#ffffff; }
-    .tenant-header .th-side { width:150px; }
+    .tenant-header { display:flex; align-items:center; justify-content:space-between; padding:6px 12px; margin-bottom:10px; border:1.5px solid #1a2332; border-radius:5px; background:#ffffff; }
+    .tenant-header .th-side { width:110px; }
+    .tenant-header .th-side img { max-height:38px; max-width:110px; }
     .tenant-header .th-right { text-align:right; }
     .tenant-header .th-center { flex:1; text-align:center; }
-    .tenant-header .th-title { font-size:20px; font-weight:800; color:#1a2332; letter-spacing:0.5px; }
-    .tenant-header .th-subtitle { font-size:10px; color:#6c757d; letter-spacing:2px; margin-top:2px; }
-    .tenant-header hr { margin:8px 0; border:0; border-top:1px solid #dee2e6; }
-    .tenant-header .th-doc { font-size:13px; font-weight:700; color:#1a2332; letter-spacing:1px; }
-    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; font-size:12px; padding:12px 16px; background:#f8f9fa; border-radius:4px; }
+    .tenant-header .th-title { font-size:13px; font-weight:800; color:#1a2332; letter-spacing:0.4px; }
+    .tenant-header .th-subtitle { font-size:8px; color:#6c757d; letter-spacing:1.5px; margin-top:1px; }
+    .tenant-header hr { margin:3px 0; border:0; border-top:1px solid #dee2e6; }
+    .tenant-header .th-doc { font-size:11px; font-weight:700; color:#1a2332; letter-spacing:0.6px; }
+    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px 16px; font-size:11px; padding:8px 12px; background:#f8f9fa; border-radius:4px; }
     .cliente-grid .cg-label { font-weight:600; color:#495057; }
     .cliente-grid .cg-value { color:#212529; }
     .fw-bold { font-weight:700; }
+    /* Per-page tenant footer (same table trick as the reporte PDF). */
+    @page { size: A4 portrait; margin: 10mm 8mm 18mm 8mm; }
+    @media print {
+      .page-wrapper thead { display: table-header-group; }
+      .page-wrapper tfoot { display: table-footer-group; }
+      .page-wrapper tbody { display: table-row-group; }
+    }
+    .page-wrapper { width:100%; border-collapse:collapse; }
+    .page-wrapper td { padding:0; border:none; }
+    .tenant-page-footer { text-align:center; font-size:9.5px; color:#6c757d; padding:6px 0; border-top:1px solid #dee2e6; }
   </style>
 </head>
 <body>
-  <div class="container">
-    ${buildHeader(meta)}
-    ${buildKPIs(kpis)}
-    ${buildResumenEjecutivo(kpis, meta)}
-    ${buildPreventivosTable(preventivos)}
-    ${buildCorrectivosTable(correctivos)}
-    ${buildEquiposSection(equipos)}
-    ${buildRepuestosSection(repuestos)}
-    ${buildCostosSection(costos, repuestos)}
-    ${buildObservacionesSection(observaciones, observacionGeneral)}
-    ${buildFooter(meta)}
-  </div>
+  <table class="page-wrapper">
+    <tbody>
+      <tr>
+        <td>
+          <div class="container">
+            ${buildHeader(meta)}
+            ${buildKPIs(kpis)}
+            ${buildResumenEjecutivo(kpis, meta)}
+            ${buildPreventivosTable(preventivos)}
+            ${buildCorrectivosTable(correctivos)}
+            ${buildEquiposSection(equipos)}
+            ${buildRepuestosSection(repuestos)}
+            ${buildCostosSection(costos, repuestos)}
+            ${buildObservacionesSection(observaciones, observacionGeneral)}
+            ${buildFooter(meta)}
+          </div>
+        </td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>
+          <div class="tenant-page-footer">
+            ${buildTenantPageFooterMes(meta)}
+          </div>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
 </body>
 </html>`;
+}
+
+/**
+ * Repeated per-page footer for the por-mes PDF — same format as the reporte
+ * PDF and the por-ot PDF: `<Nombre>· <dirección> <ciudad> - <departamento> · <telefono>· <email>`.
+ * Segments with empty values collapse.
+ */
+function buildTenantPageFooterMes(meta) {
+  const parts = [];
+  if (meta.tenantNombre) parts.push(esc(meta.tenantNombre));
+  const ubicacion = [meta.tenantDireccion, [meta.tenantCiudad, meta.tenantDepartamento].filter(Boolean).join(' - ')]
+    .filter(Boolean).join(' ');
+  if (ubicacion) parts.push(esc(ubicacion));
+  if (meta.tenantTelefono) parts.push(esc(meta.tenantTelefono));
+  if (meta.tenantEmail) parts.push(esc(meta.tenantEmail));
+  return parts.join(' · ');
 }

@@ -57,7 +57,16 @@ class InformeGenerateService {
     // fall back to the freshly-fetched Tenant document. Ensures logoUrl +
     // name always land on meta even when the controller stubs `tenant = {}`.
     const effectiveTenant = tenantDoc || tenant || {};
-    tenant = { ...tenant, name: tenant.name || effectiveTenant.name || '', logoUrl: tenant.logoUrl || effectiveTenant.logoUrl || null };
+    tenant = {
+      ...tenant,
+      name: tenant.name || effectiveTenant.name || '',
+      logoUrl: tenant.logoUrl || effectiveTenant.logoUrl || null,
+      direccion: tenant.direccion || effectiveTenant.direccion || '',
+      ciudad: tenant.ciudad || effectiveTenant.ciudad || '',
+      departamento: tenant.departamento || effectiveTenant.departamento || '',
+      telefono: tenant.telefono || effectiveTenant.telefono || '',
+      email: tenant.email || effectiveTenant.email || '',
+    };
 
     if (!customer) {
       throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND', { clienteId });
@@ -141,6 +150,11 @@ class InformeGenerateService {
         mesesSeleccionados,
         tenantNombre: tenant.name || '',
         tenantLogo: tenant.logoUrl || null,
+        tenantDireccion: tenant.direccion || '',
+        tenantCiudad: tenant.ciudad || '',
+        tenantDepartamento: tenant.departamento || '',
+        tenantTelefono: tenant.telefono || '',
+        tenantEmail: tenant.email || '',
         responsableNombre: currentUser.fullName || '',
         responsableFirmaUrl: currentUser.fileFirma ?? null,
       },
