@@ -7,6 +7,52 @@ function slug(str) {
   return String(str || '').toLowerCase().trim().replace(/\s+/g, '-');
 }
 
+/**
+ * Compact técnico name for the PDF cell — "Martín Duran" → "M. Duran".
+ * First initial of the first word, then a period + space + everything else.
+ * If only one word or the input is empty/falsy, returns the input verbatim
+ * (safer than truncating a mono-name into an ambiguous initial).
+ */
+function abbreviateTecnico(fullName) {
+  const trimmed = String(fullName || '').trim();
+  if (!trimmed) return '';
+  const parts = trimmed.split(/\s+/);
+  if (parts.length < 2) return trimmed;
+  return `${parts[0][0].toUpperCase()}. ${parts.slice(1).join(' ')}`;
+}
+
+/**
+ * Repeated per-page footer with tenant contact info — same pattern as the
+ * individual report PDF's <tfoot> row. Mirrors the format:
+ *   `<Nombre>· <dirección> <ciudad> - <departamento> · <telefono>· <email>`
+ * Segments with empty values collapse gracefully.
+ */
+function buildTenantPageFooter(meta) {
+  const parts = [];
+  if (meta.tenantNombre) parts.push(esc(meta.tenantNombre));
+  const ubicacion = [meta.tenantDireccion, [meta.tenantCiudad, meta.tenantDepartamento].filter(Boolean).join(' - ')]
+    .filter(Boolean).join(' ');
+  if (ubicacion) parts.push(esc(ubicacion));
+  if (meta.tenantTelefono) parts.push(esc(meta.tenantTelefono));
+  if (meta.tenantEmail) parts.push(esc(meta.tenantEmail));
+  return parts.join(' · ');
+}
+
+/**
+ * Shorten OT.Consecutivo for display: "OT000031" → "OT0031". Keeps the "OT"
+ * prefix; minimum 4 digits so the label stays visually stable up to 9999
+ * OTs; auto-widens beyond that (backend keeps its own padding intact for
+ * search/API — this is display-only).
+ */
+function shortenOt(consecutivo) {
+  const s = String(consecutivo || '');
+  const m = s.match(/^(OT|Ot|ot)(\d+)$/);
+  if (!m) return s;
+  const num = m[2].replace(/^0+/, '') || '0';
+  const padded = num.length < 4 ? num.padStart(4, '0') : num;
+  return `${m[1].toUpperCase()}${padded}`;
+}
+
 function badge(label) {
   return `<span class="status-badge ${slug(label)}">${esc(label)}</span>`;
 }
@@ -96,33 +142,37 @@ function buildKPIs(kpis) {
 }
 
 function buildEquiposTable(rows) {
-  const COL = 10;
+  const COL = 8;
   const body = rows.length
     ? rows.map(r => `
         <tr>
-          <td class="fw-bold">${esc(r.consecutivo)}</td>
-          <td>${esc(r.otConsecutivo)}</td>
+          <td class="col-report-ot">
+            <div class="fw-bold">${esc(r.consecutivo)}</div>
+            <div class="eq-meta">${esc(shortenOt(r.otConsecutivo))}</div>
+          </td>
           <td>
             <div class="eq-name">${esc(r.equipoNombre)} ${r.marca ? `— ${esc(r.marca)}` : ''}</div>
             ${r.modelo ? `<div class="eq-meta">Modelo: ${esc(r.modelo)}</div>` : ''}
           </td>
-          <td>${esc(r.serie || '—')} / ${esc(r.inventario || '—')}</td>
+          <td class="col-sn-inv">
+            <div>SN: ${esc(r.serie || '—')}</div>
+            <div>Inv: ${esc(r.inventario || '—')}</div>
+          </td>
           <td>${esc(r.ubicacion || '—')}</td>
           <td>${badge(r.estadoOperativo)}</td>
           <td>${badge(r.estadoReporte)}</td>
-          <td>${esc(r.fechaProgramada || '—')}</td>
           <td>${esc(r.fechaRealizado || '—')}</td>
-          <td>${esc(r.tecnico || '—')}</td>
+          <td>${esc(abbreviateTecnico(r.tecnico))}</td>
         </tr>`).join('')
     : `<tr><td colspan="${COL}" class="no-data">No hay equipos/reportes en esta sección</td></tr>`;
 
   return `
-    <table class="data-table">
+    <table class="data-table equipos-table">
       <thead>
         <tr>
-          <th>Reporte</th><th>OT</th><th>Equipo</th><th>Serie/Inventario</th><th>Ubicación</th>
-          <th>Estado Operativo</th><th>Estado del reporte</th>
-          <th>F. Programada</th><th>F. Realizado</th><th>Técnico</th>
+          <th>Reporte / OT</th><th>Equipo</th><th>Serie / Inv.</th><th>Ubicación</th>
+          <th>Estado Operativo</th><th>Estado revisión</th>
+          <th>F. Realizado</th><th>Técnico</th>
         </tr>
       </thead>
       <tbody>${body}</tbody>
@@ -232,28 +282,66 @@ export function buildInformeHtmlByOt(payload) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Informe de Cumplimiento por OT — ${esc(meta.clienteNombre)}</title>
   <style>${BASE_STYLES}
-    .tenant-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; margin-bottom:16px; border:2px solid #1a2332; border-radius:6px; background:#ffffff; }
-    .tenant-header .th-side { width:150px; }
+    .tenant-header { display:flex; align-items:center; justify-content:space-between; padding:6px 12px; margin-bottom:10px; border:1.5px solid #1a2332; border-radius:5px; background:#ffffff; }
+    .tenant-header .th-side { width:110px; }
+    .tenant-header .th-side img { max-height:38px; max-width:110px; }
     .tenant-header .th-right { text-align:right; }
     .tenant-header .th-center { flex:1; text-align:center; }
-    .tenant-header .th-title { font-size:20px; font-weight:800; color:#1a2332; letter-spacing:0.5px; }
-    .tenant-header .th-subtitle { font-size:10px; color:#6c757d; letter-spacing:2px; margin-top:2px; }
-    .tenant-header hr { margin:8px 0; border:0; border-top:1px solid #dee2e6; }
-    .tenant-header .th-doc { font-size:13px; font-weight:700; color:#1a2332; letter-spacing:1px; }
-    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; font-size:12px; padding:12px 16px; background:#f8f9fa; border-radius:4px; }
+    .tenant-header .th-title { font-size:13px; font-weight:800; color:#1a2332; letter-spacing:0.4px; }
+    .tenant-header .th-subtitle { font-size:8px; color:#6c757d; letter-spacing:1.5px; margin-top:1px; }
+    .tenant-header hr { margin:3px 0; border:0; border-top:1px solid #dee2e6; }
+    .tenant-header .th-doc { font-size:11px; font-weight:700; color:#1a2332; letter-spacing:0.6px; }
+    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px 16px; font-size:11px; padding:8px 12px; background:#f8f9fa; border-radius:4px; }
     .cliente-grid .cg-label { font-weight:600; color:#495057; }
     .cliente-grid .cg-value { color:#212529; }
     .fw-bold { font-weight:700; }
+    /* Equipos table — smaller font + tighter padding so 9 columns fit A4 portrait */
+    .equipos-table { font-size:10px; }
+    .equipos-table th { font-size:9px; padding:6px 4px; }
+    .equipos-table td { padding:5px 4px; vertical-align:top; }
+    .equipos-table .col-report-ot { white-space:nowrap; }
+    .equipos-table .col-sn-inv { white-space:nowrap; font-family:'Courier New',monospace; font-size:9.5px; }
+    .equipos-table .eq-name { font-size:10px; font-weight:600; }
+    .equipos-table .eq-meta { font-size:9px; color:#6c757d; }
+    .equipos-table .status-badge { font-size:9px; padding:2px 5px; }
+    /* Per-page footer — table trick (same as reporte PDF): the browser/
+       Puppeteer repeats <tfoot> on every printed page. */
+    @page { size: A4 portrait; margin: 10mm 8mm 18mm 8mm; }
+    @media print {
+      .page-wrapper thead { display: table-header-group; }
+      .page-wrapper tfoot { display: table-footer-group; }
+      .page-wrapper tbody { display: table-row-group; }
+    }
+    .page-wrapper { width:100%; border-collapse:collapse; }
+    .page-wrapper td { padding:0; border:none; }
+    .tenant-page-footer { text-align:center; font-size:9.5px; color:#6c757d; padding:6px 0; border-top:1px solid #dee2e6; }
   </style>
 </head>
 <body>
-  <div class="container">
-    ${buildHeader(meta)}
-    ${buildKPIs(kpis)}
-    ${buildSecciones(secciones)}
-    ${buildObservaciones(observacionesReportes, observacionGeneral)}
-    ${buildFooter(meta)}
-  </div>
+  <table class="page-wrapper">
+    <tbody>
+      <tr>
+        <td>
+          <div class="container">
+            ${buildHeader(meta)}
+            ${buildKPIs(kpis)}
+            ${buildSecciones(secciones)}
+            ${buildObservaciones(observacionesReportes, observacionGeneral)}
+            ${buildFooter(meta)}
+          </div>
+        </td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>
+          <div class="tenant-page-footer">
+            ${buildTenantPageFooter(meta)}
+          </div>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
 </body>
 </html>`;
 }

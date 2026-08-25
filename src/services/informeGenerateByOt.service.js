@@ -98,7 +98,16 @@ export class InformeGenerateByOtService {
     ]);
 
     // Controllers stub `tenant = {}`; hydrate from the freshly-fetched doc.
-    tenant = { ...tenant, name: tenant.name || tenantDoc?.name || '', logoUrl: tenant.logoUrl || tenantDoc?.logoUrl || null };
+    tenant = {
+      ...tenant,
+      name: tenant.name || tenantDoc?.name || '',
+      logoUrl: tenant.logoUrl || tenantDoc?.logoUrl || null,
+      direccion: tenant.direccion || tenantDoc?.direccion || '',
+      ciudad: tenant.ciudad || tenantDoc?.ciudad || '',
+      departamento: tenant.departamento || tenantDoc?.departamento || '',
+      telefono: tenant.telefono || tenantDoc?.telefono || '',
+      email: tenant.email || tenantDoc?.email || '',
+    };
 
     if (!customer) {
       throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND', { clienteId });
@@ -237,6 +246,11 @@ export class InformeGenerateByOtService {
         clienteLogo: customer.Logo || null,
         tenantNombre: tenant.name || '',
         tenantLogo: tenant.logoUrl || null,
+        tenantDireccion: tenant.direccion || '',
+        tenantCiudad: tenant.ciudad || '',
+        tenantDepartamento: tenant.departamento || '',
+        tenantTelefono: tenant.telefono || '',
+        tenantEmail: tenant.email || '',
         fechaGeneracion: new Date().toISOString(),
         responsableNombre: currentUser.fullName || '',
         responsableFirmaUrl: currentUser.fileFirma ?? null,
