@@ -1,3 +1,10 @@
+## [2.16.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.16.0...v2.16.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **informes:** pdf por-ot layout — merge cols, page footer, compact head ([0e8901c](https://github.com/tintindavid/Backend-Timtto/commit/0e8901c1eebe4458473a5dcacdda12958ed6eadb))
+
 # [2.16.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.15.1...v2.16.0) (2026-08-25)
 
 
