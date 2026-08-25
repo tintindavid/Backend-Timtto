@@ -1,3 +1,10 @@
+# [2.16.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.15.1...v2.16.0) (2026-08-25)
+
+
+### Features
+
+* **informes,equipos,cronograma:** por-ot tab + estado op trazable + polish ([0a30502](https://github.com/tintindavid/Backend-Timtto/commit/0a305026e92329af5b0a1cb629e0588c12099b98))
+
 ## [2.15.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.15.0...v2.15.1) (2026-08-20)
 
 
