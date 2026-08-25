@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { EstadoOperativoValues } from '../constants/estadoOperativo.js';
 
 export const updateEquipoItemDto = Joi.object({
   ClienteId: Joi.string().hex().length(24).optional().label('ClienteId'),
@@ -14,6 +15,8 @@ export const updateEquipoItemDto = Joi.object({
   mesesMtto: Joi.array().items(Joi.string().trim()).optional().label('mesesMtto'),
   Modelo: Joi.string().trim().optional().label('Modelo'),
   UltimoMtto: Joi.date().iso().optional().label('UltimoMtto'),
+  EstadoOperativo: Joi.string().valid(...EstadoOperativoValues).optional().label('EstadoOperativo'),
+  estadoOperativoMotivo: Joi.string().trim().max(500).allow('').optional().label('estadoOperativoMotivo'),
   tenantId: Joi.string().trim().optional(),
 }).min(1).unknown(true);
 

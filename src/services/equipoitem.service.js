@@ -6,6 +6,8 @@ import { Report } from '../models/report.model.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { ticketService } from './ticket.service.js';
 import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
+import { EstadoOperativoValues, EstadoOperativoDefault } from '../constants/estadoOperativo.js';
+import { nameShort } from '../utils/nameShort.util.js';
 
 const DUPLICATE_CHECK_BULK_LIMIT = 500;
 
@@ -100,13 +102,96 @@ export class EquipoItemService {
     });
   }
 
-  async create(data, tenantId, panelUser = null) {
+  /**
+   * Single write path for `EquipoItem.EstadoOperativo` (design.md D3,
+   * equipo-estado-operativo-editable-y-cronograma-excel). Every mutation of
+   * the field — manual edit, report close, bulk upload, migration — MUST
+   * route through here so the append-only `estadoOperativoHistory[]` never
+   * drifts from the live value.
+   *
+   * @param {string} id - EquipoItem _id
+   * @param {string} next - target EstadoOperativo value
+   * @param {object} opts
+   * @param {string} opts.source - one of EstadoOperativoSources
+   * @param {string} [opts.motivo] - optional free-text reason, max 500 chars
+   * @param {object} [opts.panelUser] - acting user; used to derive changedByName/changedBy
+   * @param {string} [opts.changedByName] - explicit label, used when panelUser is absent
+   *   (defaults to 'Sistema')
+   * @param {string} [opts.reportId] - populated only for source: 'report-close'
+   * @param {string} [opts.tenantId] - applies tenant isolation to the read
+   * @param {boolean} [opts.initialSeed] - forces the write even when `next`
+   *   equals the (absent) current value — used only by `create()` to seed
+   *   the very first entry.
+   * @returns {Promise<object|{noop: true}>}
+   */
+  async _appendEstadoOperativoHistory(id, next, opts = {}) {
+    const { source, motivo = null, panelUser = null, changedByName = null, reportId = null, tenantId = null, initialSeed = false } = opts;
+
+    if (!EstadoOperativoValues.includes(next)) {
+      throw new ApiError(400, 'Estado Operativo inválido', 'INVALID_ESTADO_OPERATIVO', { value: next });
+    }
+
+    const query = applyTenantFilter({ _id: id }, tenantId);
+    const equipo = await EquipoItem.findOne(query).lean();
+    if (!equipo) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
+
+    if (!initialSeed && equipo.EstadoOperativo === next) {
+      return { noop: true };
+    }
+
+    const resolvedChangedByName = panelUser ? (nameShort(panelUser) || 'Usuario') : (changedByName || 'Sistema');
+
+    // `initialSeed` (only ever passed by create()) always records `from:
+    // null` — the equipo was just inserted, so the value already stored on
+    // it (possibly equal to `next`, since EquipoItem.create() persists
+    // whatever EstadoOperativo the caller sent) is not a "previous state",
+    // it's day-one state (design.md D2/2.3).
+    const entry = {
+      from: initialSeed ? null : (equipo.EstadoOperativo || null),
+      to: next,
+      motivo: motivo || null,
+      changedBy: panelUser?.userId || panelUser?._id || null,
+      changedByName: resolvedChangedByName,
+      source,
+      reportId: reportId || null,
+      at: new Date(),
+    };
+
+    const updated = await EquipoItem.findOneAndUpdate(
+      query,
+      { $push: { estadoOperativoHistory: entry }, $set: { EstadoOperativo: next } },
+      { new: true, runValidators: true },
+    );
+
+    logger.info('Estado operativo updated', {
+      event: 'equipoItem.estadoOperativo.changed',
+      tenantId: tenantId || equipo.tenantId,
+      equipoId: id,
+      from: entry.from,
+      to: entry.to,
+      source,
+      changedBy: entry.changedBy,
+      changedByName: entry.changedByName,
+      reportId: entry.reportId,
+    });
+
+    return updated;
+  }
+
+  async create(data, tenantId, panelUser = null, options = {}) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
 
       await this._guardDuplicate({ ClienteId: data.ClienteId, ItemId: data.ItemId, Marca: data.Marca, Serie: data.Serie }, t, panelUser);
+
+      // EstadoOperativo is seeded into history AFTER insert (needs the new
+      // _id); strip it from the initial insert payload only if we intend to
+      // seed a non-default value via the helper. Simpler & safer: let the
+      // schema default apply on insert, then seed history explicitly when
+      // the caller supplied an explicit value (design.md 2.3).
+      const requestedEstadoOperativo = typeof data.EstadoOperativo !== 'undefined' ? data.EstadoOperativo : null;
 
       let entity;
       try {
@@ -121,6 +206,23 @@ export class EquipoItemService {
           throw new ApiError(409, 'Equipo duplicado', 'EQUIPO_DUPLICATE', { existing: race.existing });
         }
         throw insertErr;
+      }
+
+      // Seed the initial history entry when the caller explicitly supplied
+      // EstadoOperativo (regardless of whether it equals the default) —
+      // `initialSeed: true` forces the write past the no-op-on-equality
+      // guard so day-one equipos always get a `from: null` starting entry.
+      if (requestedEstadoOperativo) {
+        try {
+          await this._appendEstadoOperativoHistory(entity._id, requestedEstadoOperativo, {
+            source: options.source || 'manual',
+            panelUser,
+            tenantId: t,
+            initialSeed: true,
+          });
+        } catch (seedErr) {
+          logger.error('Error sembrando historial inicial de EstadoOperativo:', seedErr);
+        }
       }
 
       logger.info('EquipoItem creado: ' + entity._id);
@@ -224,7 +326,21 @@ export class EquipoItemService {
         }
       }
 
-      const e = await EquipoItem.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+      // EstadoOperativo routes through the single write path (design.md D3)
+      // — strip both keys from the generic $set so it never races with the
+      // atomic push+set performed by the helper.
+      const { EstadoOperativo: nextEstadoOperativo, estadoOperativoMotivo, ...rest } = data;
+
+      if (typeof nextEstadoOperativo !== 'undefined') {
+        await this._appendEstadoOperativoHistory(id, nextEstadoOperativo, {
+          source: 'manual',
+          motivo: estadoOperativoMotivo,
+          panelUser,
+          tenantId,
+        });
+      }
+
+      const e = await EquipoItem.findByIdAndUpdate(id, { $set: rest }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       logger.info('EquipoItem actualizado: ' + id);
       return e;
@@ -272,6 +388,17 @@ export class EquipoItemService {
       ['Marca','Serie','Inventario','Ubicacion','Modelo','Riesgo','Invima','mesesMtto','Servicio','SedeId','ItemId'].forEach((k) => {
         if (typeof payload[k] !== 'undefined') updateFields[k] = payload[k];
       });
+
+      // EstadoOperativo routes through the single write path (design.md D3)
+      // — never included in updateFields' generic $set.
+      if (typeof payload.EstadoOperativo !== 'undefined') {
+        await this._appendEstadoOperativoHistory(equipoId, payload.EstadoOperativo, {
+          source: 'manual',
+          motivo: payload.estadoOperativoMotivo,
+          panelUser,
+          tenantId: t,
+        });
+      }
 
       const touchesTuple = ['ItemId', 'Marca', 'Serie'].some((k) => typeof updateFields[k] !== 'undefined');
       if (touchesTuple) {

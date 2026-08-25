@@ -3,90 +3,17 @@ import { Customer } from '../models/customer.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { Report } from '../models/report.model.js';
 import { Repuestos } from '../models/repuestos.model.js';
+import { Tenant } from '../models/tenant.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { monthRange, periodLabel, MONTH_LABELS, MONTHS } from '../utils/monthRange.util.js';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function classifyReport(report) {
-  if (report.estado === 'Cancelado') return 'Cancelado';
-  if (report.fechaFinalizdo) return 'Realizado';
-  return 'Programado';
-}
-
-function formatDate(date) {
-  if (!date) return null;
-  return new Date(date).toLocaleDateString('es-CO', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  });
-}
-
-function toReportRow(report) {
-  const snap = report.equipoSnapshot || {};
-  const equipo = report.Equipo || {};
-  return {
-    consecutivo: report.consecutivo || report._id?.toString() || '',
-    equipoNombre: snap.ItemText || equipo.item || '',
-    marca: snap.Marca || equipo.Marca || '',
-    serie: snap.Serie || equipo.Serie || '',
-    sede: snap.Sede || '',
-    servicio: snap.Servicio || '',
-    tipoMtto: report.tipoMtto || 'Preventivo',
-    estado: classifyReport(report),
-    fechaProgramada: formatDate(report.FechaCreacion),
-    fechaRealizado: formatDate(report.fechaProcesado),
-    fechaCerrado: formatDate(report.fechaFinalizdo),
-    tecnico: report.ResponsableMtto?.fullName || '',
-    diagnostico: report.diagnostico || '',
-    accionTomada: report.accionTomada || '',
-    observacion: report.observacion || '',
-    modelo: snap.Modelo || '',
-    inventario: snap.Inventario || '',
-    duracion: report.duracion ?? 45,
-  };
-}
-
-function toEquipoResumen(equipo, reportsForEquipo, repuestosForEquipo) {
-  const programados = reportsForEquipo.filter(r => classifyReport(r) === 'Programado').length;
-  const realizados  = reportsForEquipo.filter(r => classifyReport(r) === 'Realizado').length;
-  const total       = programados + realizados;
-
-  const costoRepuestos = repuestosForEquipo
-    .filter(r => r.EstadoSolicitud === 'Instalado')
-    .reduce((sum, r) => sum + ((r.PrecioRepuesto || 0) * (r.CantidadInstalacion || 1)), 0);
-
-  return {
-    equipoId: equipo._id?.toString(),
-    nombre: equipo.ItemId?.Nombre || equipo.item || '',
-    marca: equipo.Marca || '',
-    serie: equipo.Serie || '',
-    inventario: equipo.Inventario || '',
-    sede: equipo.SedeId?.nombreSede || '',
-    servicio: equipo.Servicio?.nombre || '',
-    mesesMtto: equipo.mesesMtto || [],
-    totalProgramados: programados,
-    totalRealizados: realizados,
-    cumplimiento: total > 0 ? Math.round((realizados / total) * 1000) / 10 : 0,
-    estadoOperativo: equipo.EstadoOperativo || 'Operativo',
-    costoRepuestos,
-  };
-}
-
-function toRepuestoRow(rep) {
-  return {
-    nombre: rep.nombre || '',
-    cantidad: rep.Cantidad || rep.CantidadInstalacion || 0,
-    equipo: rep.EquipoId?.item || rep.EquipoId?.Marca || '',
-    estado: rep.EstadoSolicitud || '',
-    precioUnitario: rep.PrecioRepuesto || 0,
-    precioTotal: (rep.PrecioRepuesto || 0) * (rep.CantidadInstalacion || 1),
-    fechaSolicitud: formatDate(rep.FechaSolicitud),
-    fechaInstalacion: formatDate(rep.FechaInstalacion),
-    observacion: rep.observacion || '',
-  };
-}
+import {
+  classifyReportForMeses as classifyReport,
+  toReportRow,
+  toEquipoResumen,
+  toRepuestoRow,
+} from './informeReport.helpers.js';
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -111,8 +38,8 @@ class InformeGenerateService {
     const startDate = new Date(year, MONTHS.indexOf(mesDesde), 1);
     const endDate   = new Date(year, MONTHS.indexOf(mesHasta) + 1, 1); // exclusive: start of next month
 
-    // 1. Customer + EquipoItems in parallel
-    const [customer, equipos] = await Promise.all([
+    // 1. Customer + EquipoItems + Tenant in parallel
+    const [customer, equipos, tenantDoc] = await Promise.all([
       Customer.findOne(applyTenantFilter({ _id: clienteId }, tenantId)).lean(),
 
       EquipoItem.find(
@@ -122,7 +49,15 @@ class InformeGenerateService {
         .populate('SedeId', 'nombreSede')
         .populate('Servicio', 'nombre')
         .lean(),
+
+      Tenant.findOne({ tenantId, isDeleted: false }).lean(),
     ]);
+
+    // If the caller passed an explicit tenant object, honor it; otherwise
+    // fall back to the freshly-fetched Tenant document. Ensures logoUrl +
+    // name always land on meta even when the controller stubs `tenant = {}`.
+    const effectiveTenant = tenantDoc || tenant || {};
+    tenant = { ...tenant, name: tenant.name || effectiveTenant.name || '', logoUrl: tenant.logoUrl || effectiveTenant.logoUrl || null };
 
     if (!customer) {
       throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND', { clienteId });
@@ -191,7 +126,13 @@ class InformeGenerateService {
       meta: {
         clienteId: clienteId.toString(),
         clienteNombre: customer.Razonsocial,
-        clienteCiudad: customer.Ciudad,
+        clienteNit: customer.Nit != null ? String(customer.Nit) : '',
+        clienteCiudad: customer.Ciudad || '',
+        clienteDepartamento: customer.Departamento || '',
+        clienteDireccion: customer.Direccion || '',
+        clienteEmail: customer.Email || '',
+        clienteTelefono: customer.TelContacto || '',
+        clienteContacto: customer.UserContacto || '',
         clienteLogo: customer.Logo || null,
         periodoDesde: mesDesde,
         periodoHasta: mesHasta,
@@ -199,7 +140,9 @@ class InformeGenerateService {
         fechaGeneracion: new Date().toISOString(),
         mesesSeleccionados,
         tenantNombre: tenant.name || '',
+        tenantLogo: tenant.logoUrl || null,
         responsableNombre: currentUser.fullName || '',
+        responsableFirmaUrl: currentUser.fileFirma ?? null,
       },
       kpis: {
         cumplimientoPreventivo,

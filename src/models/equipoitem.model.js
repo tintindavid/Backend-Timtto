@@ -1,13 +1,38 @@
 import mongoose from 'mongoose';
 import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
+import { EstadoOperativoValues, EstadoOperativoDefault, EstadoOperativoSources } from '../constants/estadoOperativo.js';
 
 const { Schema, model } = mongoose;
+
+/**
+ * Append-only history of `EstadoOperativo` transitions (design.md D2,
+ * equipo-estado-operativo-editable-y-cronograma-excel). Entries are never
+ * mutated — every change pushes a new one via
+ * `equipoItemService._appendEstadoOperativoHistory`. Same idiom as
+ * `programaciones[]` on `OT` (ScheduleEntrySchema).
+ */
+const EstadoOperativoHistoryEntrySchema = new Schema(
+  {
+    from: { type: String, enum: EstadoOperativoValues, default: null },
+    to: { type: String, enum: EstadoOperativoValues, required: true },
+    motivo: { type: String, trim: true, default: null, maxlength: 500 },
+    changedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    changedByName: { type: String, trim: true, required: true },
+    source: { type: String, enum: EstadoOperativoSources, required: true },
+    reportId: { type: Schema.Types.ObjectId, ref: 'Report', default: null },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: true },
+);
 
 const EquipoItemSchema = new Schema({
     tenantId: { type: String, required: true },
     ClienteId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     Estado: { type: String, required: true, trim: true },
-    EstadoOperativo: { type: String, default: 'Operativo', trim: true }, // se actualiza cuando se cierra un reporte o se edita un equipo
+    // se actualiza cuando se cierra un reporte o se edita un equipo — toda
+    // mutación DEBE pasar por equipoItemService._appendEstadoOperativoHistory
+    EstadoOperativo: { type: String, enum: EstadoOperativoValues, default: EstadoOperativoDefault, trim: true },
+    estadoOperativoHistory: { type: [EstadoOperativoHistoryEntrySchema], default: [] },
     ItemId: { type: Schema.Types.ObjectId, ref: 'Items', required: true},
     Marca: { type: String, required: true, trim: true },
     SedeId: { type: Schema.Types.ObjectId, ref: 'Sedes', required: true },
