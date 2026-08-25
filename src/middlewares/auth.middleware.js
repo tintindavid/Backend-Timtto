@@ -47,12 +47,14 @@ export async function authenticate(req, _res, next) {
   // hitting Mongo again inside every service that records an event.
   if (decoded.userId) {
     try {
-      const userDoc = await User.findById(decoded.userId).select('firstName lastName email').lean();
+      const userDoc = await User.findById(decoded.userId).select('firstName lastName email fullName fileFirma').lean();
       if (userDoc) {
         req.user.firstName = userDoc.firstName;
         req.user.lastName = userDoc.lastName;
         req.user.email = userDoc.email;
         req.user.userName = `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email;
+        req.user.fullName = userDoc.fullName || req.user.userName;
+        req.user.fileFirma = userDoc.fileFirma || null;
       }
     } catch (err) {
       // Non-fatal: audit will fall back to "Sistema".

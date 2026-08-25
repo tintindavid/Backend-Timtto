@@ -1,7 +1,9 @@
 'use strict';
 
 // ─── CSS Vars & styles (static) ──────────────────────────────────────────────
-const BASE_STYLES = `
+// Exported so `informeHtmlByOt.service.js` can reuse the same palette/table
+// CSS instead of duplicating it (design.md Group 4 note: "reuse styles").
+export const BASE_STYLES = `
   :root {
     --primary-color: #1a2332;
     --secondary-color: #2c3e50;
@@ -78,6 +80,22 @@ const BASE_STYLES = `
   .status-badge.cancelado  { background:#f8d7da; color:#721c24; }
   .status-badge.instalado  { background:#d4edda; color:#155724; }
   .status-badge.solicitado { background:#d1ecf1; color:#0c5460; }
+  .status-badge.cumplido   { background:#d4edda; color:#155724; }
+  .status-badge.pendiente  { background:#fff3cd; color:#856404; }
+  .status-badge.operativo             { background:#d4edda; color:#155724; }
+  .status-badge.fuera-de-servicio     { background:#f8d7da; color:#721c24; }
+  .status-badge.en-mantenimiento      { background:#d1ecf1; color:#0c5460; }
+  .status-badge.espera-de-repuestos   { background:#fff3cd; color:#856404; }
+  .status-badge.en-reparacion         { background:#fff3cd; color:#856404; }
+
+  /* Section header (por-OT Sede/Servicio blocks) */
+  .ot-section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid var(--border-color); }
+  .ot-section-title { font-size:17px; font-weight:700; color:var(--primary-color); }
+  .pct-badge { display:inline-block; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700; color:#fff; }
+  .pct-badge.success { background:var(--success-color); }
+  .pct-badge.warning  { background:var(--warning-color); }
+  .pct-badge.danger   { background:var(--danger-color); }
+  .obs-line { font-size:13px; margin-bottom:8px; line-height:1.6; }
 
   /* Summary */
   .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin:18px 0; }
@@ -126,8 +144,10 @@ const BASE_STYLES = `
 `;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+// esc / formatCOP / statusBadge are also exported for reuse by
+// `informeHtmlByOt.service.js` (design.md Group 4 note: "reuse styles").
 
-function esc(str) {
+export function esc(str) {
   if (str == null) return '';
   return String(str)
     .replace(/&/g, '&amp;')
@@ -136,11 +156,11 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-function formatCOP(amount) {
+export function formatCOP(amount) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount || 0);
 }
 
-function statusBadge(estado) {
+export function statusBadge(estado) {
   const cls = (estado || '').toLowerCase();
   return `<span class="status-badge ${cls}">${esc(estado)}</span>`;
 }
@@ -163,74 +183,52 @@ function barChart(title, bars, colorClass = '') {
 // ─── Section builders ─────────────────────────────────────────────────────────
 
 function buildHeader(meta) {
-  const logoHtml = meta.clienteLogo
-    ? `<img src="${esc(meta.clienteLogo)}" class="client-logo" alt="${esc(meta.clienteNombre)}" />`
-    : `<div class="company-logo">${esc(meta.clienteNombre)}</div>`;
+  const tenantLogoHtml = meta.tenantLogo
+    ? `<img src="${esc(meta.tenantLogo)}" alt="${esc(meta.tenantNombre)}" style="max-height:60px;max-width:150px;" />`
+    : '';
+  const clienteLogoHtml = meta.clienteLogo
+    ? `<img src="${esc(meta.clienteLogo)}" alt="${esc(meta.clienteNombre)}" style="max-height:60px;max-width:150px;" />`
+    : '';
 
   return `
-    <div class="report-header">
-      <div class="header-top">
-        ${logoHtml}
-        <div class="report-period">
-          <h1>${esc(meta.periodoLabel.toUpperCase())}</h1>
-          <p>Informe Mensual de Mantenimiento</p>
-        </div>
+    <div class="tenant-header">
+      <div class="th-side">${tenantLogoHtml}</div>
+      <div class="th-center">
+        <div class="th-title">${esc(meta.tenantNombre || 'TIMTTO')}</div>
+        <div class="th-subtitle">ESPECIALISTAS EN BIOINGENIERÍA</div>
+        <hr/>
+        <div class="th-doc">INFORME MENSUAL DE MANTENIMIENTO — ${esc(meta.periodoLabel.toUpperCase())}</div>
       </div>
-      <div class="report-meta">
-        <div class="meta-item">
-          <span class="meta-label">Cliente</span>
-          <span class="meta-value">${esc(meta.clienteNombre)}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Ciudad</span>
-          <span class="meta-value">${esc(meta.clienteCiudad || '—')}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Periodo</span>
-          <span class="meta-value">${esc(meta.periodoLabel)}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Generado</span>
-          <span class="meta-value">${new Date(meta.fechaGeneracion).toLocaleDateString('es-CO')}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Responsable</span>
-          <span class="meta-value">${esc(meta.responsableNombre || '—')}</span>
-        </div>
+      <div class="th-side th-right">${clienteLogoHtml}</div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">Información del Cliente</h2>
+      <div class="cliente-grid">
+        <div><span class="cg-label">Cliente:</span> <span class="cg-value">${esc(meta.clienteNombre || '—')}</span></div>
+        <div><span class="cg-label">NIT:</span> <span class="cg-value">${esc(meta.clienteNit || '—')}</span></div>
+        <div><span class="cg-label">Ciudad:</span> <span class="cg-value">${esc([meta.clienteCiudad, meta.clienteDepartamento].filter(Boolean).join(', ') || '—')}</span></div>
+        <div><span class="cg-label">Dirección:</span> <span class="cg-value">${esc(meta.clienteDireccion || '—')}</span></div>
+        <div><span class="cg-label">Teléfono:</span> <span class="cg-value">${esc(meta.clienteTelefono || '—')}</span></div>
+        <div><span class="cg-label">Email:</span> <span class="cg-value">${esc(meta.clienteEmail || '—')}</span></div>
+        <div><span class="cg-label">Contacto:</span> <span class="cg-value">${esc(meta.clienteContacto || '—')}</span></div>
+        <div><span class="cg-label">Periodo:</span> <span class="cg-value">${esc(meta.periodoLabel)}</span></div>
       </div>
     </div>`;
 }
 
 function buildKPIs(kpis) {
   const cumColor = kpis.cumplimientoPreventivo >= 90 ? 'success' : kpis.cumplimientoPreventivo >= 70 ? 'warning' : 'danger';
-  return `
-    <div class="kpi-grid">
-      <div class="kpi-card ${cumColor}">
-        <div class="kpi-label">Cumplimiento Preventivo</div>
-        <div class="kpi-value">${kpis.cumplimientoPreventivo}%</div>
-        <div class="kpi-description">${kpis.totalRealizados} de ${kpis.totalProgramados} realizados</div>
-      </div>
-      <div class="kpi-card info">
-        <div class="kpi-label">Mtto. Correctivos</div>
-        <div class="kpi-value">${kpis.totalCorrectivos}</div>
-        <div class="kpi-description">Intervenciones no programadas</div>
-      </div>
-      <div class="kpi-card warning">
-        <div class="kpi-label">Repuestos Solicitados</div>
-        <div class="kpi-value">${kpis.totalRepuestosSolicitados}</div>
-        <div class="kpi-description">${kpis.totalRepuestosInstalados} instalados</div>
-      </div>
-      <div class="kpi-card danger">
-        <div class="kpi-label">Costo Repuestos</div>
-        <div class="kpi-value" style="font-size:22px;">${formatCOP(kpis.costoTotalRepuestos)}</div>
-        <div class="kpi-description">Solo piezas instaladas</div>
-      </div>
-      <div class="kpi-card" style="border-left-color:#9b59b6;">
-        <div class="kpi-label">Horas de Servicio</div>
-        <div class="kpi-value">${kpis.horasServicio} h</div>
-        <div class="kpi-description">Tiempo total de intervención</div>
-      </div>
-    </div>`;
+
+  // Hide count/monetary cards when value=0 to keep the informe clean.
+  const cards = [
+    { html: `<div class="kpi-card ${cumColor}"><div class="kpi-label">Cumplimiento Preventivo</div><div class="kpi-value">${kpis.cumplimientoPreventivo}%</div><div class="kpi-description">${kpis.totalRealizados} de ${kpis.totalProgramados} realizados</div></div>`, show: true },
+    { html: `<div class="kpi-card info"><div class="kpi-label">Mtto. Correctivos</div><div class="kpi-value">${kpis.totalCorrectivos}</div><div class="kpi-description">Intervenciones no programadas</div></div>`, show: kpis.totalCorrectivos > 0 },
+    { html: `<div class="kpi-card warning"><div class="kpi-label">Repuestos Solicitados</div><div class="kpi-value">${kpis.totalRepuestosSolicitados}</div><div class="kpi-description">${kpis.totalRepuestosInstalados} instalados</div></div>`, show: kpis.totalRepuestosSolicitados > 0 },
+    { html: `<div class="kpi-card danger"><div class="kpi-label">Costo Repuestos</div><div class="kpi-value" style="font-size:22px;">${formatCOP(kpis.costoTotalRepuestos)}</div><div class="kpi-description">Solo piezas instaladas</div></div>`, show: kpis.costoTotalRepuestos > 0 },
+    { html: `<div class="kpi-card" style="border-left-color:#9b59b6;"><div class="kpi-label">Horas de Servicio</div><div class="kpi-value">${kpis.horasServicio} h</div><div class="kpi-description">Tiempo total de intervención</div></div>`, show: kpis.horasServicio > 0 },
+  ];
+  return `<div class="kpi-grid">${cards.filter(c => c.show).map(c => c.html).join('')}</div>`;
 }
 
 function buildResumenEjecutivo(kpis, meta) {
@@ -287,18 +285,15 @@ function buildResumenEjecutivo(kpis, meta) {
 function buildPreventivosTable(preventivos) {
   const rows = preventivos.length
     ? preventivos.map(r => {
-        const meta = [
-          r.modelo   && `Modelo: ${esc(r.modelo)}`,
-          r.serie    && `Serie: ${esc(r.serie)}`,
-          r.inventario && `Inv: ${esc(r.inventario)}`,
-        ].filter(Boolean).join(' &nbsp;|&nbsp; ');
+        const meta = [r.marca, r.modelo].filter(Boolean).join(' — ');
         return `
         <tr>
-          <td>${esc(r.consecutivo)}</td>
+          <td class="fw-bold">${esc(r.consecutivo)}</td>
           <td>
             <div class="eq-name">${esc(r.equipoNombre)}</div>
             ${meta ? `<div class="eq-meta">${meta}</div>` : ''}
           </td>
+          <td>${esc(r.serie || '—')} / ${esc(r.inventario || '—')}</td>
           <td>${esc(r.sede)}</td>
           <td>${esc(r.fechaProgramada || '—')}</td>
           <td>${esc(r.fechaRealizado || '—')}</td>
@@ -307,7 +302,7 @@ function buildPreventivosTable(preventivos) {
           <td>${r.duracion} min</td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="8" class="no-data">No hay mantenimientos preventivos registrados en este periodo</td></tr>`;
+    : `<tr><td colspan="9" class="no-data">No hay mantenimientos preventivos registrados en este periodo</td></tr>`;
 
   const cumplimientoBars = preventivos.length
     ? (() => {
@@ -330,7 +325,7 @@ function buildPreventivosTable(preventivos) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Consecutivo</th><th>Equipo</th>
+            <th>Reporte</th><th>Equipo</th><th>Serie / Inventario</th>
             <th>Sede</th><th>F. Programada</th><th>F. Realizado</th><th>Técnico</th><th>Estado</th><th>Duración</th>
           </tr>
         </thead>
@@ -342,18 +337,15 @@ function buildPreventivosTable(preventivos) {
 function buildCorrectivosTable(correctivos) {
   const rows = correctivos.length
     ? correctivos.map(r => {
-        const meta = [
-          r.modelo   && `Modelo: ${esc(r.modelo)}`,
-          r.serie    && `Serie: ${esc(r.serie)}`,
-          r.inventario && `Inv: ${esc(r.inventario)}`,
-        ].filter(Boolean).join(' &nbsp;|&nbsp; ');
+        const meta = [r.marca, r.modelo].filter(Boolean).join(' — ');
         return `
         <tr>
-          <td>${esc(r.consecutivo)}</td>
+          <td class="fw-bold">${esc(r.consecutivo)}</td>
           <td>
             <div class="eq-name">${esc(r.equipoNombre)}</div>
             ${meta ? `<div class="eq-meta">${meta}</div>` : ''}
           </td>
+          <td>${esc(r.serie || '—')} / ${esc(r.inventario || '—')}</td>
           <td>${esc(r.sede)}</td>
           <td>${esc(r.fechaProgramada || '—')}</td>
           <td>${esc(r.fechaCerrado || '—')}</td>
@@ -363,7 +355,7 @@ function buildCorrectivosTable(correctivos) {
           <td>${r.duracion} min</td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="9" class="no-data">No hay mantenimientos correctivos registrados en este periodo</td></tr>`;
+    : `<tr><td colspan="10" class="no-data">No hay mantenimientos correctivos registrados en este periodo</td></tr>`;
 
   return `
     <div class="section">
@@ -371,7 +363,7 @@ function buildCorrectivosTable(correctivos) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Consecutivo</th><th>Equipo</th>
+            <th>Reporte</th><th>Equipo</th><th>Serie / Inventario</th>
             <th>Sede</th><th>F. Apertura</th><th>F. Cierre</th><th>Técnico</th><th>Diagnóstico</th><th>Estado</th><th>Duración</th>
           </tr>
         </thead>
@@ -515,6 +507,9 @@ function buildObservacionesSection(observaciones, observacionGeneral = '') {
 }
 
 function buildFooter(meta) {
+  const firmaImg = meta.responsableFirmaUrl
+    ? `<img src="${esc(meta.responsableFirmaUrl)}" alt="Firma" style="max-height:60px;max-width:200px;object-fit:contain;margin-bottom:6px;" />`
+    : '';
   return `
     <div class="report-footer">
       <p style="text-align:center;color:var(--text-secondary);font-size:13px;">
@@ -522,6 +517,7 @@ function buildFooter(meta) {
       </p>
       <div class="signature-section">
         <div class="signature-box">
+          ${firmaImg}
           <div class="signature-line"></div>
           <div class="signature-name">${esc(meta.responsableNombre || 'Técnico Responsable')}</div>
           <div class="signature-role">Responsable de Mantenimiento</div>
@@ -554,7 +550,20 @@ export function buildInformeHtml(payload) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Informe de Mantenimiento — ${esc(meta.periodoLabel)}</title>
-  <style>${BASE_STYLES}</style>
+  <style>${BASE_STYLES}
+    .tenant-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; margin-bottom:16px; border:2px solid #1a2332; border-radius:6px; background:#ffffff; }
+    .tenant-header .th-side { width:150px; }
+    .tenant-header .th-right { text-align:right; }
+    .tenant-header .th-center { flex:1; text-align:center; }
+    .tenant-header .th-title { font-size:20px; font-weight:800; color:#1a2332; letter-spacing:0.5px; }
+    .tenant-header .th-subtitle { font-size:10px; color:#6c757d; letter-spacing:2px; margin-top:2px; }
+    .tenant-header hr { margin:8px 0; border:0; border-top:1px solid #dee2e6; }
+    .tenant-header .th-doc { font-size:13px; font-weight:700; color:#1a2332; letter-spacing:1px; }
+    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; font-size:12px; padding:12px 16px; background:#f8f9fa; border-radius:4px; }
+    .cliente-grid .cg-label { font-weight:600; color:#495057; }
+    .cliente-grid .cg-value { color:#212529; }
+    .fw-bold { font-weight:700; }
+  </style>
 </head>
 <body>
   <div class="container">

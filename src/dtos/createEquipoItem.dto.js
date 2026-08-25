@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { EstadoOperativoValues, EstadoOperativoDefault } from '../constants/estadoOperativo.js';
 
 export const createEquipoItemDto = Joi.object({
   ClienteId: Joi.string().hex().length(24).required().label('ClienteId'),
@@ -13,7 +14,7 @@ export const createEquipoItemDto = Joi.object({
   Inventario: Joi.string().trim().optional().label('Inventario'),
   mesesMtto: Joi.array().items(Joi.string().trim()).optional().label('mesesMtto'),
   Modelo: Joi.string().trim().optional().label('Modelo'),
-  EstadoOperativo: Joi.string().trim().optional().label('EstadoOperativo'),
+  EstadoOperativo: Joi.string().valid(...EstadoOperativoValues).default(EstadoOperativoDefault).label('EstadoOperativo'),
   tenantId: Joi.string().optional(),
   Riesgo: Joi.string().allow('', null).optional().label('Riesgo'),
   Invima: Joi.string().allow('', null).optional().label('Invima'),

@@ -19,6 +19,7 @@ const COLUMNS = [
   { key: 'Riesgo',     header: 'Clas. Riesgo',           width: 5  },
   { key: 'Invima',     header: 'Reg. INVIMA',            width: 18 },
   { key: 'Estado',     header: 'Estado',                 width: 14 },
+  { key: 'EstadoOperativo', header: 'Estado Operativo',  width: 18 },
 ];
 
 export class InventarioExportService {
@@ -205,6 +206,7 @@ export class InventarioExportService {
           Riesgo:     equipo.Riesgo     || '',
           Invima:     equipo.Invima     || '',
           Estado:     equipo.Estado     || '',
+          EstadoOperativo: equipo.EstadoOperativo || 'Operativo',
         });
         row.eachCell(cell => {
           cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
@@ -295,13 +297,14 @@ export class InventarioExportService {
           <td>${esc(e.item)}</td><td>${esc(e.Marca)}</td><td>${esc(e.Modelo)}</td>
           <td>${esc(e.Serie)}</td><td>${esc(e.Inventario)}</td><td>${esc(e.Ubicacion)}</td>
           <td>${esc(e.Riesgo)}</td><td>${esc(e.Invima)}</td><td>${esc(e.Estado)}</td>
+          <td>${esc(e.EstadoOperativo || 'Operativo')}</td>
         </tr>`;
       }).join('');
 
       return `
-        <tr class="svc-hdr"><td colspan="9">${safeSvc}</td></tr>
+        <tr class="svc-hdr"><td colspan="10">${safeSvc}</td></tr>
         ${rows}
-        <tr class="spacer"><td colspan="9"></td></tr>`;
+        <tr class="spacer"><td colspan="10"></td></tr>`;
     }).join('');
 
     return `<!DOCTYPE html>
@@ -335,6 +338,7 @@ export class InventarioExportService {
   col.c-riesgo { width: 8%; }
   col.c-invima { width: 12%; }
   col.c-estado { width: 12%; }
+  col.c-estado-op { width: 12%; }
 </style>
 </head>
 <body>
@@ -355,12 +359,13 @@ export class InventarioExportService {
     <colgroup>
       <col class="c-item"/><col class="c-marca"/><col class="c-modelo"/><col class="c-serie"/>
       <col class="c-inv"/><col class="c-ubic"/><col class="c-riesgo"/><col class="c-invima"/><col class="c-estado"/>
+      <col class="c-estado-op"/>
     </colgroup>
     <thead>
       <tr>
         <th>Ítem</th><th>Marca</th><th>Modelo</th><th>Serie</th>
         <th>Inventario</th><th>Ubicación</th><th>Clas. Riesgo</th>
-        <th>Reg. INVIMA</th><th>Estado</th>
+        <th>Reg. INVIMA</th><th>Estado</th><th>Estado Operativo</th>
       </tr>
     </thead>
     <tbody>

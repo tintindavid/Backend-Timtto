@@ -1,4 +1,5 @@
 import cronogramaPDFService from '../services/cronogramaPDF.service.js';
+import { cronogramaExportService } from '../services/cronogramaExport.service.js';
 import { Tenant } from '../models/tenant.model.js';
 import { Customer } from '../models/customer.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
@@ -112,6 +113,50 @@ export const downloadCronogramaPDF = async (req, res, next) => {
         hasFiltros: !!req.body?.filtros,
         filtrosKeys: Object.keys(req.body?.filtros || {}),
       },
+    });
+    next(error);
+  }
+};
+
+/**
+ * Descarga el Excel del cronograma de mantenimiento — mismo contrato de
+ * body que el PDF (`{ clienteId, filtros }`), mismo set de equipos, layout
+ * jerárquico equivalente (equipo-estado-operativo-editable-y-cronograma-excel,
+ * cronograma-excel-por-filtros).
+ * @route POST /api/v1/cronogramas/excel
+ */
+export const downloadCronogramaExcel = async (req, res, next) => {
+  try {
+    const { clienteId, filtros = {} } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!tenantId) {
+      throw new ApiError(400, 'Falta el header x-tenant-id', 'MISSING_TENANT_HEADER');
+    }
+
+    const { buffer, customer } = await cronogramaExportService.generateExcel({ clienteId, filtros }, tenantId);
+
+    const clienteSlug = (customer.Razonsocial || 'cliente').replace(/\s+/g, '_');
+    const fecha = new Date().toISOString().slice(0, 10);
+    const filename = `cronograma_${clienteSlug}_${fecha}.xlsx`;
+
+    logger.info('Excel de Cronograma generado exitosamente', {
+      tenantId,
+      clienteId,
+      filename,
+      size: buffer.length,
+      userId: req.userId,
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (error) {
+    logger.error('Error en downloadCronogramaExcel controller:', {
+      message: error.message,
+      statusCode: error.statusCode || 500,
+      code: error.code || 'UNKNOWN',
+      tenantId: req.tenantId,
     });
     next(error);
   }

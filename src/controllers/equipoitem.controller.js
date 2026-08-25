@@ -5,8 +5,11 @@ import { successResponse } from '../utils/apiResponse.util.js';
 export class EquipoItemController {
   async create(req, res, next) {
     try {
-
-      const data = await equipoItemService.create(req.body, req.tenantId, req.user);
+      // EquipoBulkUpload.tsx calls this same endpoint per row; it may pass
+      // ?source=bulk-upload so the seeded EstadoOperativo history entry is
+      // correctly attributed instead of defaulting to 'manual' (design.md D3).
+      const options = req.query?.source === 'bulk-upload' ? { source: 'bulk-upload' } : {};
+      const data = await equipoItemService.create(req.body, req.tenantId, req.user, options);
       res.status(201).json(successResponse(data, 'EquipoItem creado exitosamente', 201));
     } catch (err) { next(err); }
   }

@@ -10,6 +10,7 @@ import {
   MAX_UNIDAD_LENGTH,
   MAX_PATRON_LENGTH,
 } from '../constants/verificationParam.constants.js';
+import { EstadoOperativoValues } from '../constants/estadoOperativo.js';
 
 const { Schema, model } = mongoose;
 
@@ -43,7 +44,7 @@ const ReportSchema = new Schema({
     duracion: { type: Number,  trim: true, default: 45 }, // Duración en minutos
     Equipo: { type: Schema.Types.ObjectId, ref: 'EquipoItem',  trim: true },
     /* Estado del equipo al finalizar la revision, es un Enum */
-    EstadoOperativo: { type: String, enum: ['Operativo', 'Fuera de Servicio', 'En Mantenimiento', 'Espera de Repuestos', 'En Reparacion'],  trim: true },
+    EstadoOperativo: { type: String, enum: EstadoOperativoValues,  trim: true },
     /* Estado del reporte, es un Enum */
     estado: { type: String, enum: ['Pendiente','Abierto', 'En Progreso', 'Cerrado', 'Cancelado','Procesado'], trim: true },
     fechaCancelado: { type: Date,  trim: true },

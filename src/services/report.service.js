@@ -11,6 +11,7 @@ import { historyService } from './history.service.js';
 import { triggerTicketCascadeOnClose } from '../utils/ticketCascade.util.js';
 import { assertUserCanWork } from '../utils/otResponsibility.util.js';
 import { nameShort } from '../utils/nameShort.util.js';
+import { equipoItemService } from './equipoitem.service.js';
 import {
   MAX_EVIDENCES,
   ALLOWED_EVIDENCE_MIME,
@@ -366,10 +367,24 @@ export class ReportService {
       // Update EquipoItem con estadoOperativo, mesesMttoRealizados, ProximoMtto, UltimoMtto
       if (updated.Equipo) {
         const equipoUpdate = {};
-        
-        // 1. Actualizar EstadoOperativo
+
+        // 1. Actualizar EstadoOperativo — routes through the single write
+        // path (equipo-estado-operativo-editable-y-cronograma-excel,
+        // design.md D3) so the change is captured in
+        // estadoOperativoHistory[] instead of silently overwriting the
+        // field. Never included in equipoUpdate's generic $set below.
         if (typeof data.estadoOperativo !== 'undefined') {
-          equipoUpdate.EstadoOperativo = data.estadoOperativo;
+          try {
+            await equipoItemService._appendEstadoOperativoHistory(updated.Equipo, data.estadoOperativo, {
+              source: 'report-close',
+              reportId: reporteId,
+              panelUser,
+              tenantId: t,
+            });
+          } catch (estadoErr) {
+            if (estadoErr instanceof ApiError) throw estadoErr;
+            logger.error('Error actualizando historial de EstadoOperativo desde report.procesar:', estadoErr);
+          }
         }
 
         // 2. Obtener el equipo actual para actualizar mesesMttoRealizados
