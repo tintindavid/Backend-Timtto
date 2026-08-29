@@ -861,10 +861,17 @@ function renderActividades(actividadesRealizadas = []) {
       if (!a) return '';
       const desc = a.descripcion ?? a.actividad ?? 'N/A';
       const obs = a.observaciones ?? '';
+      // report-actividades-extra (spec: "PDF report labels extras as such") —
+      // small inline badge distinguishes ad-hoc extras from protocol activities.
+      // Inline styles because the surrounding template uses them; no external
+      // CSS file to co-locate this rule.
+      const extraBadge = a.esExtra
+        ? ' <span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;background:#e7eef7;color:#3a5b8a;font-weight:600;vertical-align:middle;">Extra</span>'
+        : '';
 
       return obs !== ''
-        ? `<span class="labelActividad">${desc}</span> : <small>${obs}</small>`
-        : `<span class="labelActividad">${desc}</span>`;
+        ? `<span class="labelActividad">${desc}</span>${extraBadge} : <small>${obs}</small>`
+        : `<span class="labelActividad">${desc}</span>${extraBadge}`;
     };
 
     rows += `

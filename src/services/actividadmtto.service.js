@@ -24,8 +24,13 @@ export class ActividadMttoService {
       const skip = (page - 1) * limit;
       const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
       if (search) {
+        // Fixed latent bug (report-actividades-extra, design D7): these
+        // fields never existed on ActividadMtto (name/description/title/
+        // email were copy-pasted from an unrelated resource's service),
+        // so `search` silently matched nothing. Real fields are Nombre and
+        // Descripcion (see models/actividadmtto.model.js).
         const rx = new RegExp(search, 'i');
-        query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
+        query.$or = [{ Nombre: rx }, { Descripcion: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
       const [data, total] = await Promise.all([

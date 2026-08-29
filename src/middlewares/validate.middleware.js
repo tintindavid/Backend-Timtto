@@ -16,6 +16,14 @@ const VALIDATION_ERROR_CODE_OVERRIDES = {
     code: 'INVALID_SIGNATURE_IMAGE',
     message: 'La firma parece estar en blanco. Vuelve a firmar o carga una imagen válida.',
   },
+  // report-actividades-extra (spec: "Report sub-document integrity for
+  // activities") — raised by dtos/updateReport.dto.js's per-item custom
+  // validator when an actividadesRealizadas[i] entry has both origins set,
+  // neither set, or esExtra:true without actividadMttoId.
+  'activityOrigin.invalid': {
+    code: 'INVALID_ACTIVITY_ORIGIN',
+    message: 'Cada actividad debe tener exactamente un origen: actividadProtocoloId o actividadMttoId.',
+  },
 };
 
 function handleJoiOutcome(req, res, next, property, error, value) {

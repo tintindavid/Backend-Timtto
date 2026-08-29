@@ -81,12 +81,31 @@ const ReportSchema = new Schema({
         MesesMtto: [{ type: String, trim: true }],
       },
     actividadesRealizadas: [
-      { 
+      {
         actividadProtocoloId: { type: String,  trim: true },
+        /* Extra activities (report-actividades-extra): pointer to the
+           tenant's ActividadMtto catalog. Set ONLY on extras; mutually
+           exclusive with actividadProtocoloId — enforced by
+           utils/activityOrigin.util.js on every write path (PUT
+           /reportes/:id via the DTO, and POST .../actividades-extra in
+           report.service.js), never by a Mongoose validator. */
+        actividadMttoId: { type: Schema.Types.ObjectId, ref: 'ActividadMtto', default: null },
         descripcion: { type: String,  trim: true },
+        /* Snapshot of the catalog's long-form Descripcion at add time — parity
+           with protocol-originated activities (where the frontend fetches
+           `ActividadMtto.Descripcion` via findProtocolDescripcion). Only set
+           for extras; protocol-originated entries continue to look it up via
+           the populated protocolo. Enables the "Incluir descripción de la
+           actividad" checkbox on the extra rows too. */
+        descripcionLarga: { type: String, trim: true, default: '' },
         realizado: { type: Boolean,  trim: true },
         fecha:  { type: Date,  trim: true },
         observaciones: { type: String,  trim: true },
+        /* Discriminator: true only for entries added via POST
+           .../actividades-extra. Default false keeps existing documents
+           (protocol-originated, created before this change) valid with no
+           migration. */
+        esExtra: { type: Boolean, default: false },
       }
     ],
     inHt:{type: Boolean, default: false },
