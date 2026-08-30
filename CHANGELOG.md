@@ -1,3 +1,10 @@
+# [2.17.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.16.1...v2.17.0) (2026-08-30)
+
+
+### Features
+
+* **reports:** add extra activities per report from ActividadMtto catalog ([4f4a93f](https://github.com/tintindavid/Backend-Timtto/commit/4f4a93f88c329d960647046e5c7694dc707008f1)), closes [actividadmtto.service.js#list](https://github.com/actividadmtto.service.js/issues/list) [utils/htmlTemplateGenerator.js#renderActividades](https://github.com/utils/htmlTemplateGenerator.js/issues/renderActividades)
+
 ## [2.16.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.16.0...v2.16.1) (2026-08-25)
 
 
