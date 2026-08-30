@@ -152,6 +152,42 @@ export class ReportController {
       res.json(successResponse(data, 'Historial de parámetros'));
     } catch (err) { next(err); }
   }
+
+  /**
+   * Batch-append extra activities from the ActividadMtto catalog to a report
+   * (report-actividades-extra). The service enforces all invariants including
+   * "don't mutate the item's protocol".
+   */
+  async addExtraActividades(req, res, next) {
+    try {
+      const { reporteId } = req.params;
+      const { actividadMttoIds } = req.body || {};
+      const data = await reportService.addExtraActividades(
+        reporteId,
+        actividadMttoIds,
+        req.tenantId,
+        req.user
+      );
+      res.status(201).json(successResponse(data, 'Actividades extra agregadas exitosamente', 201));
+    } catch (err) { next(err); }
+  }
+
+  /**
+   * Remove a single extra actividad from a report. Refuses to touch
+   * protocol-originated entries.
+   */
+  async removeExtraActividad(req, res, next) {
+    try {
+      const { reporteId, actividadRealizadaId } = req.params;
+      const data = await reportService.removeExtraActividad(
+        reporteId,
+        actividadRealizadaId,
+        req.tenantId,
+        req.user
+      );
+      res.json(successResponse(data, 'Actividad extra removida exitosamente'));
+    } catch (err) { next(err); }
+  }
 }
 
 export const reportController = new ReportController();

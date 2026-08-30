@@ -11,6 +11,7 @@ import { processReportDto } from '../dtos/processReport.dto.js';
 import { queryReportDto } from '../dtos/queryReport.dto.js';
 import { paramsReportByOtDto } from '../dtos/paramsReportByOt.dto.js';
 import { updateVerificationParamsDto } from '../dtos/updateVerificationParams.dto.js';
+import { addExtraActividadesDto } from '../dtos/addExtraActividades.dto.js';
 import { downloadReportPDF } from '../controllers/pdfReports.controller.js';
 
 const router = Router();
@@ -59,6 +60,22 @@ router.patch(
   authorize(PERMISSIONS.REPORTS_UPDATE),
   validate(updateVerificationParamsDto, 'body'),
   (req, res, next) => reportController.updateVerificationParams(req, res, next)
+);
+
+// Extra activities endpoints (report-actividades-extra) — registered BEFORE
+// generic /:id to avoid route shadowing. Both reuse REPORTS_UPDATE since the
+// action is semantically part of editing the report; no new permission
+// required (design D6, RBAC section).
+router.post(
+  '/:reporteId/actividades-extra',
+  authorize(PERMISSIONS.REPORTS_UPDATE),
+  validate(addExtraActividadesDto, 'body'),
+  (req, res, next) => reportController.addExtraActividades(req, res, next)
+);
+router.delete(
+  '/:reporteId/actividades-extra/:actividadRealizadaId',
+  authorize(PERMISSIONS.REPORTS_UPDATE),
+  (req, res, next) => reportController.removeExtraActividad(req, res, next)
 );
 
 router.put('/:id', authorize(PERMISSIONS.REPORTS_UPDATE), validate(updateReportDto, 'body'), reportController.update);

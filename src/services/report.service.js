@@ -1,10 +1,12 @@
 import { Report } from '../models/report.model.js';
 import { ProtocoloMtto } from '../models/protocolomtto.model.js';
+import { ActividadMtto } from '../models/actividadmtto.model.js';
 import { OT } from '../models/ot.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { isValidActivityOrigin } from '../utils/activityOrigin.util.js';
 import { MESES_MAP, MESES_ARRAY } from '../utils/meses.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { historyService } from './history.service.js';
@@ -240,6 +242,23 @@ export class ReportService {
 
   async update(id, data, tenantId, panelUser = null) {
     try {
+      // Sub-doc origin invariant (report-actividades-extra, spec: "Report
+      // sub-document integrity for activities"). The DTO's Joi .custom()
+      // already runs this on the request payload, but the service enforces
+      // it too so any internal caller (script, cron, other service) can't
+      // bypass the rule.
+      if (Array.isArray(data.actividadesRealizadas)) {
+        for (const item of data.actividadesRealizadas) {
+          if (!isValidActivityOrigin(item)) {
+            throw new ApiError(
+              400,
+              'Cada actividad debe tener exactamente un origen: actividadProtocoloId o actividadMttoId.',
+              'INVALID_ACTIVITY_ORIGIN'
+            );
+          }
+        }
+      }
+
       // Capture pre-update state so we can detect transitions for the ticket
       // cascade (design D14: cross-collection cascades live in services).
       const previous = await Report.findById(id).lean();
@@ -1014,6 +1033,240 @@ export class ReportService {
       if (err instanceof ApiError) throw err;
       logger.error('Error listing verification history:', err);
       throw new ApiError(500, 'Error obteniendo historial de parámetros', 'VERIFICATION_PARAMS_HISTORY_ERROR');
+    }
+  }
+
+  /**
+   * Batch-appends ActividadMtto catalog entries to `report.actividadesRealizadas[]`
+   * as "extras" (report-actividades-extra). Never mutates the item's ProtocoloMtto.
+   * Snapshots `descripcion` at add time (design D3) so a later catalog rename
+   * doesn't rewrite historical reports.
+   *
+   * Validation order (fails fast, no writes on any rejection):
+   *   1. Report exists (404)
+   *   2. Report not locked (400 REPORT_LOCKED)
+   *   3. Each id not in the item's protocol (400 ACTIVITY_IN_PROTOCOL)
+   *   4. Each id not already extra on this report (400 ACTIVITY_ALREADY_EXTRA)
+   *   5. Each id exists in the tenant's catalog (400 ACTIVIDAD_NOT_FOUND)
+   *
+   * @param {string} reporteId
+   * @param {string[]} actividadMttoIds
+   * @param {string} tenantId
+   * @param {{ userId?: string }} [panelUser]
+   * @returns {Promise<Object>} the updated Report
+   */
+  async addExtraActividades(reporteId, actividadMttoIds, tenantId, panelUser = null) {
+    try {
+      requireTenant(tenantId);
+      // Dedup input ids (spec: "Duplicate ids in the same request are deduplicated")
+      const uniqueIds = Array.from(new Set((actividadMttoIds || []).map(String)));
+
+      const report = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId))
+        .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'ProtocoloId' } });
+      if (!report) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id: reporteId });
+
+      // Locked report — spec: "Reject when the report is in a terminal or processed state"
+      const isLocked =
+        report.estado === 'Cerrado' ||
+        report.estado === 'Cancelado' ||
+        report.procesado === true;
+      if (isLocked) {
+        throw new ApiError(
+          400,
+          'El reporte está en un estado terminal y no admite ediciones.',
+          'REPORT_LOCKED',
+          { estado: report.estado, procesado: report.procesado }
+        );
+      }
+
+      // Anti-conflict with the item's protocol (spec: "Reject when a submitted
+      // id is already in the item's protocol"). Read-only — never writes.
+      const protocoloId =
+        report?.Equipo?.ItemId?.ProtocoloId || report?.Equipo?.ItemId?.protocoloId || null;
+      let protocoloActividadIds = new Set();
+      if (protocoloId) {
+        const protocolo = await ProtocoloMtto.findOne(
+          applyTenantFilter({ _id: protocoloId }, tenantId)
+        ).lean();
+        if (protocolo && Array.isArray(protocolo.actividadesMtto)) {
+          protocoloActividadIds = new Set(protocolo.actividadesMtto.map((a) => String(a)));
+        }
+      }
+      const conflictingWithProtocol = uniqueIds.filter((id) => protocoloActividadIds.has(id));
+      if (conflictingWithProtocol.length > 0) {
+        throw new ApiError(
+          400,
+          'Una o más actividades ya forman parte del protocolo del ítem.',
+          'ACTIVITY_IN_PROTOCOL',
+          { ids: conflictingWithProtocol }
+        );
+      }
+
+      // Anti-duplicate as extra (spec: "Reject when a submitted id is already
+      // an extra on the report")
+      const existingExtraIds = new Set(
+        (report.actividadesRealizadas || [])
+          .filter((a) => a.actividadMttoId)
+          .map((a) => String(a.actividadMttoId))
+      );
+      const alreadyExtra = uniqueIds.filter((id) => existingExtraIds.has(id));
+      if (alreadyExtra.length > 0) {
+        throw new ApiError(
+          400,
+          'Una o más actividades ya fueron agregadas como extra a este reporte.',
+          'ACTIVITY_ALREADY_EXTRA',
+          { ids: alreadyExtra }
+        );
+      }
+
+      // Batch-load catalog entries scoped to the tenant. If the resolved count
+      // differs from what was requested, some ids either don't exist or belong
+      // to a different tenant — either way, ACTIVIDAD_NOT_FOUND. Never leaks
+      // cross-tenant existence.
+      const catalog = await ActividadMtto.find(
+        applyTenantFilter({ _id: { $in: uniqueIds }, isDeleted: false }, tenantId)
+      ).lean();
+      if (catalog.length !== uniqueIds.length) {
+        const foundIds = new Set(catalog.map((a) => String(a._id)));
+        const missing = uniqueIds.filter((id) => !foundIds.has(id));
+        throw new ApiError(
+          400,
+          'Una o más actividades no existen en el catálogo del tenant.',
+          'ACTIVIDAD_NOT_FOUND',
+          { ids: missing }
+        );
+      }
+
+      // Preserve the caller-requested order (uniqueIds), snapshot descripcion
+      // from Nombre (fallback Descripcion) per design D3.
+      const catalogById = new Map(catalog.map((a) => [String(a._id), a]));
+      const newEntries = uniqueIds.map((id) => {
+        const a = catalogById.get(id);
+        const nombre = (a.Nombre && a.Nombre.trim()) || '';
+        const descripcionLarga = (a.Descripcion && a.Descripcion.trim()) || '';
+        // descripcion (title) uses Nombre first, falls back to Descripcion if
+        // the catalog entry has no Nombre. descripcionLarga carries the long
+        // form separately so the frontend "Incluir descripción" toggle has a
+        // source distinct from the title (parity with protocol activities).
+        return {
+          actividadMttoId: a._id,
+          descripcion: nombre || descripcionLarga,
+          descripcionLarga: nombre ? descripcionLarga : '',
+          realizado: false,
+          esExtra: true,
+          fecha: null,
+          observaciones: '',
+        };
+      });
+
+      const updated = await Report.findOneAndUpdate(
+        applyTenantFilter({ _id: reporteId }, tenantId),
+        { $push: { actividadesRealizadas: { $each: newEntries } } },
+        { new: true, runValidators: true }
+      )
+        .populate('ResponsableMtto', 'firstName lastName email role')
+        .populate('ClienteId', 'Razonsocial UserContacto TelContacto Direccion Departamento Ciudad Nit ')
+        .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'Nombre ProtocoloId' } })
+        .populate('orden', 'Consecutivo');
+
+      // Attach protocolo like getById does — keeps the response shape identical
+      // so the frontend can setEditedReporte(response) with no reconciliation.
+      const plain = updated.toObject();
+      try {
+        plain.protocolo = protocoloId ? await ProtocoloMtto.findById(protocoloId).lean() : null;
+      } catch (pe) {
+        plain.protocolo = null;
+      }
+
+      logger.info('extra actividades added', {
+        reporteId,
+        count: newEntries.length,
+        userId: panelUser?.userId || null,
+      });
+
+      return plain;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error adding extra actividades:', err);
+      throw new ApiError(500, 'Error agregando actividades extra', 'ADD_EXTRA_ERROR');
+    }
+  }
+
+  /**
+   * Removes a single extra actividad entry (esExtra:true) from a report.
+   * Refuses to touch protocol-originated entries — those are removed via the
+   * generic PUT /reportes/:id flow that rebuilds the array.
+   *
+   * @param {string} reporteId
+   * @param {string} actividadRealizadaId - the sub-doc _id
+   * @param {string} tenantId
+   * @param {{ userId?: string }} [panelUser]
+   * @returns {Promise<Object>} the updated Report
+   */
+  async removeExtraActividad(reporteId, actividadRealizadaId, tenantId, panelUser = null) {
+    try {
+      requireTenant(tenantId);
+
+      const report = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId));
+      if (!report) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id: reporteId });
+
+      const isLocked =
+        report.estado === 'Cerrado' ||
+        report.estado === 'Cancelado' ||
+        report.procesado === true;
+      if (isLocked) {
+        throw new ApiError(
+          400,
+          'El reporte está en un estado terminal y no admite ediciones.',
+          'REPORT_LOCKED',
+          { estado: report.estado, procesado: report.procesado }
+        );
+      }
+
+      const entry = report.actividadesRealizadas?.id?.(actividadRealizadaId);
+      if (!entry) {
+        throw new ApiError(404, 'Actividad no encontrada en este reporte', 'NOT_FOUND', {
+          id: actividadRealizadaId,
+        });
+      }
+      if (entry.esExtra !== true) {
+        throw new ApiError(
+          400,
+          'Esta actividad no fue agregada como extra y no puede quitarse por este endpoint.',
+          'ACTIVIDAD_NOT_EXTRA'
+        );
+      }
+
+      const updated = await Report.findOneAndUpdate(
+        applyTenantFilter({ _id: reporteId }, tenantId),
+        { $pull: { actividadesRealizadas: { _id: actividadRealizadaId } } },
+        { new: true }
+      )
+        .populate('ResponsableMtto', 'firstName lastName email role')
+        .populate('ClienteId', 'Razonsocial UserContacto TelContacto Direccion Departamento Ciudad Nit ')
+        .populate({ path: 'Equipo', populate: { path: 'ItemId', select: 'Nombre ProtocoloId' } })
+        .populate('orden', 'Consecutivo');
+
+      const plain = updated.toObject();
+      try {
+        const protocoloId =
+          plain?.Equipo?.ItemId?.ProtocoloId || plain?.Equipo?.ItemId?.protocoloId || null;
+        plain.protocolo = protocoloId ? await ProtocoloMtto.findById(protocoloId).lean() : null;
+      } catch (pe) {
+        plain.protocolo = null;
+      }
+
+      logger.info('extra actividad removed', {
+        reporteId,
+        actividadRealizadaId,
+        userId: panelUser?.userId || null,
+      });
+
+      return plain;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error removing extra actividad:', err);
+      throw new ApiError(500, 'Error quitando actividad extra', 'REMOVE_EXTRA_ERROR');
     }
   }
 }
