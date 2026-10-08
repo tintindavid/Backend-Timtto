@@ -1,3 +1,10 @@
+# [2.18.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.17.0...v2.18.0) (2026-10-08)
+
+
+### Features
+
+* **equipment-qrs:** public read-only history view + bulk admin QR generation ([#36](https://github.com/tintindavid/Backend-Timtto/issues/36)) ([4b638a8](https://github.com/tintindavid/Backend-Timtto/commit/4b638a8d83f5643b097fac214a03c135dacabc27))
+
 # [2.17.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.16.1...v2.17.0) (2026-08-30)
 
 
