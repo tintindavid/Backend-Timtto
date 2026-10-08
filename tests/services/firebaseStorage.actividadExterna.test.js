@@ -50,6 +50,21 @@ describe('firebaseStorageService.uploadActividadExternaEvidencia', () => {
     assert.equal(uploadedPath, null);
   });
 
+  it('rechaza bytes sin firma reconocible declarados como PDF (fail-closed)', async () => {
+    await assert.rejects(
+      () => firebaseStorageService.uploadActividadExternaEvidencia(Buffer.from('plain text no magic'), 'x.pdf', 'application/pdf', { clienteId: 'c1', equipoId: 'e1' }),
+      (err) => err.statusCode === 400 && err.code === 'FILE_CONTENT_MISMATCH',
+    );
+    assert.equal(uploadCalls, 0);
+  });
+
+  it('deriva la extension de los magic-bytes, no de originalName', async () => {
+    await firebaseStorageService.uploadActividadExternaEvidencia(
+      makeBuffer(PDF_MAGIC, 2048), 'malicioso.html', 'application/pdf', { clienteId: 'c1', equipoId: 'e1' },
+    );
+    assert.match(uploadedPath, /^clientes\/c1\/equipos\/e1\/actividades-externas\/[0-9a-f-]{36}\.pdf$/);
+  });
+
   it('sube con path clientes/{clienteId}/equipos/{equipoId}/actividades-externas/{uuid}.{ext}', async () => {
     const result = await firebaseStorageService.uploadActividadExternaEvidencia(
       makeBuffer(PDF_MAGIC, 2048), 'Certificado.pdf', 'application/pdf', { clienteId: 'cli123', equipoId: 'eq456' },

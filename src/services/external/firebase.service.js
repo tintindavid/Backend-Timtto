@@ -12,6 +12,14 @@ const ALLOWED_MIME_ACT_EXT = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
+const MIME_TO_EXT_ACT_EXT = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+};
 const MAX_ACT_EXT_SIZE = 10 * 1024 * 1024;
 
 /**
@@ -361,15 +369,15 @@ export class FirebaseStorageService {
     }
     const detected = await fileTypeFromBuffer(fileBuffer);
     const declared = mimetype === 'image/jpg' ? 'image/jpeg' : mimetype;
-    if (detected && detected.mime !== declared) {
+    if (!detected || detected.mime !== declared) {
       throw new ApiError(400, 'El contenido del archivo no coincide con su extensión declarada.', 'FILE_CONTENT_MISMATCH');
     }
 
     try {
       const deps = this.storageDeps;
       const storage = deps.getFirebaseStorage();
-      const extension = path.extname(originalName) || '';
-      const storagePath = `clientes/${clienteId}/equipos/${equipoId}/actividades-externas/${uuidv4()}${extension}`;
+      const ext = detected.ext || MIME_TO_EXT_ACT_EXT[declared];
+      const storagePath = `clientes/${clienteId}/equipos/${equipoId}/actividades-externas/${uuidv4()}.${ext}`;
       const storageRef = deps.ref(storage, storagePath);
       await deps.uploadBytes(storageRef, fileBuffer, {
         contentType: mimetype,
