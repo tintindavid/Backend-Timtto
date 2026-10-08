@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createActividadExternaDto, updateActividadExternaDto } from '../../src/dtos/actividadExterna.dto.js';
+import { createActividadExternaDto, updateActividadExternaDto, cerrarCadenaDto } from '../../src/dtos/actividadExterna.dto.js';
 
 describe('createActividadExternaDto', () => {
   const valid = {
@@ -27,6 +27,22 @@ describe('createActividadExternaDto', () => {
     const { error } = createActividadExternaDto.validate({ ...valid, enlace: 'ftp://x' });
     assert.ok(error);
   });
+  it('rechaza estadoFinal = otro sin estadoFinalCustom', () => {
+    const { error } = createActividadExternaDto.validate({ ...valid, estadoFinal: 'otro' });
+    assert.match(error.message, /estadoFinalCustom/);
+  });
+  it('rechaza fecha futura', () => {
+    const { error } = createActividadExternaDto.validate({ ...valid, fecha: new Date(Date.now() + 86400000).toISOString() });
+    assert.ok(error);
+  });
+  it('rechaza campos desconocidos (tenantId)', () => {
+    const { error } = createActividadExternaDto.validate({ ...valid, tenantId: 't1' });
+    assert.ok(error);
+  });
+  it('rechaza enlace javascript:', () => {
+    const { error } = createActividadExternaDto.validate({ ...valid, enlace: 'javascript:alert(1)' });
+    assert.ok(error);
+  });
   it('acepta cadenaIdSucesion como ObjectId string', () => {
     const { error } = createActividadExternaDto.validate({ ...valid, cadenaIdSucesion: '507f1f77bcf86cd799439011' });
     assert.equal(error, undefined);
@@ -34,12 +50,27 @@ describe('createActividadExternaDto', () => {
 });
 
 describe('updateActividadExternaDto', () => {
-  it('rechaza intento de actualizar fecha, consecutivo, tipo, proveedor', () => {
-    const { error } = updateActividadExternaDto.validate({ fecha: '2026-02-01' });
+  for (const [campo, valor] of [['fecha', '2026-02-01'], ['consecutivoExterno', 'X-1'], ['tipo', 'calibracion'], ['proveedor', 'ACME']]) {
+    it(`rechaza actualizar ${campo}`, () => {
+      const { error } = updateActividadExternaDto.validate({ observacion: 'n', [campo]: valor });
+      assert.ok(error);
+    });
+  }
+  it('rechaza objeto vacío', () => {
+    const { error } = updateActividadExternaDto.validate({});
     assert.ok(error);
   });
   it('acepta campos editables', () => {
     const { error } = updateActividadExternaDto.validate({ observacion: 'Nota', estadoFinal: 'rechazada' });
     assert.equal(error, undefined);
+  });
+});
+
+describe('cerrarCadenaDto', () => {
+  it('rechaza {}', () => {
+    assert.ok(cerrarCadenaDto.validate({}).error);
+  });
+  it('acepta motivoCierre', () => {
+    assert.equal(cerrarCadenaDto.validate({ motivoCierre: 'baja equipo' }).error, undefined);
   });
 });
