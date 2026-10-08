@@ -165,8 +165,12 @@ export const actividadExternaService = {
     }
     const unset = {};
     const efectivo = set.estadoFinal !== undefined ? set.estadoFinal : existing.estadoFinal;
-    if (set.estadoFinal === 'otro' && !normalize(set.estadoFinalCustom)) {
-      throw new ApiError(400, 'estadoFinalCustom requerido cuando estadoFinal es "otro"', 'ESTADO_FINAL_CUSTOM_REQUIRED');
+    if (efectivo === 'otro') {
+      const customEfectivo = set.estadoFinalCustom !== undefined
+        ? normalize(set.estadoFinalCustom) : normalize(existing.estadoFinalCustom);
+      if (!customEfectivo) {
+        throw new ApiError(400, 'estadoFinalCustom requerido cuando estadoFinal es "otro"', 'ESTADO_FINAL_CUSTOM_REQUIRED');
+      }
     }
     if (set.estadoFinalCustom !== undefined && efectivo !== 'otro') {
       throw new ApiError(400, 'estadoFinalCustom solo aplica cuando estadoFinal es "otro"', 'ESTADO_FINAL_CUSTOM_REQUIRED');
@@ -220,8 +224,14 @@ export const actividadExternaService = {
       await session.withTransaction(async () => {
         const now = new Date();
         const softDelete = { $set: { isDeleted: true, deletedAt: now } };
+        // Guard TOCTOU: solo borra si sigue vigente (no cerrada por una sucesion concurrente)
+        const res = await EquipoActividadExterna.updateOne(
+          { _id: id, tenantId, equipoId, cerradaAt: null }, softDelete, { session },
+        );
+        if (res?.matchedCount === 0) {
+          throw new ApiError(400, 'La actividad ya no es la vigente', 'CANNOT_DELETE_HISTORICAL');
+        }
         if (actividad.esInicioCadena) {
-          await EquipoActividadExterna.updateOne({ _id: id, tenantId }, softDelete, { session });
           await CadenaActividad.updateOne({ _id: actividad.cadenaId, tenantId }, softDelete, { session });
         } else {
           const pred = await EquipoActividadExterna.findOne({ cerradaPorActividadId: id, tenantId }, null, { session });
@@ -231,7 +241,6 @@ export const actividadExternaService = {
             { $set: { cerradaAt: null, cerradaPorActividadId: null } },
             { session },
           );
-          await EquipoActividadExterna.updateOne({ _id: id, tenantId }, softDelete, { session });
           const cadena = await CadenaActividad.findOne({ _id: actividad.cadenaId, tenantId }, null, { session });
           if (!cadena) throw new ApiError(500, 'Cadena no encontrada', 'INCONSISTENT_STATE');
           const fechaProxima = cadena.esUnica ? null : addMonths(pred.fecha, cadena.frecuenciaMeses);

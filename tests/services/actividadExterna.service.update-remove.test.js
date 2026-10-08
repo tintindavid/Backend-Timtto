@@ -75,10 +75,24 @@ describe('actividadExternaService.remove', () => {
   it('500 INCONSISTENT_STATE si no hay predecesora', async () => {
     EquipoActividadExterna.findOne = async (q) => (q._id === 'a5'
       ? { _id: 'a5', cadenaId: 'c', cerradaAt: null, esInicioCadena: false } : null);
+    EquipoActividadExterna.updateOne = async () => ({ matchedCount: 1 });
     await assert.rejects(
       () => actividadExternaService.remove('t1', 'eq1', 'a5'),
       (err) => err.statusCode === 500 && err.code === 'INCONSISTENT_STATE',
     );
+  });
+
+  it('TOCTOU: si la actividad fue cerrada concurrentemente (matchedCount 0) -> 400 y no borra blob', async () => {
+    let blobDeleted = false;
+    firebaseStorageService.deleteActividadExternaEvidencia = async () => { blobDeleted = true; };
+    EquipoActividadExterna.findOne = async () => ({ _id: 'a6', cadenaId: 'c', cerradaAt: null, esInicioCadena: true, evidencia: { storagePath: 'p/x' } });
+    EquipoActividadExterna.updateOne = async () => ({ matchedCount: 0 });
+    CadenaActividad.updateOne = async () => ({});
+    await assert.rejects(
+      () => actividadExternaService.remove('t1', 'eq1', 'a6'),
+      (err) => err.statusCode === 400 && err.code === 'CANNOT_DELETE_HISTORICAL',
+    );
+    assert.equal(blobDeleted, false);
   });
 
   it('remove borra blob si evidencia presente', async () => {
@@ -106,6 +120,14 @@ describe('actividadExternaService.update', () => {
     EquipoActividadExterna.findOne = async () => ({ _id: 'a1' });
     await assert.rejects(
       () => actividadExternaService.update('t1', 'eq1', 'a1', { estadoFinal: 'otro' }),
+      (err) => err.statusCode === 400 && err.code === 'ESTADO_FINAL_CUSTOM_REQUIRED',
+    );
+  });
+
+  it('estadoFinalCustom blank sobre existing estadoFinal=otro -> 400', async () => {
+    EquipoActividadExterna.findOne = async () => ({ _id: 'a1', estadoFinal: 'otro', estadoFinalCustom: 'x' });
+    await assert.rejects(
+      () => actividadExternaService.update('t1', 'eq1', 'a1', { estadoFinalCustom: '  ' }),
       (err) => err.statusCode === 400 && err.code === 'ESTADO_FINAL_CUSTOM_REQUIRED',
     );
   });
