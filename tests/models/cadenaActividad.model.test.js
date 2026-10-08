@@ -32,6 +32,32 @@ describe('CadenaActividad model', () => {
     assert.ok(err.errors.tipoCustom);
   });
 
+  it('requiere frecuenciaMeses cuando esUnica = false', async () => {
+    const doc = new CadenaActividad({
+      tenantId: 't1', clienteId: new mongoose.Types.ObjectId(),
+      equipoId: new mongoose.Types.ObjectId(), tipo: 'calibracion', esUnica: false, estado: 'vigente',
+    });
+    const err = await doc.validate().then(() => null, (e) => e);
+    assert.ok(err.errors.frecuenciaMeses);
+  });
+
+  it('valida sin error con esUnica = false y frecuenciaMeses = 12', async () => {
+    const doc = new CadenaActividad({
+      tenantId: 't1', clienteId: new mongoose.Types.ObjectId(),
+      equipoId: new mongoose.Types.ObjectId(), tipo: 'calibracion',
+      esUnica: false, frecuenciaMeses: 12, estado: 'vigente',
+    });
+    const err = await doc.validate().then(() => null, (e) => e);
+    assert.equal(err, null);
+  });
+
+  it('pre(/^find/) respeta includeDeleted y no inyecta isDeleted', async () => {
+    const query = CadenaActividad.find({}).setOptions({ includeDeleted: true });
+    await new Promise((res, rej) =>
+      CadenaActividad.schema.s.hooks.execPre('find', query, (e) => (e ? rej(e) : res())));
+    assert.equal('isDeleted' in query.getFilter(), false);
+  });
+
   it('toJSON excluye __v, isDeleted, deletedAt', () => {
     const doc = new CadenaActividad({
       tenantId: 't1', clienteId: new mongoose.Types.ObjectId(),
