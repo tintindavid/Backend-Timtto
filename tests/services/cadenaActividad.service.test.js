@@ -24,6 +24,25 @@ describe('cadenaActividadService.listVigentesPorTipo', () => {
   });
 });
 
+describe('cadenaActividadService guards', () => {
+  afterEach(() => { delete CadenaActividad.find; });
+
+  it('tipo=otro sin tipoCustom devuelve [] sin tocar el modelo', async () => {
+    let called = false;
+    CadenaActividad.find = () => { called = true; return {}; };
+    const r = await cadenaActividadService.listVigentesPorTipo('t1', 'eq1', { tipo: 'otro' });
+    assert.deepEqual(r, []);
+    assert.equal(called, false);
+  });
+
+  it('listPorEquipo rechaza tipo no-string con 400 INVALID_INPUT', async () => {
+    await assert.rejects(
+      () => cadenaActividadService.listPorEquipo('t1', 'eq1', { tipo: { $ne: 'x' } }),
+      { statusCode: 400, code: 'INVALID_INPUT' },
+    );
+  });
+});
+
 describe('cadenaActividadService.listPorEquipo', () => {
   afterEach(() => { delete CadenaActividad.find; delete CadenaActividad.countDocuments; });
 

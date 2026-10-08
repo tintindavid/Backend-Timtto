@@ -1,10 +1,18 @@
 import { CadenaActividad } from '../models/cadenaActividad.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 
+const assertString = (name, v) => {
+  if (v !== undefined && typeof v !== 'string') {
+    throw new ApiError(400, `${name} must be string`, 'INVALID_INPUT');
+  }
+};
+
 const normalize = (s) => (s ?? '').trim().toLowerCase();
 
 export const cadenaActividadService = {
   async listPorEquipo(tenantId, equipoId, { tipo, estado, page = 1, limit = 50 } = {}) {
+    assertString('tipo', tipo);
+    assertString('estado', estado);
     const filter = { tenantId, equipoId, isDeleted: false };
     if (tipo) filter.tipo = tipo;
     if (estado) filter.estado = estado;
@@ -16,6 +24,9 @@ export const cadenaActividadService = {
   },
 
   async listVigentesPorTipo(tenantId, equipoId, { tipo, tipoCustom } = {}) {
+    assertString('tipo', tipo);
+    assertString('tipoCustom', tipoCustom);
+    if (tipo === 'otro' && !tipoCustom) return [];
     const filter = { tenantId, equipoId, tipo, estado: 'vigente' };
     if (tipo === 'otro' && tipoCustom) {
       const needle = normalize(tipoCustom);
