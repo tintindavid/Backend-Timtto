@@ -15,6 +15,10 @@ import {
   CLIENT_PORTAL_READ_IP_WINDOW_MS,
   CLIENT_PORTAL_READ_IP_MAX,
 } from '../constants/clientPortal.constants.js';
+import {
+  PUBLIC_RATE_LIMIT_PER_MIN,
+  PUBLIC_RATE_LIMIT_WINDOW_MS,
+} from '../constants/equipmentQr.constants.js';
 
 export const rateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -137,5 +141,25 @@ export const clientPortalReadIpLimiter = rateLimit({
     CLIENT_PORTAL_READ_IP_WINDOW_MS,
     'RATE_LIMIT_CLIENT_PORTAL_READ_IP',
     'Demasiadas solicitudes desde tu IP. Intenta en un momento.'
+  ),
+});
+
+/**
+ * Public equipment history (GET /api/public/equipo/:qrToken) — per-IP
+ * limiter. 60 req/min (design D4, equipment-qr-public-history). No
+ * per-token bucket here: the token IS the public identifier (unlike
+ * service-qrs' password-gated validate-access), so IP is the only
+ * meaningful abuse signal.
+ */
+export const publicEquipmentReadLimiter = rateLimit({
+  windowMs: PUBLIC_RATE_LIMIT_WINDOW_MS,
+  max: PUBLIC_RATE_LIMIT_PER_MIN,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `peq:ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`,
+  handler: buildLimitHandler(
+    PUBLIC_RATE_LIMIT_WINDOW_MS,
+    'RATE_LIMIT_PUBLIC_EQUIPMENT',
+    'Demasiadas solicitudes. Intenta de nuevo en un minuto.'
   ),
 });

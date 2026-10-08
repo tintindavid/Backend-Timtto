@@ -52,7 +52,9 @@ import pdfReportsRoutes from './routes/pdfReports.routes.js';
 import cronogramaRoutes from './routes/cronograma.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
 import serviceQrRoutes from './routes/serviceQr.routes.js';
+import equipmentQrRoutes from './routes/equipmentQr.routes.js';
 import publicTicketRoutes from './routes/publicTicket.routes.js';
+import publicEquipmentRoutes from './routes/publicEquipment.routes.js';
 import platformTenantRoutes from './routes/platformTenant.routes.js';
 import platformUserRoutes from './routes/platformUser.routes.js';
 import platformAuditRoutes from './routes/platformAudit.routes.js';
@@ -232,6 +234,7 @@ app.use('/api/v1/pdf-reports', pdfReportsRoutes);
 // Ticket por Área module — panel endpoints
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/service-qrs', serviceQrRoutes);
+app.use('/api/v1/equipment-qrs', equipmentQrRoutes);
 
 // Real-time notifications infrastructure (history/read + admin rules + self preferences)
 app.use('/api/v1/notifications', notificationRoutes);
@@ -249,6 +252,14 @@ app.use('/api/v1/client-tokens', clientAccessTokenRoutes);
 // rate limiters. tenantResolver runs on all routes but is bypassed for
 // /public/* since publicAuth attaches req.tenantId from the sessionToken.
 app.use('/public/tickets', publicTicketRoutes);
+
+// Public equipment QR history — NO auth (design D4,
+// equipment-qr-public-history). Mounted at the literal path from the spec
+// (`/api/public/equipo/:qrToken`), registered here alongside the other
+// public routers so it is never subject to any route-level `authenticate`
+// — tenantId is resolved exclusively from the EquipmentQr doc matched by
+// qrToken (design D6), never trusted from a header/query/body.
+app.use('/api/public/equipo', publicEquipmentRoutes);
 
 // Client portal — public read-only endpoints (design D3: registered outside
 // any route-level `authenticate`, resolves req.tenantId from the opaque

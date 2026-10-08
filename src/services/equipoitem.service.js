@@ -303,19 +303,25 @@ export class EquipoItemService {
 
   async update(id, data, tenantId, panelUser = null) {
     try {
-      const touchesTuple = ['ItemId', 'Marca', 'Serie'].some((k) => typeof data[k] !== 'undefined');
+      const tupleKeys = ['ItemId', 'Marca', 'Serie'];
+      const touchesTuple = tupleKeys.some((k) => typeof data[k] !== 'undefined');
+
+      let current = null;
+      let t = tenantId;
+      let effectiveData = data;
 
       if (touchesTuple) {
-        const current = await EquipoItem.findById(id).lean();
+        current = await EquipoItem.findById(id).lean();
         if (!current) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
-        const t = tenantId || current.tenantId;
+        t = tenantId || current.tenantId;
 
-        const changed = ['ItemId', 'Marca', 'Serie'].some((k) => {
-          if (typeof data[k] === 'undefined') return false;
-          return String(current[k]) !== String(data[k]);
-        });
+        const changedKeys = tupleKeys.filter((k) => (
+          typeof data[k] !== 'undefined' && String(current[k]) !== String(data[k])
+        ));
 
-        if (changed) {
+        if (changedKeys.length > 0) {
+          // At least one identifying field actually changed — enforce the
+          // duplicate rule (design.md D1).
           await this._guardDuplicate({
             ClienteId: current.ClienteId,
             ItemId: typeof data.ItemId !== 'undefined' ? data.ItemId : current.ItemId,
@@ -323,13 +329,27 @@ export class EquipoItemService {
             Serie: typeof data.Serie !== 'undefined' ? data.Serie : current.Serie,
             excludeId: id,
           }, t, panelUser);
+        } else {
+          // User only edited non-tuple fields (e.g. Inventario, Ubicacion)
+          // but the form resubmitted the full payload. Strip the no-op
+          // tuple fields BEFORE the write so the model's
+          // `pre('findOneAndUpdate')` hook doesn't recompute
+          // `SerieNormalized` and promote a legacy `null` row into the
+          // partial unique index, which would otherwise surface as a raw
+          // E11000 against an unrelated sibling (user intent is unrelated).
+          effectiveData = { ...data };
+          for (const k of tupleKeys) {
+            if (typeof effectiveData[k] !== 'undefined') {
+              delete effectiveData[k];
+            }
+          }
         }
       }
 
       // EstadoOperativo routes through the single write path (design.md D3)
       // — strip both keys from the generic $set so it never races with the
       // atomic push+set performed by the helper.
-      const { EstadoOperativo: nextEstadoOperativo, estadoOperativoMotivo, ...rest } = data;
+      const { EstadoOperativo: nextEstadoOperativo, estadoOperativoMotivo, ...rest } = effectiveData;
 
       if (typeof nextEstadoOperativo !== 'undefined') {
         await this._appendEstadoOperativoHistory(id, nextEstadoOperativo, {
@@ -340,7 +360,35 @@ export class EquipoItemService {
         });
       }
 
-      const e = await EquipoItem.findByIdAndUpdate(id, { $set: rest }, { new: true, runValidators: true });
+      let e;
+      try {
+        e = await EquipoItem.findByIdAndUpdate(id, { $set: rest }, { new: true, runValidators: true });
+      } catch (writeErr) {
+        if (writeErr && writeErr.code === 11000) {
+          // Only reachable when a tuple field actually changed and a
+          // concurrent writer won the race between our guard and the write.
+          // Translate to the standard 409 shape (parity with `create()`).
+          const base = current || await EquipoItem.findById(id).lean();
+          const race = await this.checkDuplicate({
+            ClienteId: base?.ClienteId,
+            ItemId: typeof data.ItemId !== 'undefined' ? data.ItemId : base?.ItemId,
+            Marca: typeof data.Marca !== 'undefined' ? data.Marca : base?.Marca,
+            Serie: typeof data.Serie !== 'undefined' ? data.Serie : base?.Serie,
+            excludeId: id,
+          }, tenantId || base?.tenantId);
+          this._logDuplicateDetected({
+            tenantId: tenantId || base?.tenantId,
+            ClienteId: base?.ClienteId,
+            ItemId: typeof data.ItemId !== 'undefined' ? data.ItemId : base?.ItemId,
+            Marca: typeof data.Marca !== 'undefined' ? data.Marca : base?.Marca,
+            Serie: typeof data.Serie !== 'undefined' ? data.Serie : base?.Serie,
+            existing: race.existing,
+            panelUser,
+          });
+          throw new ApiError(409, 'Equipo duplicado', 'EQUIPO_DUPLICATE', { existing: race.existing });
+        }
+        throw writeErr;
+      }
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       logger.info('EquipoItem actualizado: ' + id);
       return e;
