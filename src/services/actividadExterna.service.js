@@ -131,4 +131,135 @@ export const actividadExternaService = {
       if (session) session.endSession();
     }
   },
+
+  async listPorEquipo(tenantId, equipoId, { tipo, estadoCadena, page = 1, limit = 50 } = {}) {
+    const filter = { tenantId, equipoId };
+    if (tipo) filter.tipo = tipo;
+    if (estadoCadena) filter.estado = estadoCadena;
+    const [cadenas, total] = await Promise.all([
+      CadenaActividad.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      CadenaActividad.countDocuments(filter),
+    ]);
+    const cadenaIds = cadenas.map((c) => c._id);
+    const actividades = cadenaIds.length
+      ? await EquipoActividadExterna.find({ tenantId, cadenaId: { $in: cadenaIds } }).sort({ fecha: -1 }).lean()
+      : [];
+    const porCadena = new Map(cadenas.map((c) => [String(c._id), { cadena: c, actividades: [] }]));
+    for (const a of actividades) porCadena.get(String(a.cadenaId))?.actividades.push(sanitizeActividad(a));
+    return { data: [...porCadena.values()], meta: { total, page, limit } };
+  },
+
+  async getById(tenantId, equipoId, id) {
+    const doc = await EquipoActividadExterna.findOne({ _id: id, tenantId, equipoId }).lean();
+    if (!doc) throw new ApiError(404, 'Actividad no encontrada', 'NOT_FOUND');
+    return sanitizeActividad(doc);
+  },
+
+  async update(tenantId, equipoId, id, dto = {}, file) {
+    const existing = await EquipoActividadExterna.findOne({ _id: id, tenantId, equipoId });
+    if (!existing) throw new ApiError(404, 'Actividad no encontrada', 'NOT_FOUND');
+
+    const set = {};
+    for (const k of ['observacion', 'estadoFinal', 'estadoFinalCustom', 'enlace']) {
+      if (dto[k] !== undefined) set[k] = dto[k];
+    }
+    const unset = {};
+    const efectivo = set.estadoFinal !== undefined ? set.estadoFinal : existing.estadoFinal;
+    if (set.estadoFinal === 'otro' && !normalize(set.estadoFinalCustom)) {
+      throw new ApiError(400, 'estadoFinalCustom requerido cuando estadoFinal es "otro"', 'ESTADO_FINAL_CUSTOM_REQUIRED');
+    }
+    if (set.estadoFinalCustom !== undefined && efectivo !== 'otro') {
+      throw new ApiError(400, 'estadoFinalCustom solo aplica cuando estadoFinal es "otro"', 'ESTADO_FINAL_CUSTOM_REQUIRED');
+    }
+    if (set.estadoFinal !== undefined && set.estadoFinal !== 'otro' && existing.estadoFinalCustom) {
+      unset.estadoFinalCustom = 1;
+    }
+
+    let evidencia = null;
+    if (file) {
+      evidencia = await firebaseStorageService.uploadActividadExternaEvidencia(
+        file.buffer, file.originalname, file.mimetype,
+        { clienteId: String(existing.clienteId), equipoId: String(existing.equipoId) },
+      );
+      set.evidencia = evidencia;
+    }
+    const oldPath = file ? (existing.evidencia?.storagePath ?? null) : null;
+
+    try {
+      const update = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+      const updated = Object.keys(update).length
+        ? await EquipoActividadExterna.findOneAndUpdate(
+          { _id: id, tenantId, equipoId }, update,
+          { new: true, runValidators: true, context: 'query' },
+        )
+        : existing;
+      if (!updated) throw new ApiError(404, 'Actividad no encontrada', 'NOT_FOUND');
+      if (oldPath) {
+        try { await firebaseStorageService.deleteActividadExternaEvidencia(oldPath); } catch { /* best-effort */ }
+      }
+      return sanitizeActividad(updated);
+    } catch (err) {
+      if (evidencia) {
+        try { await firebaseStorageService.deleteActividadExternaEvidencia(evidencia.storagePath); } catch { /* best-effort */ }
+      }
+      throw err;
+    }
+  },
+
+  async remove(tenantId, equipoId, id) {
+    const actividad = await EquipoActividadExterna.findOne({ _id: id, tenantId, equipoId });
+    if (!actividad) throw new ApiError(404, 'Actividad no encontrada', 'NOT_FOUND');
+    if (actividad.cerradaAt) {
+      throw new ApiError(400, 'No se puede borrar una actividad histórica. Solo la vigente.', 'CANNOT_DELETE_HISTORICAL');
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const now = new Date();
+        const softDelete = { $set: { isDeleted: true, deletedAt: now } };
+        if (actividad.esInicioCadena) {
+          await EquipoActividadExterna.updateOne({ _id: id, tenantId }, softDelete, { session });
+          await CadenaActividad.updateOne({ _id: actividad.cadenaId, tenantId }, softDelete, { session });
+        } else {
+          const pred = await EquipoActividadExterna.findOne({ cerradaPorActividadId: id, tenantId }, null, { session });
+          if (!pred) throw new ApiError(500, 'Estado inconsistente: no se encontró predecesora', 'INCONSISTENT_STATE');
+          await EquipoActividadExterna.updateOne(
+            { _id: pred._id, tenantId },
+            { $set: { cerradaAt: null, cerradaPorActividadId: null } },
+            { session },
+          );
+          await EquipoActividadExterna.updateOne({ _id: id, tenantId }, softDelete, { session });
+          const cadena = await CadenaActividad.findOne({ _id: actividad.cadenaId, tenantId }, null, { session });
+          if (!cadena) throw new ApiError(500, 'Cadena no encontrada', 'INCONSISTENT_STATE');
+          const fechaProxima = cadena.esUnica ? null : addMonths(pred.fecha, cadena.frecuenciaMeses);
+          await CadenaActividad.findOneAndUpdate(
+            { _id: actividad.cadenaId, tenantId },
+            { $set: { actividadVigenteId: pred._id, fechaProxima } },
+            { session },
+          );
+        }
+      });
+    } finally {
+      session.endSession();
+    }
+    if (actividad.evidencia?.storagePath) {
+      try { await firebaseStorageService.deleteActividadExternaEvidencia(actividad.evidencia.storagePath); } catch { /* best-effort */ }
+    }
+    return { ok: true };
+  },
+
+  async removeEvidencia(tenantId, equipoId, id) {
+    const actividad = await EquipoActividadExterna.findOne({ _id: id, tenantId, equipoId });
+    if (!actividad) throw new ApiError(404, 'Actividad no encontrada', 'NOT_FOUND');
+    const path = actividad.evidencia?.storagePath;
+    if (!path) throw new ApiError(400, 'La actividad no tiene evidencia', 'NO_EVIDENCE');
+    const updated = await EquipoActividadExterna.findOneAndUpdate(
+      { _id: id, tenantId, equipoId }, { $unset: { evidencia: 1 } }, { new: true },
+    );
+    try { await firebaseStorageService.deleteActividadExternaEvidencia(path); } catch { /* best-effort */ }
+    return sanitizeActividad(updated);
+  },
 };
