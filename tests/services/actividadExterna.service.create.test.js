@@ -142,4 +142,42 @@ describe('actividadExternaService.create', () => {
     assert.equal(actividad.evidencia.storagePath, undefined);
     assert.equal(actividad.evidencia.url, 'u');
   });
+  it('Finding A: cadena cambio concurrentemente (update condicional null) -> 409 CHAIN_NOT_VIGENTE + cleanup', async () => {
+    const vigId = oid();
+    CadenaActividad.findOne = async () => ({ _id: 'cad-x', tipo: 'calibracion', estado: 'vigente', esUnica: false, actividadVigenteId: vigId });
+    CadenaActividad.findOneAndUpdate = async () => null;
+    let deleted = null;
+    firebaseStorageService.uploadActividadExternaEvidencia = async () => ({ url: 'u', storagePath: 'p/1' });
+    firebaseStorageService.deleteActividadExternaEvidencia = async (p) => { deleted = p; };
+    await assert.rejects(
+      () => actividadExternaService.create('t1', 'eq1', 'cli1', { ...dtoBase(), cadenaIdSucesion: 'cad-x' }, pdfFile(), 'u1'),
+      (err) => err.statusCode === 409 && err.code === 'CHAIN_NOT_VIGENTE',
+    );
+    assert.equal(deleted, 'p/1');
+  });
+
+  it('Finding B: cerrar vigente anterior devuelve null -> INCONSISTENT_STATE + cleanup', async () => {
+    CadenaActividad.findOne = async () => ({ _id: 'cad-x', tipo: 'calibracion', estado: 'vigente', esUnica: false, actividadVigenteId: oid() });
+    EquipoActividadExterna.findOneAndUpdate = async () => null;
+    let deleted = null;
+    firebaseStorageService.uploadActividadExternaEvidencia = async () => ({ url: 'u', storagePath: 'p/2' });
+    firebaseStorageService.deleteActividadExternaEvidencia = async (p) => { deleted = p; };
+    await assert.rejects(
+      () => actividadExternaService.create('t1', 'eq1', 'cli1', { ...dtoBase(), cadenaIdSucesion: 'cad-x' }, pdfFile(), 'u1'),
+      (err) => err.statusCode === 500 && err.code === 'INCONSISTENT_STATE',
+    );
+    assert.equal(deleted, 'p/2');
+  });
+
+  it('Finding C: sin frecuencia -> 400 FRECUENCIA_REQUIRED y sin upload', async () => {
+    let uploads = 0;
+    firebaseStorageService.uploadActividadExternaEvidencia = async () => { uploads++; return { storagePath: 'p' }; };
+    const dto = dtoBase();
+    delete dto.frecuencia;
+    await assert.rejects(
+      () => actividadExternaService.create('t1', 'eq1', 'cli1', dto, pdfFile(), 'u1'),
+      (err) => err.statusCode === 400 && err.code === 'FRECUENCIA_REQUIRED',
+    );
+    assert.equal(uploads, 0);
+  });
 });

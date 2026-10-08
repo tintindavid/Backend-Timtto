@@ -34,6 +34,13 @@ async function validateCadenaSucesion(tenantId, equipoId, cadenaId, dto) {
 
 export const actividadExternaService = {
   async create(tenantId, equipoId, clienteId, dto, file, userId) {
+    if (!dto.frecuencia || typeof dto.frecuencia.esUnica !== 'boolean') {
+      throw new ApiError(400, 'frecuencia requerida con esUnica boolean', 'FRECUENCIA_REQUIRED');
+    }
+    if (!dto.frecuencia.esUnica && (typeof dto.frecuencia.meses !== 'number' || dto.frecuencia.meses < 1)) {
+      throw new ApiError(400, 'frecuenciaMeses requerido con valor >= 1 cuando !esUnica', 'FRECUENCIA_REQUIRED');
+    }
+
     // 1. Validar sucesión antes de subir nada (evita huérfanos por validación)
     let cadenaSucesion = null;
     if (dto.cadenaIdSucesion) {
@@ -68,25 +75,29 @@ export const actividadExternaService = {
         };
 
         if (cadenaSucesion) {
-          await EquipoActividadExterna.findOneAndUpdate(
+          const closedPrev = await EquipoActividadExterna.findOneAndUpdate(
             { _id: cadenaSucesion.actividadVigenteId, tenantId },
             { $set: { cerradaAt: new Date() } },
-            { session },
+            { session, new: true },
           );
+          if (!closedPrev) throw new ApiError(500, 'Actividad vigente de la cadena no encontrada', 'INCONSISTENT_STATE');
           const [created] = await EquipoActividadExterna.create([{
             ...base, cadenaId: cadenaSucesion._id, esInicioCadena: false,
           }], { session });
           actividadDoc = created;
-          await EquipoActividadExterna.findOneAndUpdate(
+          const linkedPrev = await EquipoActividadExterna.findOneAndUpdate(
             { _id: cadenaSucesion.actividadVigenteId, tenantId },
             { $set: { cerradaPorActividadId: created._id } },
-            { session },
+            { session, new: true },
           );
+          if (!linkedPrev) throw new ApiError(500, 'Actividad vigente de la cadena no encontrada', 'INCONSISTENT_STATE');
+          // Guard TOCTOU: solo avanza si la cadena sigue igual que al validar
           cadenaDoc = await CadenaActividad.findOneAndUpdate(
-            { _id: cadenaSucesion._id, tenantId },
+            { _id: cadenaSucesion._id, tenantId, estado: 'vigente', actividadVigenteId: cadenaSucesion.actividadVigenteId },
             { $set: { actividadVigenteId: created._id, frecuenciaMeses: dto.frecuencia.meses, fechaProxima } },
             { session, new: true },
           );
+          if (!cadenaDoc) throw new ApiError(409, 'La cadena cambió durante la operación', 'CHAIN_NOT_VIGENTE');
         } else {
           const [nuevaCadena] = await CadenaActividad.create([{
             tenantId, clienteId, equipoId,
@@ -105,6 +116,7 @@ export const actividadExternaService = {
             { $set: { actividadVigenteId: created._id } },
             { session, new: true },
           );
+          if (!cadenaDoc) throw new ApiError(500, 'Cadena no encontrada al enlazar actividad', 'INCONSISTENT_STATE');
         }
       });
       return { cadena: toPlain(cadenaDoc), actividad: sanitizeActividad(actividadDoc) };
