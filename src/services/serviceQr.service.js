@@ -4,7 +4,6 @@ import fs from 'fs/promises';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
-import QRCode from 'qrcode';
 import mongoose from 'mongoose';
 
 import { ServiceQr } from '../models/serviceQr.model.js';
@@ -17,9 +16,19 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { jwtConfig } from '../config/jwt.config.js';
 import { env } from '../config/env.js';
 import {
+  generateQrPng,
+  uploadQrPng,
+  getQrPngAbsolutePath,
+  readQrPngDataUri,
+  readOrRegenerateQrPngDataUri,
+} from '../utils/qrImage.util.js';
+import {
   QR_PASSWORD_BCRYPT_ROUNDS,
   QR_TOKEN_LENGTH,
 } from '../constants/serviceQr.constants.js';
+
+/** Scope key used with qrImage.util for this module's PNG storage/routes. */
+const QR_IMAGE_SCOPE = 'service-qrs';
 
 /**
  * ServiceQrService implements creation, listing, password rotation,
@@ -60,17 +69,9 @@ export class ServiceQrService {
    */
   async _generateQrPng(qrId, qrToken) {
     try {
-      const baseDir = path.resolve(process.cwd(), env.QR_IMAGE_STORAGE_PATH);
-      await fs.mkdir(baseDir, { recursive: true });
-      const filename = `${qrId}.png`;
-      const fullPath = path.join(baseDir, filename);
       const landingUrl = `${env.PUBLIC_APP_BASE_URL.replace(/\/+$/, '')}/public/ticket/${qrToken}`;
-      await QRCode.toFile(fullPath, landingUrl, {
-        errorCorrectionLevel: 'M',
-        margin: 1,
-        width: 512,
-      });
-      return `/api/v1/service-qrs/${qrId}/qr-image`;
+      const buffer = await generateQrPng(landingUrl);
+      return await uploadQrPng(buffer, null, { id: qrId, scope: QR_IMAGE_SCOPE });
     } catch (err) {
       logger.warn('serviceQr: failed to persist QR PNG', { qrId, err: String(err) });
       return null;
@@ -82,17 +83,28 @@ export class ServiceQrService {
    * This avoids the auth-on-img-tag problem (browsers don't send Authorization
    * headers on <img src=...>), and gives the frontend a payload that can be
    * embedded directly into a PDF without an extra fetch.
-   * Returns null if the file is missing.
+   *
+   * When the file is missing — which is routine in production because
+   * Railway's filesystem is ephemeral (every redeploy wipes `uploads/qr`
+   * and horizontal scaling hides a sibling instance's writes) — the helper
+   * regenerates the PNG on the fly from the same deterministic landing URL,
+   * so the modal keeps showing the sticker without re-persistence steps.
+   *
+   * Accepts either a full `qr` doc (preferred — carries `qrToken` for the
+   * regeneration fallback) or a bare `qrId` string (legacy signature; the
+   * fallback is a no-op because the landing URL is unknown).
    */
-  async _readQrImageDataUri(qrId) {
-    try {
-      const baseDir = path.resolve(process.cwd(), env.QR_IMAGE_STORAGE_PATH);
-      const fullPath = path.join(baseDir, `${qrId}.png`);
-      const buf = await fs.readFile(fullPath);
-      return `data:image/png;base64,${buf.toString('base64')}`;
-    } catch {
-      return null;
+  async _readQrImageDataUri(qrOrId) {
+    if (!qrOrId) return null;
+    if (typeof qrOrId === 'string') {
+      // Legacy call site — no qrToken, so we can't rebuild the landing URL.
+      return readQrPngDataUri(qrOrId, QR_IMAGE_SCOPE);
     }
+    const id = String(qrOrId._id);
+    const landingUrl = qrOrId.qrToken
+      ? `${env.PUBLIC_APP_BASE_URL.replace(/\/+$/, '')}/public/ticket/${qrOrId.qrToken}`
+      : null;
+    return readOrRegenerateQrPngDataUri(id, QR_IMAGE_SCOPE, landingUrl);
   }
 
   async create(payload, tenantId, userId = null) {
@@ -170,7 +182,7 @@ export class ServiceQrService {
     // Augment each QR with the base64 data URI of its PNG so the frontend
     // can render <img> without hitting the authenticated /qr-image route.
     const dataUris = await Promise.all(
-      data.map((qr) => this._readQrImageDataUri(qr._id.toString())),
+      data.map((qr) => this._readQrImageDataUri(qr)),
     );
     data.forEach((qr, i) => {
       qr.qrImageDataUri = dataUris[i];
@@ -197,7 +209,7 @@ export class ServiceQrService {
       .populate('createdBy', 'firstName lastName email');
     if (!doc) throw new ApiError(404, 'ServiceQr no encontrado', 'NOT_FOUND', { id });
     const json = doc.toJSON();
-    json.qrImageDataUri = await this._readQrImageDataUri(id);
+    json.qrImageDataUri = await this._readQrImageDataUri({ _id: id, qrToken: doc.qrToken });
     return json;
   }
 
@@ -331,8 +343,7 @@ export class ServiceQrService {
     requireTenant(tenantId);
     const qr = await ServiceQr.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
     if (!qr) throw new ApiError(404, 'ServiceQr no encontrado', 'NOT_FOUND', { id });
-    const baseDir = path.resolve(process.cwd(), env.QR_IMAGE_STORAGE_PATH);
-    const fullPath = path.join(baseDir, `${id}.png`);
+    const fullPath = getQrPngAbsolutePath(id, QR_IMAGE_SCOPE);
     try {
       await fs.access(fullPath);
       return fullPath;
