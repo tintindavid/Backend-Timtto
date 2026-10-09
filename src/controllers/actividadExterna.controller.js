@@ -17,7 +17,7 @@ export function parseMultipartFrecuencia(body) {
 }
 
 async function deriveClienteId(tenantId, equipoId) {
-  const eq = await EquipoItem.findOne({ _id: equipoId, tenantId }).lean();
+  const eq = await EquipoItem.findOne({ _id: equipoId, tenantId, isDeleted: false }).lean();
   if (!eq) throw new ApiError(404, 'Equipo no encontrado', 'NOT_FOUND');
   return String(eq.ClienteId);
 }

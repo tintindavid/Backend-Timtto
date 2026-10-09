@@ -87,6 +87,22 @@ describe('routes /equipos/:equipoId/actividades-externas', () => {
     assert.ok(captured[4]?.buffer);
   });
 
+  it('POST with missing/soft-deleted equipo -> 404 and service.create not called', async () => {
+    let filter; let createCalled = false;
+    EquipoItem.findOne = (f) => { filter = f; return { lean: async () => null }; };
+    stub(actividadExternaService, 'create', async () => { createCalled = true; return {}; });
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(validFields())) fd.append(k, v);
+    fd.append('frecuencia', JSON.stringify({ meses: 12, esUnica: false }));
+    const res = await fetch(`${base}${BASE_PATH}/actividades-externas`, {
+      method: 'POST', headers: auth(adminToken()), body: fd,
+    });
+    assert.equal(res.status, 404);
+    assert.equal(createCalled, false);
+    assert.equal(filter.isDeleted, false);
+    assert.equal(filter.tenantId, 'tenantA');
+  });
+
   it('POST multipart with invalid frecuencia JSON -> 400', async () => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(validFields())) fd.append(k, v);
