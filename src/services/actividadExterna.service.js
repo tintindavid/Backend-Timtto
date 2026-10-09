@@ -3,6 +3,33 @@ import { CadenaActividad } from '../models/cadenaActividad.model.js';
 import { EquipoActividadExterna } from '../models/equipoActividadExterna.model.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { logger } from '../config/logger.config.js';
+
+/**
+ * Executes fn with a Mongoose transaction when the server supports it
+ * (replica set / sharded), otherwise falls back to running without a session.
+ * In fallback mode, operations are NOT atomic — the caller's catch is
+ * responsible for compensation (e.g. firebase blob cleanup).
+ */
+async function withOptionalTransaction(fn) {
+  const session = await mongoose.startSession();
+  try {
+    try {
+      await session.withTransaction(async () => { await fn(session); });
+      return;
+    } catch (err) {
+      const isStandalone = /Transaction numbers are only allowed on a replica set/i.test(err?.message ?? '')
+        || err?.code === 20
+        || err?.codeName === 'IllegalOperation';
+      if (!isStandalone) throw err;
+      logger.warn('Mongo standalone detected — running without transaction (non-atomic fallback).');
+    }
+  } finally {
+    session.endSession();
+  }
+  // Fallback: no session, no atomicity.
+  await fn(null);
+}
 
 const addMonths = (date, months) => { const d = new Date(date); d.setMonth(d.getMonth() + months); return d; };
 const normalize = (s) => (typeof s === 'string' ? s : '').trim().toLowerCase();
@@ -55,12 +82,10 @@ export const actividadExternaService = {
       );
     }
 
-    let session;
     try {
-      session = await mongoose.startSession();
       let cadenaDoc;
       let actividadDoc;
-      await session.withTransaction(async () => {
+      await withOptionalTransaction(async (session) => {
         const fecha = new Date(dto.fecha);
         const esUnica = !!dto.frecuencia.esUnica;
         const fechaProxima = esUnica ? null : addMonths(fecha, dto.frecuencia.meses);
@@ -127,8 +152,6 @@ export const actividadExternaService = {
         } catch { /* cleanup best-effort */ }
       }
       throw err;
-    } finally {
-      if (session) session.endSession();
     }
   },
 
@@ -219,9 +242,10 @@ export const actividadExternaService = {
       throw new ApiError(400, 'No se puede borrar una actividad histórica. Solo la vigente.', 'CANNOT_DELETE_HISTORICAL');
     }
 
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
+    {
+      await withOptionalTransaction(async (session) => {
+        // Fallback mode (standalone Mongo): no atomicity. If a later step fails after the
+        // soft-delete, the actividad stays deleted but the chain is not updated (accepted tradeoff).
         const now = new Date();
         const softDelete = { $set: { isDeleted: true, deletedAt: now } };
         // Guard TOCTOU: solo borra si sigue vigente (no cerrada por una sucesion concurrente)
@@ -251,8 +275,6 @@ export const actividadExternaService = {
           );
         }
       });
-    } finally {
-      session.endSession();
     }
     if (actividad.evidencia?.storagePath) {
       try { await firebaseStorageService.deleteActividadExternaEvidencia(actividad.evidencia.storagePath); } catch { /* best-effort */ }
