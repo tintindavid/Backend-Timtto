@@ -7,5 +7,5 @@ export const createItemsDto = Joi.object({
     Precio: Joi.number().allow('', null).optional().label('Precio'),
     IvaIncluido: Joi.boolean().optional().label('IvaIncluido'),
     Iva: Joi.number().allow('', null).optional().label('Iva'),
-    ProtocoloId: Joi.string().hex().length(24).required().label('ProtocoloId'),
+    ProtocoloId: Joi.string().hex().length(24).allow('', null).optional().label('ProtocoloId'),
 });

@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { EstadoOperativoValues } from '../constants/estadoOperativo.js';
 
 // Body expects partial EquipoItem fields plus a required reportId to update snapshot
 export const updateEquipoSnapshotDto = Joi.object({
@@ -14,6 +15,5 @@ export const updateEquipoSnapshotDto = Joi.object({
   Servicio: Joi.string().hex().length(24).optional().label('Servicio'),
   SedeId: Joi.string().hex().length(24).optional().label('SedeId'),
   ItemId: Joi.string().hex().length(24).optional().label('ItemId'),
-  Invima: Joi.string().allow('', null).optional().label('Invima'),
-  Riesgo: Joi.string().allow('', null).optional().label('Riesgo'),
+  EstadoOperativo: Joi.string().valid(...EstadoOperativoValues).optional().label('EstadoOperativo'),
 }).unknown(false);

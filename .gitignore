@@ -16,3 +16,4 @@ coverage/
 # Never commit these: they encode public URLs for the tenant's service entry
 # points and grow unbounded.
 uploads/
+.superpowers/

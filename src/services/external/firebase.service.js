@@ -4,13 +4,32 @@ import { logger } from '../../config/logger.config.js';
 import { ApiError } from '../../utils/apiError.util.js';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { fileTypeFromBuffer } from 'file-type';
+
+const ALLOWED_MIME_ACT_EXT = [
+  'application/pdf',
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+const MIME_TO_EXT_ACT_EXT = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+};
+const MAX_ACT_EXT_SIZE = 10 * 1024 * 1024;
 
 /**
  * Servicio para gestionar archivos en Firebase Storage
  * Específicamente para logos de clientes
  */
 export class FirebaseStorageService {
-  
+  // Seam de dependencias (ESM bindings son inmutables; los tests lo reemplazan).
+  storageDeps = { getFirebaseStorage, ref, uploadBytes, getDownloadURL, deleteObject };
+
   /**
    * Sube un logo a Firebase Storage
    * @param {Buffer} fileBuffer - Buffer del archivo
@@ -333,6 +352,57 @@ export class FirebaseStorageService {
         return;
       }
       logger.error('Error deleting file from Firebase Storage:', { storagePath, error });
+    }
+  }
+
+  /**
+   * Sube evidencia de una actividad externa de equipo (PDF, imagen, DOCX, XLSX).
+   * Valida MIME, tamaño y magic-bytes ANTES de subir.
+   * @returns {Promise<{url, storagePath, nombreOriginal, mimetype, tamanoBytes, uploadedAt}>}
+   */
+  async uploadActividadExternaEvidencia(fileBuffer, originalName, mimetype, { clienteId, equipoId }) {
+    if (!ALLOWED_MIME_ACT_EXT.includes(mimetype)) {
+      throw new ApiError(400, 'Tipo de archivo no permitido. Usa PDF, imagen, DOCX o XLSX.', 'INVALID_FILE_TYPE');
+    }
+    if (fileBuffer.length > MAX_ACT_EXT_SIZE) {
+      throw new ApiError(400, 'Archivo mayor a 10 MB.', 'FILE_TOO_LARGE');
+    }
+    const detected = await fileTypeFromBuffer(fileBuffer);
+    const declared = mimetype === 'image/jpg' ? 'image/jpeg' : mimetype;
+    if (!detected || detected.mime !== declared) {
+      throw new ApiError(400, 'El contenido del archivo no coincide con su extensión declarada.', 'FILE_CONTENT_MISMATCH');
+    }
+
+    try {
+      const deps = this.storageDeps;
+      const storage = deps.getFirebaseStorage();
+      const ext = detected.ext || MIME_TO_EXT_ACT_EXT[declared];
+      const storagePath = `clientes/${clienteId}/equipos/${equipoId}/actividades-externas/${uuidv4()}.${ext}`;
+      const storageRef = deps.ref(storage, storagePath);
+      await deps.uploadBytes(storageRef, fileBuffer, {
+        contentType: mimetype,
+        customMetadata: { originalName, uploadedAt: new Date().toISOString(), mimetype },
+      });
+      const url = await deps.getDownloadURL(storageRef);
+      return { url, storagePath, nombreOriginal: originalName, mimetype, tamanoBytes: fileBuffer.length, uploadedAt: new Date() };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error subiendo evidencia de actividad externa:', error);
+      throw new ApiError(500, 'Error subiendo evidencia a storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
+   * Elimina evidencia de actividad externa. Idempotente y best-effort (no lanza).
+   * @param {string} storagePath
+   */
+  async deleteActividadExternaEvidencia(storagePath) {
+    try {
+      const deps = this.storageDeps;
+      await deps.deleteObject(deps.ref(deps.getFirebaseStorage(), storagePath));
+    } catch (err) {
+      if (err?.code === 'storage/object-not-found') return;
+      logger.error('Error borrando evidencia de actividad externa:', err);
     }
   }
 
