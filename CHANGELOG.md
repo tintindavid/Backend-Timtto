@@ -1,3 +1,10 @@
+# [2.19.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.18.0...v2.19.0) (2026-10-12)
+
+
+### Features
+
+* **equipo-actividades:** tab de actividades externas + hotfixes ([#37](https://github.com/tintindavid/Backend-Timtto/issues/37)) ([20ccde4](https://github.com/tintindavid/Backend-Timtto/commit/20ccde4bebb15222480f839d340389d0b6d5b9d7))
+
 # [2.18.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.17.0...v2.18.0) (2026-10-08)
 
 
