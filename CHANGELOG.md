@@ -1,3 +1,10 @@
+# [2.21.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.20.0...v2.21.0) (2026-10-13)
+
+
+### Features
+
+* **customers:** add kind to store providers next to clients (backend) ([#39](https://github.com/tintindavid/Backend-Timtto/issues/39)) ([cd02dce](https://github.com/tintindavid/Backend-Timtto/commit/cd02dcec3d07702c887d25ca3c251563f938cadc))
+
 # [2.20.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.19.0...v2.20.0) (2026-10-13)
 
 
