@@ -26,7 +26,7 @@ export async function tenantResolver(req, res, next) {
     if (rawHeader && typeof rawHeader === 'string' && rawHeader.trim()) {
       tenantId = rawHeader.trim().toLowerCase();
     } else if (req.user?.tenantId) {
-      tenantId = req.user.tenantId;
+      tenantId = String(req.user.tenantId).trim().toLowerCase();
     }
 
     if (!tenantId) {
