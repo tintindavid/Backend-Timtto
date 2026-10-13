@@ -6,6 +6,8 @@ import { validate } from '../middlewares/validate.middleware.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { createHVEquipoDto } from '../dtos/createHVEquipo.dto.js';
 import { updateHVEquipoDto } from '../dtos/updateHVEquipo.dto.js';
+import { uploadDocumentoDto, updateDocumentoDto } from '../dtos/uploadDocumento.dto.js';
+import { uploadHvDocumento, handleMulterError } from '../middlewares/upload.middleware.js';
 import { queryHVEquipoDto } from '../dtos/queryHVEquipo.dto.js';
 import { queryHVEquipoAprobadasParamsDto, queryHVEquipoAprobadasQueryDto } from '../dtos/queryHVEquipoAprobadas.dto.js';
 
@@ -30,5 +32,24 @@ router.get('/:id', authorize(PERMISSIONS.HV_EQUIPOS_READ), hVEquipoController.ge
 router.put('/:id', authorize(PERMISSIONS.HV_EQUIPOS_UPDATE), validate(updateHVEquipoDto, 'body'), hVEquipoController.update);
 router.patch('/:id', authorize(PERMISSIONS.HV_EQUIPOS_UPDATE), validate(updateHVEquipoDto, 'body'), hVEquipoController.update);
 router.delete('/:id', authorize(PERMISSIONS.HV_EQUIPOS_DELETE), hVEquipoController.delete);
+
+// Documentos adjuntos (multipart: field `archivo`). Reuses HV_EQUIPOS_UPDATE.
+router.post(
+  '/:id/documentos',
+  authorize(PERMISSIONS.HV_EQUIPOS_UPDATE),
+  uploadHvDocumento,
+  handleMulterError,
+  validate(uploadDocumentoDto, 'body'),
+  hVEquipoController.uploadDocumento,
+);
+router.put(
+  '/:id/documentos/:docId',
+  authorize(PERMISSIONS.HV_EQUIPOS_UPDATE),
+  uploadHvDocumento,
+  handleMulterError,
+  validate(updateDocumentoDto, 'body'),
+  hVEquipoController.updateDocumento,
+);
+router.delete('/:id/documentos/:docId', authorize(PERMISSIONS.HV_EQUIPOS_UPDATE), hVEquipoController.deleteDocumento);
 
 export default router;

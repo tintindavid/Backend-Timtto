@@ -5,6 +5,17 @@ import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 
+/**
+ * Drops OtrasEspecificaciones items with empty nombre/valor (defensive; the DTO rejects them first).
+ * Mutates `data` in place.
+ */
+function sanitizeOtrasEspecificaciones(data) {
+  if (!data || !Array.isArray(data.OtrasEspecificaciones)) return;
+  data.OtrasEspecificaciones = data.OtrasEspecificaciones.filter(
+    (it) => it && String(it.nombre ?? '').trim() !== '' && String(it.valor ?? '').trim() !== '',
+  );
+}
+
 export class HVEquipoService {
   /**
    * Procesa el campo foto: si es base64 lo sube a Firebase, si es URL la mantiene
@@ -44,7 +55,11 @@ export class HVEquipoService {
       
       // Procesar foto si existe (base64 -> Firebase URL)
       await this.processFoto(data);
-      
+      sanitizeOtrasEspecificaciones(data);
+      // Documentos is managed only via the /documentos endpoints: a client must not
+      // be able to set server-owned fields (storagePath, archivoUrl, ...) here.
+      delete data.Documentos;
+
       const hvData = { ...data, tenantId };
       const entity = await HVEquipo.create(hvData);
       const equipo = await EquipoItem.findById(entity.EquipoId).lean();
@@ -176,7 +191,7 @@ export class HVEquipoService {
       const query = applyTenantFilter({ _id: id, isDeleted: false }, tenantId);
       const e = await HVEquipo.findOne(query)
         .populate('EquipoId', 'ItemText Marca Modelo Serie')
-        .populate('clienteId', 'Razonsocial Nit Ciudad')
+        .populate('clienteId', 'Razonsocial Nit Ciudad Departamento Direccion Email TelContacto Logo')
         .populate('userIdCreacion', 'firstName lastName email');
       
       if (!e) throw new ApiError(404, 'HVEquipo no encontrado', 'NOT_FOUND', { id });
@@ -198,13 +213,16 @@ export class HVEquipoService {
       const query = applyTenantFilter({ EquipoId: equipoId, isDeleted: false }, tenantId);
       const hv = await HVEquipo.findOne(query)
         .populate('EquipoId', 'ItemText Marca Modelo Serie')
-        .populate('clienteId', 'Razonsocial Nit Ciudad')
+        .populate('clienteId', 'Razonsocial Nit Ciudad Departamento Direccion Email TelContacto Logo')
         .populate('userIdCreacion', 'firstName lastName email')
         .sort({ createdAt: -1 })
         .lean();
       
       if (!hv) throw new ApiError(404, 'HVEquipo no encontrado para este equipo', 'NOT_FOUND', { equipoId });
       logger.info(`HVEquipo encontrada para EquipoId ${equipoId}: ${hv._id}`);
+      // .lean() skips schema defaults: HVs saved before these arrays existed must still expose them.
+      hv.OtrasEspecificaciones = hv.OtrasEspecificaciones || [];
+      hv.Documentos = hv.Documentos || [];
       return hv;
     } catch (err) {
       if (err instanceof ApiError) throw err;
@@ -217,7 +235,9 @@ export class HVEquipoService {
     try {
       // Procesar foto si existe (base64 -> Firebase URL)
       await this.processFoto(data);
-      
+      sanitizeOtrasEspecificaciones(data);
+      delete data.Documentos;
+
       const query = applyTenantFilter({ _id: id }, tenantId);
       const e = await HVEquipo.findOneAndUpdate(
         query,
@@ -269,6 +289,147 @@ export class HVEquipoService {
       if (err instanceof ApiError) throw err;
       logger.error('Error eliminando HVEquipo:', err);
       throw new ApiError(500, 'Error eliminando HVEquipo', 'DELETE_ERROR');
+    }
+  }
+
+  /**
+   * Finds a non-deleted HV scoped to the tenant (mongoose document) or throws 404.
+   */
+  async _findHvForDocumentos(hvId, tenantId) {
+    requireTenant(tenantId);
+    const hv = await HVEquipo.findOne(applyTenantFilter({ _id: hvId, isDeleted: false }, tenantId));
+    if (!hv) throw new ApiError(404, 'HVEquipo no encontrado', 'HV_NOT_FOUND', { hvId });
+    return hv;
+  }
+
+  /**
+   * Deletes a stored file only when it lives under this tenant/HV prefix, so a
+   * tampered storagePath can never remove another tenant's object.
+   */
+  async _deleteOwnedFile(storagePath, tenantId, hvId) {
+    const prefix = `hvequipo/documentos/${tenantId}/${hvId}/`;
+    if (typeof storagePath !== 'string' || !storagePath.startsWith(prefix) || storagePath.includes('..')) {
+      logger.warn('Skipping Firebase delete: storagePath outside the HV prefix', { hvId: String(hvId) });
+      return;
+    }
+    await firebaseStorageService.deleteByPath(storagePath);
+  }
+
+  /**
+   * Adds a document (link and/or file) to an HV.
+   * @param {string} hvId
+   * @param {string} tenantId
+   * @param {{nombre: string, link?: string, categoria?: 'general'|'guia_rapida', file?: {buffer: Buffer, originalname: string, mimetype: string}}} payload
+   */
+  async addDocumento(hvId, tenantId, { nombre, link, categoria, file } = {}) {
+    try {
+      const hv = await this._findHvForDocumentos(hvId, tenantId);
+      const cleanLink = link ? String(link).trim() : '';
+      if (!file && !cleanLink) {
+        throw new ApiError(400, 'Debes indicar un link o adjuntar un archivo', 'INVALID_DOCUMENTO');
+      }
+
+      const item = { nombre, categoria: categoria || 'general', orden: (hv.Documentos || []).length };
+      if (cleanLink) item.link = cleanLink;
+      if (file) {
+        const up = await firebaseStorageService.uploadHvDocumento(
+          file.buffer, file.originalname, file.mimetype, { tenantId, hvId: String(hv._id) },
+        );
+        Object.assign(item, {
+          archivoUrl: up.url,
+          storagePath: up.storagePath,
+          mimetype: up.mimetype,
+          tamanoBytes: up.tamanoBytes,
+          uploadedAt: up.uploadedAt,
+        });
+      }
+
+      hv.Documentos.push(item);
+      try {
+        await hv.save();
+      } catch (saveErr) {
+        // DB write failed after upload: do not leave an orphan file behind
+        if (item.storagePath) await firebaseStorageService.deleteByPath(item.storagePath);
+        throw saveErr;
+      }
+      return hv;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error agregando documento a HVEquipo:', err);
+      throw new ApiError(500, 'Error agregando documento', 'ADD_DOCUMENTO_ERROR');
+    }
+  }
+
+  /**
+   * Updates a document. A new file is uploaded first; the previous Firebase
+   * object is deleted only after the new data is persisted.
+   */
+  async updateDocumento(hvId, tenantId, docId, { nombre, link, file } = {}) {
+    try {
+      const hv = await this._findHvForDocumentos(hvId, tenantId);
+      const doc = hv.Documentos.id(docId);
+      if (!doc) throw new ApiError(404, 'Documento no encontrado', 'DOC_NOT_FOUND', { docId });
+
+      const oldStoragePath = doc.storagePath || '';
+      const nextLink = link !== undefined ? String(link ?? '').trim() : (doc.link || '');
+      if (!file && !nextLink && !doc.archivoUrl) {
+        throw new ApiError(400, 'Debes indicar un link o adjuntar un archivo', 'INVALID_DOCUMENTO');
+      }
+
+      let uploaded = null;
+      if (file) {
+        uploaded = await firebaseStorageService.uploadHvDocumento(
+          file.buffer, file.originalname, file.mimetype, { tenantId, hvId: String(hv._id) },
+        );
+      }
+
+      if (nombre !== undefined) doc.nombre = nombre;
+      if (link !== undefined) doc.link = nextLink;
+      if (uploaded) {
+        doc.archivoUrl = uploaded.url;
+        doc.storagePath = uploaded.storagePath;
+        doc.mimetype = uploaded.mimetype;
+        doc.tamanoBytes = uploaded.tamanoBytes;
+        doc.uploadedAt = uploaded.uploadedAt;
+      }
+
+      try {
+        await hv.save();
+      } catch (saveErr) {
+        if (uploaded) await firebaseStorageService.deleteByPath(uploaded.storagePath);
+        throw saveErr;
+      }
+
+      if (uploaded && oldStoragePath) {
+        await this._deleteOwnedFile(oldStoragePath, tenantId, hv._id);
+      }
+      return hv;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error actualizando documento de HVEquipo:', err);
+      throw new ApiError(500, 'Error actualizando documento', 'UPDATE_DOCUMENTO_ERROR');
+    }
+  }
+
+  /**
+   * Removes a document and deletes its Firebase object (best-effort, idempotent).
+   */
+  async removeDocumento(hvId, tenantId, docId) {
+    try {
+      const hv = await this._findHvForDocumentos(hvId, tenantId);
+      const doc = hv.Documentos.id(docId);
+      if (!doc) throw new ApiError(404, 'Documento no encontrado', 'DOC_NOT_FOUND', { docId });
+
+      const storagePath = doc.storagePath || '';
+      hv.Documentos.pull({ _id: docId });
+      await hv.save();
+
+      if (storagePath) await this._deleteOwnedFile(storagePath, tenantId, hv._id);
+      return hv;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.error('Error eliminando documento de HVEquipo:', err);
+      throw new ApiError(500, 'Error eliminando documento', 'REMOVE_DOCUMENTO_ERROR');
     }
   }
 }

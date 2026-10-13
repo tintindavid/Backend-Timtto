@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { USO_EQUIPO_VALUES, PERIODICIDAD_MESES_PATTERN } from '../constants/hvEquipo.constants.js';
 
 export const createHVEquipoDto = Joi.object({
   tenantId: Joi.string().optional(),
@@ -23,6 +24,15 @@ export const createHVEquipoDto = Joi.object({
     observaciones: Joi.string().allow('').optional(),
     _id: Joi.string().optional() // MongoDB agrega _id automáticamente
   }).unknown(true)).optional(),
+
+  OtrasEspecificaciones: Joi.array().items(Joi.object({
+    _id: Joi.string().optional(),
+    nombre: Joi.string().trim().min(1).max(200).required(),
+    valor: Joi.string().trim().min(1).max(500).required(),
+    orden: Joi.number().integer().min(0).optional(),
+  }).unknown(true)).optional(),
+  // Managed only via POST/PUT/DELETE /:id/documentos; ignored here on purpose.
+  Documentos: Joi.any().strip(),
 
   TecnologiaPredominante: Joi.string().allow('').optional(),
   AnoFabricacion: Joi.number().integer().min(1900).max(new Date().getFullYear()).optional(),
@@ -51,8 +61,8 @@ export const createHVEquipoDto = Joi.object({
   Observaciones: Joi.string().allow('').optional(),
   PaisOrigen: Joi.string().allow('').optional(),
   RequiereCalibracion: Joi.boolean().optional(),
-  PeriodicidadCalibracion: Joi.string().allow('').optional(),
-  PeriodicidadMantenimiento: Joi.string().allow('').optional(),
+  PeriodicidadCalibracion: Joi.string().pattern(PERIODICIDAD_MESES_PATTERN).allow('').optional().messages({ 'string.pattern.base': 'La periodicidad de calibración debe ser un número entero de meses' }),
+  PeriodicidadMantenimiento: Joi.string().pattern(PERIODICIDAD_MESES_PATTERN).allow('').optional().messages({ 'string.pattern.base': 'La periodicidad de mantenimiento debe ser un número entero de meses' }),
   Peso: Joi.number().optional(),
   Potencia: Joi.string().allow('').optional(),
   PresionOperacion: Joi.string().allow('').optional(),
@@ -69,7 +79,7 @@ export const createHVEquipoDto = Joi.object({
   TemperaturaOperacion: Joi.string().allow('').optional(),
   TipoAdquisicion: Joi.string().valid('Compra', 'Leasing', 'Donación', 'Alquiler').allow('').optional(),
   TipoEquipo: Joi.string().allow('').optional(),
-  UsoEquipo: Joi.string().valid('Apoyo', 'Soporte', 'Produccion', 'Investigacion', 'Docencia').allow('').optional(),
+  UsoEquipo: Joi.string().valid(...USO_EQUIPO_VALUES).allow('').optional(),
   ValorAdquisicion: Joi.number().optional(),
   software: Joi.string().allow('').optional(),
   Version: Joi.string().allow('').optional(),
