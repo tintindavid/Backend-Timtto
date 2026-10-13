@@ -11,4 +11,6 @@ export const queryCustomerDto = Joi.object({
   razonSocial: Joi.string().allow('').optional(),
   ciudad: Joi.string().allow('').optional(),
   nit: Joi.string().allow('').optional(),
+  // Third-party kind. Omitted = clients only (legacy docs without kind included).
+  kind: Joi.string().valid('customer', 'provider', 'all').default('customer'),
 });

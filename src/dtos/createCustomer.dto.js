@@ -10,6 +10,7 @@ export const createCustomerDto = Joi.object({
   Logo: Joi.string().trim().allow('', null),
   TelContacto: Joi.string().trim().allow('', null),
   UserContacto: Joi.string().trim().allow('', null),
+  kind: Joi.string().valid('customer', 'provider').optional(),
   // tenantId is resolved by middleware; allow if provided
   tenantId: Joi.string().trim().optional(),
 }).unknown(true);

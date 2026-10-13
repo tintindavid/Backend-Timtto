@@ -1,3 +1,4 @@
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { HVEquipo } from '../models/hvequipo.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -59,6 +60,7 @@ export class HVEquipoService {
       // Documentos is managed only via the /documentos endpoints: a client must not
       // be able to set server-owned fields (storagePath, archivoUrl, ...) here.
       delete data.Documentos;
+      await assertCustomerKind(data.clienteId, tenantId);
 
       const hvData = { ...data, tenantId };
       const entity = await HVEquipo.create(hvData);
@@ -239,6 +241,10 @@ export class HVEquipoService {
       delete data.Documentos;
 
       const query = applyTenantFilter({ _id: id }, tenantId);
+      if (data.clienteId) {
+        const current = await HVEquipo.findOne(query).select('clienteId').lean();
+        await assertCustomerKindIfChanged(data.clienteId, current?.clienteId, tenantId);
+      }
       const e = await HVEquipo.findOneAndUpdate(
         query,
         { $set: data },

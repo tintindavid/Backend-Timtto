@@ -10,6 +10,8 @@ export const updateCustomerDto = Joi.object({
   Logo: Joi.string().trim().allow('', null).optional(),
   TelContacto: Joi.string().trim().allow('', null).optional(),
   UserContacto: Joi.string().trim().allow('', null).optional(),
+  // kind is immutable after creation: silently dropped.
+  kind: Joi.any().strip(),
   tenantId: Joi.string().trim().optional(),
 }).min(1);
 

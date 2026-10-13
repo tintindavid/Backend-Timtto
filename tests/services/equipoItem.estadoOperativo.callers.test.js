@@ -8,7 +8,8 @@
  * as tests/services/equipoItem.duplicate.test.js and
  * tests/services/reports.guard.test.js).
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import { Customer } from '../../src/models/customer.model.js';
 import assert from 'node:assert/strict';
 
 import { equipoItemService } from '../../src/services/equipoitem.service.js';
@@ -17,6 +18,16 @@ import { EquipoItem } from '../../src/models/equipoitem.model.js';
 import { Report } from '../../src/models/report.model.js';
 import { OT } from '../../src/models/ot.model.js';
 import { History } from '../../src/models/history.model.js';
+
+
+// terceros-customers-providers: create() now runs assertCustomerKind, which
+// reads Customer; stub it so these DB-free tests see a plain client.
+const CUSTOMER_STUB = () => ({
+  select() { return this; },
+  lean: () => Promise.resolve({ _id: 'cust', kind: 'customer' }),
+});
+beforeEach(() => { Customer.findOne = CUSTOMER_STUB; });
+afterEach(() => { delete Customer.findOne; });
 
 // historyService.record() is best-effort but a real, un-mocked
 // History.create() call buffers against a non-existent Mongo connection —
@@ -45,7 +56,7 @@ describe('equipoItemService.create — EstadoOperativo history seeding', () => {
     };
 
     const entity = await equipoItemService.create(
-      { ClienteId: 'c1', Marca: 'Philips', Serie: 'A123', EstadoOperativo: 'En Reparacion' },
+      { ClienteId: '507f1f77bcf86cd799439001', Marca: 'Philips', Serie: 'A123', EstadoOperativo: 'En Reparacion' },
       TENANT,
     );
 
@@ -61,7 +72,7 @@ describe('equipoItemService.create — EstadoOperativo history seeding', () => {
     let updateCalled = false;
     EquipoItem.findOneAndUpdate = () => { updateCalled = true; return Promise.resolve({}); };
 
-    await equipoItemService.create({ ClienteId: 'c1', Marca: 'Philips', Serie: 'A123' }, TENANT);
+    await equipoItemService.create({ ClienteId: '507f1f77bcf86cd799439001', Marca: 'Philips', Serie: 'A123' }, TENANT);
 
     assert.equal(updateCalled, false);
   });
@@ -76,7 +87,7 @@ describe('equipoItemService.create — EstadoOperativo history seeding', () => {
     };
 
     await equipoItemService.create(
-      { ClienteId: 'c1', Marca: 'Philips', Serie: 'A123', EstadoOperativo: 'Operativo' },
+      { ClienteId: '507f1f77bcf86cd799439001', Marca: 'Philips', Serie: 'A123', EstadoOperativo: 'Operativo' },
       TENANT,
       null,
       { source: 'bulk-upload' },

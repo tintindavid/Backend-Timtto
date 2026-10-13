@@ -5,6 +5,7 @@ import { Customer } from '../models/customer.model.js';
 import { User } from '../models/user.model.js';
 import { Tenant } from '../models/tenant.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
@@ -28,6 +29,9 @@ export class SheetWorkService {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+
+      // clienteId is optional; when supplied it must be a client, not a provider.
+      await assertCustomerKind(data.clienteId, t);
 
       // Responsibility guard (ot-responsables-programacion-trazable, design
       // D3/D7) — creating a sheet is "trabajar" on the OT's reports.
@@ -253,6 +257,7 @@ export class SheetWorkService {
         ? await SheetWork.findOne(applyTenantFilter({ _id: id }, t)).lean()
         : await SheetWork.findById(id).lean();
       if (!existing) throw new ApiError(404, 'SheetWork no encontrado', 'NOT_FOUND', { id });
+      if (data?.clienteId && t) await assertCustomerKindIfChanged(data.clienteId, existing.clienteId, t);
       if (existing.otId) {
         const parentOt = await OT.findOne(applyTenantFilter({ _id: existing.otId }, t || existing.tenantId)).lean();
         if (parentOt) assertUserCanWork(user, parentOt);

@@ -2,6 +2,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { requireTenant } from '../utils/tenant.util.js';
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { Report } from '../models/report.model.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { ticketService } from './ticket.service.js';
@@ -184,6 +185,9 @@ export class EquipoItemService {
       requireTenant(t);
       data.tenantId = t;
 
+      // A provider can never be the client of an equipo (terceros-customers-providers).
+      await assertCustomerKind(data.ClienteId, t);
+
       await this._guardDuplicate({ ClienteId: data.ClienteId, ItemId: data.ItemId, Marca: data.Marca, Serie: data.Serie }, t, panelUser);
 
       // EstadoOperativo is seeded into history AFTER insert (needs the new
@@ -303,6 +307,10 @@ export class EquipoItemService {
 
   async update(id, data, tenantId, panelUser = null) {
     try {
+      if (data.ClienteId) {
+        const cur = await EquipoItem.findById(id).select('tenantId ClienteId').lean();
+        await assertCustomerKindIfChanged(data.ClienteId, cur?.ClienteId, tenantId || cur?.tenantId);
+      }
       const tupleKeys = ['ItemId', 'Marca', 'Serie'];
       const touchesTuple = tupleKeys.some((k) => typeof data[k] !== 'undefined');
 

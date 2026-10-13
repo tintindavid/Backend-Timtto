@@ -4,6 +4,7 @@ import { ActividadMtto } from '../models/actividadmtto.model.js';
 import { OT } from '../models/ot.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { isValidActivityOrigin } from '../utils/activityOrigin.util.js';
@@ -58,10 +59,12 @@ export class ReportService {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+      await assertCustomerKind(data.ClienteId, t);
       const entity = await Report.create(data);
       logger.info('Report creado: ' + entity._id);
       return entity;
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando report:', err);
       throw new ApiError(500, 'Error creando Report', 'CREATE_ERROR');
     }
@@ -262,6 +265,10 @@ export class ReportService {
       // Capture pre-update state so we can detect transitions for the ticket
       // cascade (design D14: cross-collection cascades live in services).
       const previous = await Report.findById(id).lean();
+      // A provider can never become the client of a report (terceros-customers-providers).
+      if (data.ClienteId) {
+        await assertCustomerKindIfChanged(data.ClienteId, previous?.ClienteId, tenantId || previous?.tenantId);
+      }
       const e = await Report.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id });
       logger.info('Report actualizado: ' + id);

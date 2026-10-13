@@ -11,7 +11,8 @@
  * actual DB round-trip, matching the "no DB in unit tests" convention used
  * throughout this repo.
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import { Customer } from '../../src/models/customer.model.js';
 import assert from 'node:assert/strict';
 
 import { clientAccessTokenService } from '../../src/services/clientAccessToken.service.js';
@@ -19,6 +20,16 @@ import { ClientAccessToken } from '../../src/models/clientAccessToken.model.js';
 import { User } from '../../src/models/user.model.js';
 import { OT } from '../../src/models/ot.model.js';
 import { ApiError } from '../../src/utils/apiError.util.js';
+
+
+// terceros-customers-providers: create() now runs assertCustomerKind, which
+// reads Customer; stub it so these DB-free tests see a plain client.
+const CUSTOMER_STUB = () => ({
+  select() { return this; },
+  lean: () => Promise.resolve({ _id: 'cust', kind: 'customer' }),
+});
+beforeEach(() => { Customer.findOne = CUSTOMER_STUB; });
+afterEach(() => { delete Customer.findOne; });
 
 const TENANT = 'tenant-1';
 const USER_ID = '507f1f77bcf86cd799439014';
