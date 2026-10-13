@@ -1,3 +1,10 @@
+## [2.21.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.21.0...v2.21.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **tenant:** bind authenticated requests to the tenant in their token ([#40](https://github.com/tintindavid/Backend-Timtto/issues/40)) ([656a133](https://github.com/tintindavid/Backend-Timtto/commit/656a13323acb9f3b8afbd925524c875a6e7b51d8))
+
 # [2.21.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.20.0...v2.21.0) (2026-10-13)
 
 
