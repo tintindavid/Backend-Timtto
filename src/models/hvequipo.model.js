@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { USO_EQUIPO_VALUES, CATEGORIAS_DOCUMENTO } from '../constants/hvEquipo.constants.js';
 
 const { Schema, model } = mongoose;
 
@@ -35,6 +36,7 @@ const HVEquipoSchema = new Schema({
     CiudadProveedor: { type: String,  trim: true },
     Descripcion: { type: String,  trim: true },
     DireccionProveedor: { type: String,  trim: true },
+    /** @deprecated Use `Documentos[]` instead. Kept in DB for backward compatibility; no longer rendered. */
     DocumentoAdjunto: { type: String,  trim: true },
     EmailProveedor: { type: String,  trim: true },
     EstadoHV: { type: String,  default: 'Guardada', trim: true }, // Si es un HV, aprobada, que se puede usar como referencia para otros equipos
@@ -62,14 +64,16 @@ const HVEquipoSchema = new Schema({
     Recomendaciones: [{ type: String, trim: true }],
     RegistroINVIMA: { type: String,  trim: true },
     Servicio: { type: String,  trim: true },
+    /** @deprecated Use `Documentos[]` instead. Kept in DB for backward compatibility; no longer rendered. */
     ManualDisponible: { type: Boolean, default: false },
+    /** @deprecated Use `Documentos[]` instead. Kept in DB for backward compatibility; no longer rendered. */
     PlanoDisponible: { type: Boolean, default: false },
     RequiereCapacitacion: { type: Boolean, default: false },
     TelefonoProveedor: { type: String,  trim: true },
     TemperaturaOperacion: { type: String,  trim: true },
     TipoAdquisicion: { type: String,   trim: true }, // Compra, Leasing, Donación, Alquiler
     TipoEquipo: { type: String,  trim: true }, 
-    UsoEquipo: { type: String, enum:['Apoyo', 'Soporte', 'Produccion', 'Investigacion', 'Docencia'],  trim: true }, // Apoyo / Soporte/Produccion/Investigacion/Docencia
+    UsoEquipo: { type: String, enum: USO_EQUIPO_VALUES,  trim: true },
     ValorAdquisicion: { type: Number,  trim: true },
     Software: { type: String,  trim: true },
     Version: { type: String,  trim: true },
@@ -105,6 +109,26 @@ const HVEquipoSchema = new Schema({
       contenidoHtml: { type: String, default: '', maxlength: 10000 },
       orden: { type: Number, default: 0 },
     }],
+    // Free-form name/value specs for non-medical assets (RAM, storage, engine size...).
+    OtrasEspecificaciones: [{
+      _id: { type: Schema.Types.ObjectId, auto: true },
+      nombre: { type: String, required: true, trim: true, maxlength: 200 },
+      valor: { type: String, required: true, trim: true, maxlength: 500 },
+      orden: { type: Number, default: 0 },
+    }],
+    // Attachments: external link and/or Firebase file. Invariant: at-least-one(link, archivoUrl).
+    Documentos: [{
+      _id: { type: Schema.Types.ObjectId, auto: true },
+      nombre: { type: String, required: true, trim: true, maxlength: 200 },
+      link: { type: String, trim: true, maxlength: 2000 },
+      archivoUrl: { type: String, trim: true },
+      storagePath: { type: String, trim: true },
+      mimetype: { type: String, trim: true },
+      tamanoBytes: { type: Number },
+      uploadedAt: { type: Date },
+      categoria: { type: String, enum: CATEGORIAS_DOCUMENTO, default: 'general' },
+      orden: { type: Number, default: 0 },
+    }],
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
@@ -126,6 +150,23 @@ HVEquipoSchema.set('toJSON', {
     delete ret.deletedAt;
     return ret;
   }
+});
+
+// Enforce at-least-one(link, archivoUrl) for every Documentos item.
+HVEquipoSchema.pre('validate', function(next) {
+  const invalid = (this.Documentos || []).some((d) => !d.link && !d.archivoUrl);
+  if (invalid) {
+    const err = new mongoose.Error.ValidationError(this);
+    err.message = 'Cada documento requiere un link o un archivo';
+    err.code = 'INVALID_DOCUMENTO';
+    err.addError('Documentos', new mongoose.Error.ValidatorError({
+      message: 'Cada documento requiere un link o un archivo',
+      path: 'Documentos',
+      type: 'INVALID_DOCUMENTO',
+    }));
+    return next(err);
+  }
+  next();
 });
 
 // Pre-save hook: Normalizar Recomendaciones a array si viene como string

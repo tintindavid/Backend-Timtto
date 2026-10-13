@@ -31,12 +31,12 @@ export class HVEquipoPDFService {
         .populate('userIdCreacion', 'firstName lastName email')
         .lean();
 
-      const tenantData = await Tenant.findOne({ tenantId: hv.tenantId, isDeleted: false }).lean();
-
-      logger.info('tenantData consultado para PDF de HV: ',{ tenantData });
       if (!hv) {
         throw new ApiError(404, 'HVEquipo no encontrada', 'HV_NOT_FOUND', { hvId });
       }
+
+      const tenantData = await Tenant.findOne({ tenantId: hv.tenantId, isDeleted: false }).lean();
+      logger.info('tenantData consultado para PDF de HV: ',{ tenantData });
 
       // 3. Generar HTML
       const html = this.generateHTML(hv, tenantData);
@@ -78,12 +78,12 @@ export class HVEquipoPDFService {
   }
 
   /**
-   * Formatea fecha a DD/MM/YYYY
+   * Formatea fecha a DD/MM/YYYY. Returns '' for empty/invalid dates.
    */
   formatDate(date) {
-    if (!date) return 'N/A';
+    if (!date) return '';
     const d = new Date(date);
-    if (isNaN(d.getTime())) return 'N/A';
+    if (isNaN(d.getTime())) return '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
@@ -91,10 +91,10 @@ export class HVEquipoPDFService {
   }
 
   /**
-   * Formatea número a moneda COP
+   * Formatea número a moneda COP. Returns '' for empty values.
    */
   formatCurrency(value) {
-    if (!value) return 'N/A';
+    if (!value) return '';
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -110,65 +110,297 @@ export class HVEquipoPDFService {
   }
 
   /**
+   * Escapes user-provided text for safe HTML interpolation.
+   */
+  escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /** Only http(s) URLs may become clickable links (blocks javascript:, data:, etc.). */
+  isSafeHttpUrl(value) {
+    return typeof value === 'string' && /^https?:\/\//i.test(value.trim());
+  }
+
+  /**
+   * True when a value must be omitted from the PDF: null/undefined/''/'N/A',
+   * empty arrays and empty plain objects.
+   */
+  isEmptyValue(value) {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'string') {
+      const t = value.trim();
+      return t === '' || t.toUpperCase() === 'N/A';
+    }
+    if (Array.isArray(value)) return value.length === 0;
+    if (value instanceof Date) return isNaN(value.getTime());
+    if (typeof value === 'object') return Object.keys(value).length === 0;
+    return false;
+  }
+
+  /**
+   * Renders a label/value field, or '' when the value is empty.
+   * @param {string} label
+   * @param {*} value
+   * @param {{formatter?: Function, badge?: string}} [opts] - badge: badge type (info|warning|success)
+   */
+  renderField(label, value, { formatter, badge } = {}) {
+    if (this.isEmptyValue(value)) return '';
+    const formatted = formatter ? formatter(value) : value;
+    if (this.isEmptyValue(formatted)) return '';
+    const safe = this.escapeHtml(formatted);
+    const html = badge ? this.badge(safe, badge) : safe;
+    return `<div class="field">
+                      <span class="field-label">${label}:</span>
+                      <span class="field-value">${html}</span>
+                    </div>`;
+  }
+
+  /**
+   * Wraps content in a section, or '' when the content is blank.
+   * A falsy title renders the wrapper without header.
+   */
+  renderSection(title, innerHtml) {
+    if (!innerHtml || String(innerHtml).trim() === '') return '';
+    const header = title ? `<div class="section-header">${title}</div>` : '';
+    return `<div class="section">
+            ${header}
+            ${innerHtml}
+          </div>`;
+  }
+
+  /**
+   * Wraps fields in a CSS grid, or '' when there are no fields.
+   */
+  renderGrid(cols, fields) {
+    const inner = fields.filter(Boolean).join('\n');
+    if (inner.trim() === '') return '';
+    return `<div class="grid-${cols}">${inner}</div>`;
+  }
+
+  /**
+   * Sub-block with its own header (used inside two-column sections).
+   */
+  renderSubsection(title, innerHtml) {
+    if (!innerHtml || String(innerHtml).trim() === '') return '';
+    return `<div><div class="section-header">${title}</div>${innerHtml}</div>`;
+  }
+
+  /**
+   * Places up to two sub-blocks side by side; collapses when empty.
+   */
+  renderPair(left, right) {
+    const parts = [left, right].filter((x) => x && x.trim() !== '');
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return this.renderSection(null, parts[0]);
+    return this.renderSection(null, `<div class="grid-2">${parts.join('\n')}</div>`);
+  }
+
+  /**
    * Genera el HTML completo de la HV
    */
   generateHTML(hv, tenantData) {
-    const institucion = hv.clienteId?.Razonsocial || 'N/A';
-    const nit = hv.clienteId?.Nit || 'N/A';
-    const telefono = hv.clienteId?.Telefono || 'N/A';
-    const direccion = hv.clienteId?.Direccion || 'N/A';
-    const ciudad = hv.clienteId?.Ciudad || 'N/A';
-    const ciudadProveedor= hv.CiudadProveedor || 'N/A';
-
-    const equipo = hv.equipoSnapshot?.ItemText || 'N/A';
-    const sede = hv.equipoSnapshot?.Sede || 'N/A';
-    const servicio = hv.equipoSnapshot?.Servicio || 'N/A';
-    const inventario = hv.equipoSnapshot?.Inventario || 'N/A';
-    const descripcion= hv.equipoSnapshot?.Descripcion || 'N/A';
-
-    const marca = hv.equipoSnapshot?.Marca || 'N/A';
-    const modelo = hv.equipoSnapshot?.Modelo || 'N/A';
-    const serie = hv.equipoSnapshot?.Serie || 'N/A';
-    const ubicacion= hv.equipoSnapshot?.Ubicacion || 'N/A';
-    const fotoEquipo= hv.Foto|| null;
+    const f = (label, value, opts) => this.renderField(label, value, opts);
+    // Legacy HVs may hold free text ("Anual"); only purely numeric values get the unit.
+    const formatMonths = (v) => (/^\d+$/.test(String(v).trim()) ? `${String(v).trim()} ${String(v).trim() === '1' ? 'mes' : 'meses'}` : v);
+    const snap = hv.equipoSnapshot || {};
+    const cli = hv.clienteId || {};
+    const fotoEquipo = hv.Foto || null;
 
     const logo = tenantData?.logoUrl ? `<img src="${tenantData.logoUrl}" alt="Logo" class="logo">` : `<div class="logo">Logo</div>`;
 
-    const userCreacion = hv.userIdCreacion 
-      ? `${hv.userIdCreacion.firstName} ${hv.userIdCreacion.lastName}`
-      : 'N/A';
+    const userCreacion = hv.userIdCreacion
+      ? `${hv.userIdCreacion.firstName || ''} ${hv.userIdCreacion.lastName || ''}`.trim()
+      : '';
 
     const version = String(hv._id).substring(0, 8).toUpperCase();
     const fechaDoc = this.formatDate(hv.createdAt);
     const codigoInterno = String(hv._id).substring(0, 12).toUpperCase();
 
-    // Accesorios
-    const accesoriosHTML = (hv.Accesorios || []).map((acc, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${acc.nombre || 'N/A'}</td>
-        <td>${acc.descripcion || '-'}</td>
-        <td>${acc.cantidad || 0}</td>
-        <td>${this.badge(acc.estado || 'N/A', 'info')}</td>
-        <td>${acc.observaciones || '-'}</td>
-      </tr>
-    `).join('');
+    // --- Identification / equipment / description ---
+    const identificacion = this.renderSection('Identificación de la Institución',
+      this.renderGrid(3, [
+        f('Institución', cli.Razonsocial), f('NIT', cli.Nit), f('Ciudad', cli.Ciudad),
+        f('Dirección', cli.Direccion), f('Sede', snap.Sede), f('Teléfono', cli.TelContacto),
+      ]));
 
-    const accesoriosTable = accesoriosHTML || '<tr><td colspan="6" style="text-align:center;">No hay accesorios registrados</td></tr>';
+    const datosEquipo = this.renderSection('Datos del Equipo',
+      this.renderGrid(4, [
+        f('Equipo', snap.ItemText), f('Marca', snap.Marca), f('Modelo', snap.Modelo),
+        f('No. Serie', snap.Serie), f('Inventario', snap.Inventario), f('Servicio', snap.Servicio),
+        f('Ubicación', snap.Ubicacion),
+      ]));
 
-    // Recomendaciones
-    const recomendacionesHTML = (hv.Recomendaciones || []).map(rec => `<li>${rec}</li>`).join('');
-    const recomendacionesList = recomendacionesHTML || '<li>No hay recomendaciones específicas registradas.</li>';
+    const descripcion = this.renderSection('Descripción y Detalles',
+      f('Descripción del equipo', hv.Descripcion || snap.Descripcion));
 
-    // Firmas
- 
+    const leftColumn = [identificacion, datosEquipo, descripcion].join('\n');
+    const photoBox = fotoEquipo ? `<div class="photo-box">
+                <div class="photo-box-title">Foto del Equipo</div>
+                <div class="equipment-photo">
+                  <img src="${fotoEquipo}" alt="Foto del equipo" onerror="this.style.display='none'; this.parentElement.querySelector('.photo-placeholder').style.display='flex';">
+                  <div class="photo-placeholder" style="display: none;">
+                    <div class="photo-placeholder-icon">📷</div>
+                    <div>Foto del<br>Equipo</div>
+                  </div>
+                </div>
+              </div>` : '';
+    let identificacionBlock = '';
+    if (photoBox) {
+      identificacionBlock = `<div class="section-with-photo">
+            <div class="grid-withPhoto">
+              <div>${leftColumn}</div>
+              ${photoBox}
+            </div>
+          </div>`;
+    } else if (leftColumn.trim() !== '') {
+      identificacionBlock = `<div>${leftColumn}</div>`;
+    }
+
+    // --- Dates ---
+    const fechas = this.renderSection('Fechas Importantes',
+      this.renderGrid(3, [
+        f('Fecha Adquisición', hv.FechaAdquisicin, { formatter: (v) => this.formatDate(v) }),
+        f('Fecha Instalación', hv.FechaInstalacion, { formatter: (v) => this.formatDate(v) }),
+        f('Puesta en Funcionamiento', hv.FechaPuestaFuncionamiento || hv.FechaFuncionamiento, { formatter: (v) => this.formatDate(v) }),
+      ]));
+
+    // --- Provider ---
+    const proveedor = this.renderSection('Información del Proveedor y fabricante',
+      this.renderGrid(4, [
+        f('Proveedor', hv.NombreProveedor), f('Teléfono', hv.TelefonoProveedor),
+        f('Email', hv.EmailProveedor), f('Ciudad', hv.CiudadProveedor),
+        f('Dirección', hv.DireccionProveedor), f('Fabricante', hv.Fabricante),
+        f('Año Fabricación', hv.AnoFabricacion), f('País de Origen', hv.PaisOrigen),
+      ]));
+
+    // --- Warranty & acquisition ---
+    const garantiaYAdquisicion = this.renderPair(
+      this.renderSubsection('Garantía', this.renderGrid(2, [
+        f('Inicio', hv.FechaInicioGarantia, { formatter: (v) => this.formatDate(v) }),
+        f('Fin', hv.FechaFinGarantia, { formatter: (v) => this.formatDate(v) }),
+      ])),
+      this.renderSubsection('Adquisición', this.renderGrid(2, [
+        f('Tipo', hv.TipoAdquisicion),
+        f('Valor', hv.ValorAdquisicion, { formatter: (v) => this.formatCurrency(v) }),
+      ])),
+    );
+
+    // --- Technical ---
+    const tecnico = this.renderSection('Datos Técnico y condiciones de operación',
+      this.renderGrid(4, [
+        f('Voltaje (V)', hv.Voltaje), f('Corriente (A)', hv.Corriente),
+        f('Frecuencia (Hz)', hv.Frecuencia), f('Potencia (W)', hv.Potencia),
+        f('Peso (kg)', hv.Peso), f('Temperatura (°C)', hv.TemperaturaOperacion),
+        f('Humedad (%)', hv.HumedadOperacion), f('Presión', hv.PresionOperacion),
+      ]));
+
+    // --- Characteristics & classification ---
+    const caracteristicas = this.renderPair(
+      this.renderSubsection('Características', this.renderGrid(2, [
+        f('Fuente Alimentación', hv.FuenteAlimentacion),
+        f('Autonomía Batería', hv.AutonomiaBatería),
+        f('Tecnología', hv.TecnologiaPredominante),
+      ])),
+      this.renderSubsection('Registro sanitario y Clasificación', this.renderGrid(2, [
+        f('Uso del Equipo', hv.UsoEquipo, { badge: 'warning' }),
+        f('Tipo de Equipo', hv.TipoEquipo, { badge: 'info' }),
+        f('Reg. INVIMA', hv.RegistroINVIMA),
+        f('Riesgo', hv.ClasificacinRiesgo, { badge: 'warning' }),
+      ])),
+    );
+
+    // --- Otras especificaciones ---
+    const otrasEsp = (hv.OtrasEspecificaciones || []).filter((e) => e && !this.isEmptyValue(e.nombre) && !this.isEmptyValue(e.valor));
+    const otrasEspecificaciones = this.renderSection('Otras Especificaciones',
+      this.renderGrid(4, otrasEsp.map((e) => f(this.escapeHtml(e.nombre), e.valor))));
+
+    // --- Accessories ---
+    const accesorios = hv.Accesorios || [];
+    const accesoriosSection = this.renderSection('Accesorios', accesorios.length === 0 ? '' : `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 5%;">No.</th>
+                  <th style="width: 25%;">Nombre</th>
+                  <th style="width: 30%;">Descripción</th>
+                  <th style="width: 10%;">Cantidad</th>
+                  <th style="width: 15%;">Estado</th>
+                  <th style="width: 15%;">Observaciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${accesorios.map((acc, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td>${this.escapeHtml(acc.nombre || '')}</td>
+                  <td>${this.escapeHtml(acc.descripcion || '')}</td>
+                  <td>${acc.cantidad ?? ''}</td>
+                  <td>${acc.estado ? this.badge(this.escapeHtml(acc.estado), 'info') : ''}</td>
+                  <td>${this.escapeHtml(acc.observaciones || '')}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>`);
+
+    // --- Metrology & maintenance ---
+    const metrologia = this.renderSection('Metrología y Mantenimiento',
+      this.renderGrid(3, [
+        typeof hv.RequiereCalibracion === 'boolean' ? f('Requiere Calibración', hv.RequiereCalibracion ? 'SÍ' : 'NO') : '',
+        f('Periodicidad Calibración', hv.PeriodicidadCalibracion, { formatter: formatMonths }),
+        f('Mantenimiento Preventivo', hv.PeriodicidadMantenimiento, { formatter: formatMonths }),
+      ]));
+
+    // --- Recommendations ---
+    const recs = (Array.isArray(hv.Recomendaciones) ? hv.Recomendaciones : [hv.Recomendaciones])
+      .filter((r) => !this.isEmptyValue(r));
+    const recomendaciones = this.renderSection('Recomendaciones de Uso y Mantenimiento', recs.length === 0 ? '' : `
+            <ol class="recommendations-list">
+              ${recs.map((rec) => `<li>${this.escapeHtml(rec)}</li>`).join('')}
+            </ol>`);
+
+    // --- Documentos adjuntos ---
+    const docs = (hv.Documentos || []).filter((d) => d && !this.isEmptyValue(d.nombre));
+    const documentosSection = this.renderSection('Documentos Adjuntos', docs.length === 0 ? '' : `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 30%;">Nombre</th>
+                  <th style="width: 40%;">Link</th>
+                  <th style="width: 30%;">Archivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${docs.map((d) => {
+                  const linkCell = this.isEmptyValue(d.link)
+                    ? ''
+                    : this.isSafeHttpUrl(d.link)
+                      ? `<a href="${this.escapeHtml(d.link)}">${this.escapeHtml(d.link)}</a>`
+                      : this.escapeHtml(d.link);
+                  const hint = this.isEmptyValue(d.mimetype) ? '' : ` (${this.escapeHtml(d.mimetype)})`;
+                  const fileCell = this.isEmptyValue(d.archivoUrl) || !this.isSafeHttpUrl(d.archivoUrl)
+                    ? ''
+                    : `<a href="${this.escapeHtml(d.archivoUrl)}">Descargar</a>${hint}`;
+                  return `<tr><td>${this.escapeHtml(d.nombre)}</td><td>${linkCell}</td><td>${fileCell}</td></tr>`;
+                }).join('')}
+              </tbody>
+            </table>`);
+
+    // --- Signatures ---
     const firmaFile1 = hv.FirmAprobacion ? `<img src="${hv.FirmAprobacion}" alt="Firma Aprobación" style="max-width: 150px; max-height: 80px;">` : 'Pendiente de Aprobación';
     const firma1Nombre = hv.UserAprobacion || 'Pendiente de Aprobación';
     const firma1Cargo = hv.CargoUserAprobacion || '';
-    // si hay firma de aprobacion y no hay firma de responsable del area, debo simular un contenedor en firmaFile2 (sino hay firma responsable) con el tamaño de la firma para que no se vea desbalanceado el diseño, y colocar un texto que diga "Pendiente de Firma Responsable del Área" dejar espacio en blanco
+    // Keep the layout balanced when there is no responsible-person signature
     const firmaFile2 = hv.FirmaResponsableCustomer ? `<img src="${hv.FirmaResponsableCustomer}" alt="Firma Responsable" style="max-width: 260px; max-height: 80px;">` : '<div style="width: 260px; height: 70px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc;"></div>';
     const firma2Nombre = hv.ResponsableCustomer || 'Responsable del Área';
     const firma2Cargo = hv.CargoResponsableCustomer || 'Firma y Sello';
+
+    const footerLeft = [tenantData?.name, tenantData?.direccion].filter(Boolean).join(' · ');
+    const footerCenter = [tenantData?.ciudad, tenantData?.departamento].filter(Boolean).join(' - ');
+    const footerRight = [tenantData?.telefono, tenantData?.email].filter(Boolean).join(' · ');
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -570,7 +802,7 @@ table.data-table th {
             <table>
               <tr>
                 <td>Realizó:</td>
-                <td>${userCreacion}</td>
+                <td>${this.escapeHtml(userCreacion)}</td>
               </tr>
               <tr>
                 <td>Versión:</td>
@@ -597,338 +829,31 @@ table.data-table th {
       <td>
         <div class="container">
           
-          <!-- IDENTIFICACIÓN Y FOTO -->
-          <div class="section-with-photo">
-            <div class="grid-withPhoto">
-              <div>
-                <!-- IDENTIFICACIÓN -->
-                <div class="section">
-                  <div class="section-header">Identificación de la Institución</div>
-                  <div class="grid-3">
-                    <div class="field">
-                      <span class="field-label">Institución:</span>
-                      <span class="field-value">${institucion}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">NIT:</span>
-                      <span class="field-value">${nit}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Ciudad:</span>
-                      <span class="field-value">${ciudad}</span>
-                    </div>
-                  </div>
-                  
-                  <div class="grid-3">
-                    <div class="field">
-                      <span class="field-label">Dirección:</span>
-                      <span class="field-value">${direccion}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Sede:</span>
-                      <span class="field-value">${sede}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Teléfono:</span>
-                      <span class="field-value">${telefono}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- DATOS DEL EQUIPO -->
-                <div class="section">
-                  <div class="section-header">Datos del Equipo</div>
-                  <div class="grid-4">
-                    <div class="field">
-                      <span class="field-label">Equipo:</span>
-                      <span class="field-value">${equipo}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Marca:</span>
-                      <span class="field-value">${marca}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Modelo:</span>
-                      <span class="field-value">${modelo}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">No. Serie:</span>
-                      <span class="field-value">${serie}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Inventario:</span>
-                      <span class="field-value">${inventario}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Servicio:</span>
-                      <span class="field-value">${servicio}</span>
-                    </div>
-                    <div class="field">
-                      <span class="field-label">Ubicación:</span>
-                      <span class="field-value">${ubicacion}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- DESCRIPCIÓN -->
-                <div class="section">
-                  <div class="section-header">Descripción y Detalles</div>
-                  <div class="field">
-                    <span class="field-label">Descripción del equipo:</span>
-                    <span class="field-value">${hv.Descripcion || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Foto del equipo -->
-              <div class="photo-box">
-                <div class="photo-box-title">Foto del Equipo</div>
-                <div class="equipment-photo">
-                  <img src="${fotoEquipo}" alt="Foto del equipo" onerror="this.style.display='none'; this.parentElement.querySelector('.photo-placeholder').style.display='flex';">
-                  <div class="photo-placeholder" style="display: none;">
-                    <div class="photo-placeholder-icon">📷</div>
-                    <div>Foto del<br>Equipo</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- FECHAS -->
-          <div class="section">
-            <div class="section-header">Fechas Importantes</div>
-            <div class="grid-3">
-              <div class="field">
-                <span class="field-label">Fecha Adquisición:</span>
-                <span class="field-value">${this.formatDate(hv.FechaAdquisicin)}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Fecha Instalación:</span>
-                <span class="field-value">${this.formatDate(hv.FechaInstalacion)}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Puesta en Funcionamiento:</span>
-                <span class="field-value">${this.formatDate(hv.FechaPuestaFuncionamiento || hv.FechaFuncionamiento)}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- PROVEEDOR -->
-          <div class="section">
-            <div class="section-header">Información del Proveedor y fabricante</div>
-            <div class="grid-4">
-              <div class="field">
-                <span class="field-label">Proveedor:</span>
-                <span class="field-value">${hv.NombreProveedor || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Teléfono:</span>
-                <span class="field-value">${hv.TelefonoProveedor || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Email:</span>
-                <span class="field-value">${hv.EmailProveedor || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Ciudad:</span>
-                <span class="field-value">${hv.CiudadProveedor || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Dirección:</span>
-                <span class="field-value">${hv.DireccionProveedor  || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Fabricante:</span>
-                <span class="field-value">${hv.Fabricante || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Año Fabricación:</span>
-                <span class="field-value">${hv.AnoFabricacion || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">País de Origen:</span>
-                <span class="field-value">${hv.PaisOrigen || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- GARANTÍA Y ADQUISICIÓN -->
-          <div class="section">
-            <div class="grid-2">
-              <div>
-                <div class="section-header">Garantía</div>
-                <div class="grid-2">
-                  <div class="field">
-                    <span class="field-label">Inicio:</span>
-                    <span class="field-value">${this.formatDate(hv.FechaInicioGarantia)}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Fin:</span>
-                    <span class="field-value">${this.formatDate(hv.FechaFinGarantia)}</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <div class="section-header">Adquisición</div>
-                <div class="grid-2">
-                  <div class="field">
-                    <span class="field-label">Tipo:</span>
-                    <span class="field-value">${hv.TipoAdquisicion || 'N/A'}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Valor:</span>
-                    <span class="field-value">${this.formatCurrency(hv.ValorAdquisicion)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- REGISTRO TÉCNICO -->
-          <div class="section">
-            <div class="section-header">Datos Técnico y condiciones de operación</div>
-            <div class="grid-4">
-              <div class="field">
-                <span class="field-label">Voltaje (V):</span>
-                <span class="field-value">${hv.Voltaje || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Corriente (A):</span>
-                <span class="field-value">${hv.Corriente || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Frecuencia (Hz):</span>
-                <span class="field-value">${hv.Frecuencia || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Potencia (W):</span>
-                <span class="field-value">${hv.Potencia || 'N/A'}</span>
-              </div>
-            </div>
-            <div class="grid-4" style="margin-top: 8px;">
-              <div class="field">
-                <span class="field-label">Peso (kg):</span>
-                <span class="field-value">${hv.Peso || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Temperatura (°C):</span>
-                <span class="field-value">${hv.TemperaturaOperacion || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Humedad (%):</span>
-                <span class="field-value">${hv.HumedadOperacion || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Presión:</span>
-                <span class="field-value">${hv.PresionOperacion || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- CARACTERÍSTICAS Y CLASIFICACIÓN -->
-          <div class="section">
-            <div class="grid-2">
-              <div>
-                <div class="section-header">Características</div>
-                <div class="grid-2">
-                  <div class="field">
-                    <span class="field-label">Fuente Alimentación:</span>
-                    <span class="field-value">${hv.FuenteAlimentacion || 'N/A'}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Autonomía Batería:</span>
-                    <span class="field-value">${hv.AutonomiaBatería || 'N/A'}</span>
-                  </div>
-                </div>
-                <div class="field" style="margin-top: 5px;">
-                  <span class="field-label">Tecnología:</span>
-                  <span class="field-value">${hv.TecnologiaPredominante || 'N/A'}</span>
-                </div>
-              </div>
-              <div>
-                <div class="section-header">Registro sanitario y Clasificación</div>
-                <div class="grid-2">
-                  <div class="field">
-                    <span class="field-label">Uso del Equipo:</span>
-                    <span class="field-value">${this.badge(hv.UsoEquipo || 'N/A', 'warning')}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Tipo de Equipo:</span>
-                    <span class="field-value">${this.badge(hv.TipoEquipo || 'N/A', 'info')}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Reg. INVIMA:</span>
-                    <span class="field-value">${hv.RegistroINVIMA || 'N/A'}</span>
-                  </div>
-                  <div class="field">
-                    <span class="field-label">Riesgo:</span>
-                    <span class="field-value">${this.badge(hv.ClasificacinRiesgo || 'N/A', 'warning')}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ACCESORIOS -->
-          <div class="section">
-            <div class="section-header">Accesorios</div>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th style="width: 5%;">No.</th>
-                  <th style="width: 25%;">Nombre</th>
-                  <th style="width: 30%;">Descripción</th>
-                  <th style="width: 10%;">Cantidad</th>
-                  <th style="width: 15%;">Estado</th>
-                  <th style="width: 15%;">Observaciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${accesoriosTable}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- METROLOGÍA -->
-          <div class="section">
-            <div class="section-header">Metrología y Mantenimiento</div>
-            <div class="grid-3">
-              <div class="field">
-                <span class="field-label">Requiere Calibración:</span>
-                <span class="field-value">${hv.RequiereCalibracion ? 'SÍ' : 'NO'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Periodicidad Calibración:</span>
-                <span class="field-value">${hv.PeriodicidadCalibracion || 'N/A'}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Mantenimiento Preventivo:</span>
-                <span class="field-value">${hv.PeriodicidadMantenimiento || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- RECOMENDACIONES -->
-          <div class="section">
-            <div class="section-header">Recomendaciones de Uso y Mantenimiento</div>
-            <ol class="recommendations-list">
-              ${recomendacionesList}
-            </ol>
-          </div>
+          ${identificacionBlock}
+          ${fechas}
+          ${proveedor}
+          ${garantiaYAdquisicion}
+          ${tecnico}
+          ${caracteristicas}
+          ${otrasEspecificaciones}
+          ${accesoriosSection}
+          ${metrologia}
+          ${recomendaciones}
+          ${documentosSection}
 
           <!-- FIRMAS -->
           <div class="signature-section">
             <div class="signature-box">
               ${firmaFile1}
               <div class="signature-line">
-                <strong>${firma1Nombre}</strong>
+                <strong>${this.escapeHtml(firma1Nombre)}</strong>
                 <small>${firma1Cargo}</small>
               </div>
             </div>
             <div class="signature-box">
               ${firmaFile2}
               <div class="signature-line">
-                <strong>${firma2Nombre}</strong>
+                <strong>${this.escapeHtml(firma2Nombre)}</strong>
                 <small>${firma2Cargo}</small>
               </div>
             </div>
@@ -947,13 +872,13 @@ table.data-table th {
           <td>
             <div class="footer-content">
               <div class="footer-left">
-                 ${tenantData.name}· ${tenantData.direccion}
+                 ${this.escapeHtml(footerLeft)}
               </div>
               <div class="footer-center">
-                 ${tenantData.ciudad} - ${tenantData.departamento} 
+                 ${this.escapeHtml(footerCenter)}
               </div>
               <div class="footer-right">
-                ${tenantData.telefono}· ${tenantData.email}
+                ${this.escapeHtml(footerRight)}
               </div>
             </div>
           </td>

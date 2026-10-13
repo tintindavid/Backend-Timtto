@@ -393,6 +393,44 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Uploads an HV equipo attachment (PDF, image, DOCX, XLSX).
+   * Validates MIME, size and magic-bytes BEFORE uploading.
+   * Path: hvequipo/documentos/<tenantId>/<hvId>/<uuid>.<ext>
+   * @returns {Promise<{url, storagePath, nombreOriginal, mimetype, tamanoBytes, uploadedAt}>}
+   */
+  async uploadHvDocumento(fileBuffer, originalName, mimetype, { tenantId, hvId }) {
+    if (!ALLOWED_MIME_ACT_EXT.includes(mimetype)) {
+      throw new ApiError(400, 'Tipo de archivo no permitido. Usa PDF, imagen, DOCX o XLSX.', 'INVALID_FILE_TYPE');
+    }
+    if (fileBuffer.length > MAX_ACT_EXT_SIZE) {
+      throw new ApiError(400, 'Archivo mayor a 10 MB.', 'FILE_TOO_LARGE');
+    }
+    const detected = await fileTypeFromBuffer(fileBuffer);
+    const declared = mimetype === 'image/jpg' ? 'image/jpeg' : mimetype;
+    if (!detected || detected.mime !== declared) {
+      throw new ApiError(400, 'El contenido del archivo no coincide con su extensión declarada.', 'FILE_CONTENT_MISMATCH');
+    }
+
+    try {
+      const deps = this.storageDeps;
+      const storage = deps.getFirebaseStorage();
+      const ext = MIME_TO_EXT_ACT_EXT[declared] || detected.ext;
+      const storagePath = `hvequipo/documentos/${tenantId}/${hvId}/${uuidv4()}.${ext}`;
+      const storageRef = deps.ref(storage, storagePath);
+      await deps.uploadBytes(storageRef, fileBuffer, {
+        contentType: declared,
+        customMetadata: { originalName, uploadedAt: new Date().toISOString(), mimetype: declared },
+      });
+      const url = await deps.getDownloadURL(storageRef);
+      return { url, storagePath, nombreOriginal: originalName, mimetype: declared, tamanoBytes: fileBuffer.length, uploadedAt: new Date() };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error subiendo documento de HV equipo:', error);
+      throw new ApiError(500, 'Error subiendo documento a storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
    * Elimina evidencia de actividad externa. Idempotente y best-effort (no lanza).
    * @param {string} storagePath
    */
