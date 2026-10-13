@@ -1,3 +1,10 @@
+# [2.20.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.19.0...v2.20.0) (2026-10-13)
+
+
+### Features
+
+* **hv-equipo:** generic specs, attachments and clean PDF (backend) ([#38](https://github.com/tintindavid/Backend-Timtto/issues/38)) ([ac687b6](https://github.com/tintindavid/Backend-Timtto/commit/ac687b6f4bf3f0014e8324d44f0faba9b91b7efa))
+
 # [2.19.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.18.0...v2.19.0) (2026-10-12)
 
 
