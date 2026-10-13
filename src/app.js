@@ -17,10 +17,11 @@ import { logger, loggerStream } from './config/logger.config.js';
 import { rateLimiter } from './middlewares/rateLimiter.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { tenantResolver } from './middlewares/tenant.middleware.js';
+import { tryAuthenticate } from './middlewares/tryAuthenticate.middleware.js';
+import { enforceTenantTokenMatch } from './middlewares/enforceTenantTokenMatch.middleware.js';
 import { auditPlatformAction } from './middlewares/auditPlatformAction.middleware.js';
 import { enforceReadOnlyForSuperadmin } from './middlewares/enforceReadOnlyForSuperadmin.middleware.js';
 import { enforceMustChangePassword } from './middlewares/enforceMustChangePassword.middleware.js';
-import { verifyToken } from './utils/jwt.util.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
@@ -114,34 +115,21 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(mongoSanitize());
 
-// Resolve tenant for each request (from header or JWT)
+// ──────────────────────────────────────────────────────────────────────────────
+// Tenant resolution chain. The order matters:
+//   1. tryAuthenticate        silently parses the JWT into req.user (never rejects).
+//   2. enforceTenantTokenMatch authenticated non-superadmin users are bound to the
+//                              tenant signed in their token: a different x-tenant-id
+//                              is 403 FORBIDDEN_CROSS_TENANT (spec: tenant-token-binding).
+//   3. tenantResolver          resolves req.tenantId from the header or, when absent,
+//                              from the token, so authenticated requests never reach a
+//                              route without a tenant.
+// ──────────────────────────────────────────────────────────────────────────────
+app.use(tryAuthenticate);
+app.use(enforceTenantTokenMatch);
 app.use(tenantResolver);
 
 app.use(morgan('combined', { stream: loggerStream }));
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Global soft-authenticate: silently parses the JWT if present so that
-// subsequent global middlewares (auditPlatformAction, enforceMustChangePassword,
-// enforceReadOnlyForSuperadmin) can inspect req.user without requiring every
-// route to run the full authenticate middleware first.
-//
-// IMPORTANT: this does NOT enforce auth — it merely populates req.user when a
-// valid token is present. Route-level authenticate middleware still enforces
-// auth and rejects invalid/missing tokens with 401.
-// ──────────────────────────────────────────────────────────────────────────────
-app.use(function tryAuthenticate(req, _res, next) {
-  const header = req.headers.authorization || req.headers.Authorization;
-  if (header && typeof header === 'string' && header.startsWith('Bearer ')) {
-    try {
-      const decoded = verifyToken(header.split(' ')[1]);
-      if (!req.user) req.user = decoded; // do not overwrite if already set
-    } catch (_) {
-      // Silently ignore invalid/expired tokens — route-level authenticate
-      // will surface the correct 401 for routes that require auth.
-    }
-  }
-  next();
-});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // auditPlatformAction: post-response hook for SuperAdmin platform mutations.
