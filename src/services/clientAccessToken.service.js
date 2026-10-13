@@ -7,6 +7,7 @@ import { OT } from '../models/ot.model.js';
 import { User } from '../models/user.model.js';
 import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { pushCorreoUsado } from '../utils/customerCorreosUsados.util.js';
@@ -31,6 +32,7 @@ export class ClientAccessTokenService {
    */
   async create({ clienteId, otIds, attributionUserId }, tenantId, userId) {
     requireTenant(tenantId);
+    await assertCustomerKind(clienteId, tenantId);
 
     const attribUserId = attributionUserId || userId;
     const attribUser = await User.findOne(applyTenantFilter({ _id: attribUserId }, tenantId))

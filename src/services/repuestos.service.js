@@ -7,6 +7,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
@@ -35,10 +36,12 @@ export class RepuestosService {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+      await assertCustomerKind(data.ClienteId, t);
       const entity = await Repuestos.create(data);
       logger.info('Repuestos creado: ' + entity._id);
       return entity;
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando repuestos:', err);
       throw new ApiError(500, 'Error creando Repuestos', 'CREATE_ERROR');
     }
@@ -164,6 +167,7 @@ export class RepuestosService {
   async update(id, data) {
     try {
       const current = await Repuestos.findById(id).lean();
+      if (data.ClienteId && current?.tenantId) await assertCustomerKindIfChanged(data.ClienteId, current.ClienteId, current.tenantId);
       const e = await Repuestos.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       if (data.EstadoSolicitud && current?.EstadoSolicitud !== data.EstadoSolicitud) {

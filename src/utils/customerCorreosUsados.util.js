@@ -21,16 +21,16 @@ export async function pushCorreoUsado(customerId, tenantId, email) {
   if (!normalized) return;
   try {
     await Customer.updateOne(
-      applyTenantFilter({ _id: customerId }, tenantId),
+      applyTenantFilter({ _id: customerId, kind: { $ne: 'provider' } }, tenantId),
       { $addToSet: { correousados: normalized } }
     );
-    const cust = await Customer.findOne(applyTenantFilter({ _id: customerId }, tenantId))
+    const cust = await Customer.findOne(applyTenantFilter({ _id: customerId, kind: { $ne: 'provider' } }, tenantId))
       .select('correousados')
       .lean();
     const overflow = (cust?.correousados?.length || 0) - SHEET_SIGN_CORREOUSADOS_MAX;
     if (overflow > 0) {
       await Customer.updateOne(
-        applyTenantFilter({ _id: customerId }, tenantId),
+        applyTenantFilter({ _id: customerId, kind: { $ne: 'provider' } }, tenantId),
         { $push: { correousados: { $each: [], $slice: -SHEET_SIGN_CORREOUSADOS_MAX } } }
       );
     }

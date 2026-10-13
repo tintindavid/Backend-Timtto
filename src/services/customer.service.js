@@ -8,6 +8,9 @@ import { firebaseStorageService } from './external/firebase.service.js';
 import { buildCsv } from '../utils/csvBuilder.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
 
+const CUSTOMER_KINDS = ['customer', 'provider'];
+const CUSTOMER_LIST_KINDS = [...CUSTOMER_KINDS, 'all'];
+
 export class CustomerService {
   /**
    * Crea un nuevo customer con logo (si se proporciona)
@@ -22,6 +25,13 @@ export class CustomerService {
       requireTenant(t);
       data.tenantId = t;
 
+      // kind: the POST route has no Joi validation (multipart), so validate here.
+      const kind = data.kind === undefined || data.kind === null || data.kind === '' ? 'customer' : data.kind;
+      if (!CUSTOMER_KINDS.includes(kind)) {
+        throw new ApiError(400, "El tipo de tercero debe ser 'customer' o 'provider'", 'INVALID_KIND', { kind });
+      }
+      data.kind = kind;
+
       // Si se proporciona un logo, subirlo a Firebase Storage
       if (logoFile && logoFile.buffer) {
         logger.info('Subiendo logo a Firebase Storage...');
@@ -33,6 +43,12 @@ export class CustomerService {
         data.Logo = logoUrl;
       }
       const entity = await Customer.create(data);
+
+      // Providers have no branches or services: skip the default Sede/Servicio.
+      if (kind === 'provider') {
+        logger.info('Customer (provider) creado: ' + entity._id);
+        return entity;
+      }
 
       const payloadSedes = {
         tenantId: t,
@@ -80,7 +96,16 @@ export class CustomerService {
         nit,
       } = pagination;
       const skip = (page - 1) * limit;
-      const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
+      // `kind` is never a raw filter: customer (default) = everything but providers
+      // (legacy docs without kind count as customers), provider = providers only,
+      // all = no kind filter.
+      const { kind = 'customer', ...restFilters } = filters;
+      if (!CUSTOMER_LIST_KINDS.includes(kind)) {
+        throw new ApiError(400, "El parámetro 'kind' debe ser 'customer', 'provider' o 'all'", 'INVALID_KIND', { kind });
+      }
+      const query = applyTenantFilter({ ...restFilters, isDeleted: false }, tenantId);
+      if (kind === 'customer') query.kind = { $ne: 'provider' };
+      else if (kind === 'provider') query.kind = 'provider';
 
       // escapeRegex extracted to src/utils/escapeRegex.util.js (2026-08-11)
 
@@ -119,6 +144,7 @@ export class CustomerService {
         }
       };
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error listando customers:', err);
       throw new ApiError(500, 'Error listando Customers', 'LIST_ERROR');
     }
@@ -148,6 +174,9 @@ export class CustomerService {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
+
+      // kind is immutable: the PUT/PATCH routes have no Joi validation, so drop it here.
+      delete data.kind;
 
       // Obtener customer actual para verificar si tiene logo previo
       const currentCustomer = await Customer.findOne(applyTenantFilter({ _id: id }, t));
@@ -240,7 +269,7 @@ export class CustomerService {
   async exportCsv({ search } = {}, tenantId) {
     try {
       requireTenant(tenantId);
-      const query = applyTenantFilter({ isDeleted: false }, tenantId);
+      const query = applyTenantFilter({ isDeleted: false, kind: { $ne: 'provider' } }, tenantId);
       if (search) {
         const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const rx = new RegExp(escaped, 'i');

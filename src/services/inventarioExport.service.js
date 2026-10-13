@@ -44,7 +44,7 @@ export class InventarioExportService {
 
     const tenant = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
 
-    const customer = await Customer.findOne({ _id: clienteId, tenantId, isDeleted: false }).lean();
+    const customer = await Customer.findOne({ _id: clienteId, tenantId, isDeleted: false, kind: { $ne: 'provider' } }).lean();
     if (!customer) {
       throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND');
     }

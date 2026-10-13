@@ -5,12 +5,23 @@
  * (tasks.md 6.2/6.3/6.4). DB-free — EquipoItem statics are monkey-patched
  * (same convention as tests/services/reports.guard.test.js).
  */
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import { Customer } from '../../src/models/customer.model.js';
 import assert from 'node:assert/strict';
 
 import { equipoItemService } from '../../src/services/equipoitem.service.js';
 import { EquipoItem } from '../../src/models/equipoitem.model.js';
 import { ApiError } from '../../src/utils/apiError.util.js';
+
+
+// terceros-customers-providers: create() now runs assertCustomerKind, which
+// reads Customer; stub it so these DB-free tests see a plain client.
+const CUSTOMER_STUB = () => ({
+  select() { return this; },
+  lean: () => Promise.resolve({ _id: 'cust', kind: 'customer' }),
+});
+beforeEach(() => { Customer.findOne = CUSTOMER_STUB; });
+afterEach(() => { delete Customer.findOne; });
 
 const TENANT_A = 'tenant-a';
 const TENANT_B = 'tenant-b';

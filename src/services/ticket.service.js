@@ -9,6 +9,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextTicketConsecutivos } from './counter.service.js';
@@ -111,6 +112,9 @@ export class TicketService {
     createdBy,
     requestedBy,
   }) {
+    // Tickets (admin and public QR) must belong to a client, never a provider.
+    await assertCustomerKind(ClienteId, tenantId);
+
     const ordered = await this._loadAndValidateEquipos(tenantId, {
       ClienteId,
       sedeId,

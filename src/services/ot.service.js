@@ -8,6 +8,7 @@ import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
 import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
@@ -29,6 +30,8 @@ export class OTService {
       data.tenantId = t;
       // Map possible front-end field names to internal ones
       if (data.customerId && !data.ClienteId) data.ClienteId = data.customerId;
+      // A provider can never be the client of an OT (terceros-customers-providers).
+      await assertCustomerKind(data.ClienteId, t);
       if (data.tipoServicio && !data.TipoServicio) data.TipoServicio = data.tipoServicio;
       if (data.urgencia && !data.OtPrioridad) data.OtPrioridad = data.urgencia;
       if (!data.equipos && Array.isArray(data.equiposSeleccionados)) data.equipos = data.equiposSeleccionados;
@@ -112,6 +115,7 @@ export class OTService {
 
       return entity;
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       logger.error('Error creando oT:', err);
       throw new ApiError(500, 'Error creando OT', 'CREATE_ERROR');
     }
@@ -235,6 +239,9 @@ export class OTService {
         const currentOt = await withSess(OT.findOne(applyTenantFilter({ _id: id }, t)));
         if (!currentOt) throw new ApiError(404, 'OT no encontrado', 'NOT_FOUND', { id });
         previousEstado = currentOt.EstadoOt;
+
+        // A provider can never become the client of an OT (terceros-customers-providers).
+        if (data.ClienteId) await assertCustomerKindIfChanged(data.ClienteId, currentOt.ClienteId, t);
 
         // isFromTicket guards (design D19): TipoServicio change is rejected.
         if (currentOt.isFromTicket) {

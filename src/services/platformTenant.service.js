@@ -115,7 +115,7 @@ export class PlatformTenantService {
     // countDocuments does not trigger pre(/^find/) hooks, so isDeleted is explicit.
     const [usersCount, customersCount, equiposCount, otsAbiertas] = await Promise.all([
       User.countDocuments({ tenantId, isDeleted: false }),
-      Customer.countDocuments({ tenantId, isDeleted: false }),
+      Customer.countDocuments({ tenantId, isDeleted: false, kind: { $ne: 'provider' } }),
       HVEquipo.countDocuments({ tenantId, isDeleted: false }),
       OT.countDocuments({ tenantId, isDeleted: false, EstadoOt: { $in: OPEN_OT_STATUSES } }),
     ]);

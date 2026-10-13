@@ -20,9 +20,10 @@ export class CustomerController {
 
   async list(req, res, next) {
     try {
-      const { page, limit, sortBy, order, search, razonSocial, ciudad, nit, ...filters } = req.query;
+      const { page, limit, sortBy, order, search, razonSocial, ciudad, nit, kind, ...filters } = req.query;
+      // kind is forwarded explicitly (never as a raw Mongo filter); the service applies the default.
       const result = await customerService.list(
-        filters,
+        { ...filters, kind },
         { page, limit, sortBy, order, search, razonSocial, ciudad, nit },
         req.tenantId,
       );

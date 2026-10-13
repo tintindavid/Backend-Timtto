@@ -11,6 +11,7 @@ import { Customer } from '../models/customer.model.js';
 import { Sedes } from '../models/sedes.model.js';
 import { Servicios } from '../models/servicios.model.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertIsCustomer } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { jwtConfig } from '../config/jwt.config.js';
@@ -50,6 +51,8 @@ export class ServiceQrService {
     if (!cliente) {
       throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND', { ClienteId });
     }
+    // Reuses the customer already loaded above (no extra query).
+    assertIsCustomer(cliente, tenantId);
     if (!sede) {
       throw new ApiError(404, 'Sede no encontrada', 'SEDE_NOT_FOUND', { sedeId });
     }
