@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { downloadCronogramaPDF, downloadCronogramaExcel, previewCronogramaHTML } from '../controllers/cronograma.controller.js';
+import { downloadCronogramaPDF, downloadCronogramaExcel, previewCronogramaHTML, getActividadesExternas } from '../controllers/cronograma.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorize } from '../middlewares/rbac.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { extractUserId } from '../middlewares/extractUserId.middleware.js';
 import { PERMISSIONS } from '../constants/permissions.js';
-import { cronogramaPDFDto } from '../dtos/cronograma.dto.js';
+import { cronogramaPDFDto, actividadesExternasQueryDto } from '../dtos/cronograma.dto.js';
 
 const router = Router();
 
@@ -38,6 +38,16 @@ router.post(
   extractUserId,
   validate(cronogramaPDFDto, 'body'),
   previewCronogramaHTML,
+);
+
+// Unified schedule (cronograma-actividades-externas): scheduled external activities of the tenant.
+// Read-only; gated on equipo-items:read like equipo-items/mes/:mes.
+router.get(
+  '/actividades-externas',
+  authenticate,
+  authorize(PERMISSIONS.EQUIPO_ITEMS_READ),
+  validate(actividadesExternasQueryDto, 'query'),
+  getActividadesExternas,
 );
 
 export default router;

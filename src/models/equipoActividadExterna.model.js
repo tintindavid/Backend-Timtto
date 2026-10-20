@@ -24,6 +24,9 @@ const EquipoActividadExternaSchema = new Schema({
   consecutivoExterno: { type: String, required: true, trim: true },
   fecha: { type: Date, required: true },
   proveedor: { type: String, required: true, trim: true },
+  // Optional link to a provider third party (Customer kind=provider). `proveedor` keeps a copy of the
+  // name so history survives a later rename or deletion of the provider.
+  proveedorId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
   observacion: { type: String, trim: true },
   estadoFinal: { type: String, enum: ESTADOS_FINAL, required: true },
   estadoFinalCustom: { type: String, trim: true },

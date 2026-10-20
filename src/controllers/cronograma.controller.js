@@ -6,6 +6,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 import { logger } from '../config/logger.config.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { listarActividadesExternas } from '../services/cronogramaActividadesExternas.service.js';
 
 /**
  * Descarga el PDF del cronograma de mantenimiento
@@ -202,6 +203,19 @@ export const previewCronogramaHTML = async (req, res, next) => {
     return res.send(html);
   } catch (error) {
     logger.error('Error en previewCronogramaHTML:', { error: error.message });
+    next(error);
+  }
+};
+
+/**
+ * Scheduled external activities of the effective tenant for the unified schedule.
+ * @route GET /api/v1/cronogramas/actividades-externas
+ */
+export const getActividadesExternas = async (req, res, next) => {
+  try {
+    const { data, truncated } = await listarActividadesExternas(req.tenantId, req.query);
+    res.status(200).json({ success: true, data, truncated });
+  } catch (error) {
     next(error);
   }
 };
