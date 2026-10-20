@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import { CadenaActividad } from '../models/cadenaActividad.model.js';
 import { EquipoActividadExterna } from '../models/equipoActividadExterna.model.js';
+import { EquipoItem } from '../models/equipoitem.model.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerIsProvider } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
+import { aplicarEstadoDeServicio } from './estadoOperativoServicio.service.js';
 
 /**
  * Executes fn with a Mongoose transaction when the server supports it
@@ -57,11 +59,22 @@ async function validateCadenaSucesion(tenantId, equipoId, cadenaId, dto) {
     throw new ApiError(400, 'tipoCustom no coincide con la cadena', 'TYPE_MISMATCH');
   }
   if (dto.frecuencia?.esUnica) throw new ApiError(400, 'Una sucesora no puede ser única', 'SUCCESSOR_CANNOT_BE_UNIQUE');
+  // A successor older than the current activity would close the newest one and send the chain back in time.
+  const vigente = await EquipoActividadExterna.findOne({ _id: cadena.actividadVigenteId, tenantId }).select('fecha').lean();
+  const fechaNueva = new Date(dto.fecha);
+  if (vigente?.fecha && !Number.isNaN(fechaNueva.getTime()) && fechaNueva < new Date(vigente.fecha)) {
+    throw new ApiError(
+      400,
+      'La fecha de la nueva actividad no puede ser anterior a la última actividad de la cadena',
+      'SUCCESSOR_DATE_BEFORE_CURRENT',
+      { vigenteFecha: vigente.fecha },
+    );
+  }
   return cadena;
 }
 
 export const actividadExternaService = {
-  async create(tenantId, equipoId, clienteId, dto, file, userId) {
+  async create(tenantId, equipoId, clienteId, dto, file, userId, panelUser = null) {
     if (!dto.frecuencia || typeof dto.frecuencia.esUnica !== 'boolean') {
       throw new ApiError(400, 'frecuencia requerida con esUnica boolean', 'FRECUENCIA_REQUIRED');
     }
@@ -99,7 +112,8 @@ export const actividadExternaService = {
           tenantId, clienteId, equipoId,
           tipo: dto.tipo, tipoCustom: dto.tipoCustom,
           consecutivoExterno: dto.consecutivoExterno, fecha, proveedor: proveedorNombre, proveedorId,
-          observacion: dto.observacion, estadoFinal: dto.estadoFinal, estadoFinalCustom: dto.estadoFinalCustom,
+          observacion: dto.observacion, estadoOperativo: dto.estadoOperativo,
+          estadoFinal: dto.estadoFinal, estadoFinalCustom: dto.estadoFinalCustom,
           evidencia, enlace: dto.enlace,
           cerradaAt: null,
           createdByUserId: userId,
@@ -150,6 +164,20 @@ export const actividadExternaService = {
           if (!cadenaDoc) throw new ApiError(500, 'Cadena no encontrada al enlazar actividad', 'INCONSISTENT_STATE');
         }
       });
+      // The activity is stored; its operative state becomes the equipment's state when it is the latest service.
+      // Best effort: a failure here must not lose the activity that was just registered.
+      if (dto.estadoOperativo) {
+        try {
+          const equipo = await EquipoItem.findOne({ _id: equipoId, tenantId, isDeleted: false }).lean();
+          if (equipo) {
+            await aplicarEstadoDeServicio({
+              equipo, estadoOperativo: dto.estadoOperativo, fecha: new Date(dto.fecha), source: 'actividad-externa', panelUser, tenantId,
+            });
+          }
+        } catch (stateErr) {
+          logger.warn('No se pudo aplicar el estado operativo de la actividad externa', { tenantId, equipoId: String(equipoId), err: String(stateErr) });
+        }
+      }
       return { cadena: toPlain(cadenaDoc), actividad: sanitizeActividad(actividadDoc) };
     } catch (err) {
       if (evidencia) {

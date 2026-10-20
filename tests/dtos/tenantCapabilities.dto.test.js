@@ -17,6 +17,26 @@ const fullTenant = {
 };
 const validate = (schema, value) => schema.validate(value, { abortEarly: false });
 
+describe('usesQrs (premium module "QRs y tickets")', () => {
+  it('the update accepts it alone, with flags or with a preset', () => {
+    for (const body of [{ usesQrs: true }, { usesQrs: false, registersExternal: true }, { type: 'client', usesQrs: true }]) {
+      assert.equal(validate(updateTenantCapabilitiesSchema, body).error, undefined, JSON.stringify(body));
+    }
+  });
+
+  it('the update rejects a non boolean and keeps rejecting unknown keys', () => {
+    assert.ok(validate(updateTenantCapabilitiesSchema, { usesQrs: 'si' }).error);
+    assert.ok(validate(updateTenantCapabilitiesSchema, { premium: true }).error);
+  });
+
+  it('the create accepts it inside explicit capabilities', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      tenant: { ...fullTenant }, admin, capabilities: { executesServices: true, registersExternal: false, usesQrs: true },
+    });
+    assert.equal(error, undefined);
+  });
+});
+
 describe('createTenantWithAdminSchema capabilities / type', () => {
   it('a provider tenant keeps validating exactly as before (no type, minimal tenant)', () => {
     const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin });
@@ -130,5 +150,24 @@ describe('updateTenantMetadataSchema (PUT /my-tenant) stays closed to capabiliti
     assert.ok(validate(updateTenantMetadataSchema, { name: 'x', capabilities: { executesServices: false, registersExternal: true } }).error);
     assert.ok(validate(updateTenantMetadataSchema, { name: 'x', type: 'client' }).error);
     assert.ok(validate(updateTenantMetadataSchema, { name: 'x', organizationCustomerId: OID }).error);
+  });
+});
+
+describe('scheduleQuickLoad (premium switch "Carga rápida desde el cronograma")', () => {
+  it('the update accepts it alone, with flags or with a preset', () => {
+    for (const body of [{ scheduleQuickLoad: true }, { scheduleQuickLoad: false, registersExternal: true }, { type: 'hybrid', scheduleQuickLoad: true }]) {
+      assert.equal(validate(updateTenantCapabilitiesSchema, body).error, undefined, JSON.stringify(body));
+    }
+  });
+
+  it('the update rejects a non boolean', () => {
+    assert.ok(validate(updateTenantCapabilitiesSchema, { scheduleQuickLoad: 'si' }).error);
+  });
+
+  it('the create accepts it inside explicit capabilities', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      tenant: { ...fullTenant }, admin, capabilities: { executesServices: true, registersExternal: true, scheduleQuickLoad: true },
+    });
+    assert.equal(error, undefined);
   });
 });

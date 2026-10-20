@@ -8,17 +8,24 @@ import { ApiError } from '../utils/apiError.util.js';
  * permissions: a user needs both the permission and the tenant capability.
  *
  *   executesServices  work orders, reports and worksheets (default true)
- *   registersExternal records services performed by third parties (default false)
+ *   registersExternal records services performed by third parties (default false); it is also the premium
+ *                     module "Servicios de terceros" (change: modulos-premium-por-tenant)
+ *   usesQrs           premium module "QRs y tickets": equipment QRs, service QRs and tickets (default false);
+ *                     independent of the other two, it takes no part in the derived type
+ *   scheduleQuickLoad premium switch "Carga rápida desde el cronograma" (change: cronograma-carga-rapida): the
+ *                     interface offers loading from the schedule cells. It REQUIRES registersExternal; it does not
+ *                     protect any endpoint (the forms use the existing, already protected ones) and takes no part
+ *                     in the derived type
  *
  * The tenant "type" is derived, never stored:
  *   provider = executesServices only, client = registersExternal only, hybrid = both.
  * At least one flag must be true.
  */
 
-export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false });
-export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true });
+export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
+export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true });
 export const TENANT_TYPES = Object.freeze(['provider', 'client', 'hybrid']);
-export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal']);
+export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal', 'usesQrs', 'scheduleQuickLoad']);
 
 export const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -29,8 +36,14 @@ const PRESETS = Object.freeze({
 });
 
 /**
- * Route map: mounts of the execution flow whose MUTATING requests need a capability.
- * Data only, so the next change can add `registersExternal` entries without touching the middleware.
+ * Route map: paths that need a capability. Data only, so a new entry needs no middleware change.
+ *
+ * An entry is `{ prefix | pattern, capability, blockReads? }`:
+ *  - `prefix` matches the path and its sub-paths on a segment boundary; `pattern` is a RegExp tested on the
+ *    lower-cased, slash-collapsed path (for paths with an identifier segment);
+ *  - by default only MUTATING requests are gated (reads stay available so history remains readable);
+ *    `blockReads: true` also gates reads (GET, HEAD...) so a premium module hides its data completely;
+ *  - a request that matches several entries needs ALL their capabilities.
  * (`/api/v1/customers` is NOT here: it needs the document kind, see customerService.)
  */
 export const CAPABILITY_ROUTE_MAP = Object.freeze([
@@ -44,6 +57,15 @@ export const CAPABILITY_ROUTE_MAP = Object.freeze([
   // Endpoints of "common" mounts that still create work orders and reports (found by the security audit).
   { prefix: '/api/v1/tickets/work-order', capability: 'executesServices' },
   { prefix: '/api/v1/repuestos/ot-from-solicitudes', capability: 'executesServices' },
+  // Premium module "Servicios de terceros" (registersExternal): external activities and external services,
+  // reads included (modulos-premium-por-tenant).
+  { prefix: '/api/v1/cronogramas/actividades-externas', capability: 'registersExternal', blockReads: true },
+  { pattern: /^\/api\/v1\/equipos\/[^/]+\/(actividades-externas|cadenas-actividad|reportes-externos)(\/|$)/, capability: 'registersExternal', blockReads: true },
+  // Premium module "QRs y tickets" (usesQrs): equipment QRs, service QRs and tickets, reads included.
+  // POST /tickets/work-order also matches its executesServices entry above and needs both.
+  { prefix: '/api/v1/tickets', capability: 'usesQrs', blockReads: true },
+  { prefix: '/api/v1/service-qrs', capability: 'usesQrs', blockReads: true },
+  { prefix: '/api/v1/equipment-qrs', capability: 'usesQrs', blockReads: true },
 ]);
 
 /**
@@ -53,11 +75,12 @@ export const CAPABILITY_ROUTE_MAP = Object.freeze([
  *
  * Classification notes:
  *  - customers: handled by customerService by `kind` (providers are always allowed).
- *  - tickets / service-qrs / equipment-qrs: left open on purpose (design: "not gated"), except
- *    `POST /tickets/work-order` and `POST /repuestos/ot-from-solicitudes`, which create OTs and reports
- *    and are listed in CAPABILITY_ROUTE_MAP.
- *  - cronogramas, actividad-mtto, equipos/:equipoId (external activities), equipo-items, hv-equipo:
- *    the client keeps its own equipment records, schedules and activities.
+ *  - tickets / service-qrs / equipment-qrs: the premium module "QRs y tickets" (usesQrs), in the map with
+ *    `blockReads`; `POST /tickets/work-order` and `POST /repuestos/ot-from-solicitudes` also need executesServices.
+ *  - cronogramas, actividad-mtto, equipos/:equipoId, equipo-items, hv-equipo: the client keeps its own equipment
+ *    records, schedules and activities. The external parts (`/cronogramas/actividades-externas` and
+ *    `/equipos/:id/actividades-externas|cadenas-actividad|reportes-externos`) are the premium module
+ *    "Servicios de terceros" (registersExternal) and are in the map.
  *  - informes / pdf-reports: generated documents, reads of history.
  *  - platform/*: SuperAdmin only (already excluded from tenant guards).
  */
@@ -93,10 +116,6 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
   // documents
   '/api/v1/informes',
   '/api/v1/pdf-reports',
-  // tickets and QR modules
-  '/api/v1/tickets',
-  '/api/v1/service-qrs',
-  '/api/v1/equipment-qrs',
   // notifications
   '/api/v1/notifications',
   '/api/v1/notification-rules',
@@ -114,17 +133,24 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
  * and tenants created before this change have no field at all, so every reader must normalize.
  *
  * @param {object|null|undefined} value
- * @returns {{ executesServices: boolean, registersExternal: boolean }}
+ * `scheduleQuickLoad` is the EFFECTIVE value: true only when it is stored true AND registersExternal is true, so a
+ * document with an inconsistent pair reads as off and no read path ever fails.
+ * @returns {{ executesServices: boolean, registersExternal: boolean, usesQrs: boolean, scheduleQuickLoad: boolean }}
  */
 export function normalizeCapabilities(value) {
   const src = value && typeof value === 'object' ? value : {};
+  const registersExternal = src.registersExternal === undefined || src.registersExternal === null
+    ? DEFAULT_CAPABILITIES.registersExternal
+    : Boolean(src.registersExternal);
   return {
     executesServices: src.executesServices === undefined || src.executesServices === null
       ? DEFAULT_CAPABILITIES.executesServices
       : Boolean(src.executesServices),
-    registersExternal: src.registersExternal === undefined || src.registersExternal === null
-      ? DEFAULT_CAPABILITIES.registersExternal
-      : Boolean(src.registersExternal),
+    registersExternal,
+    usesQrs: src.usesQrs === undefined || src.usesQrs === null
+      ? DEFAULT_CAPABILITIES.usesQrs
+      : Boolean(src.usesQrs),
+    scheduleQuickLoad: registersExternal && Boolean(src.scheduleQuickLoad),
   };
 }
 
@@ -151,7 +177,7 @@ export function getTenantType(capabilities) {
   return caps.executesServices ? 'provider' : 'client';
 }
 
-/** Flags of a preset (`provider`, `client`, `hybrid`). Throws 400 for any other value. */
+/** Flags of a preset (`provider`, `client`, `hybrid`). Throws 400 for any other value. Presets never turn a premium module on. */
 export function presetToCapabilities(type) {
   if (!Object.prototype.hasOwnProperty.call(PRESETS, type)) {
     throw new ApiError(400, "El tipo de organización debe ser 'provider', 'client' o 'hybrid'", 'INVALID_TENANT_TYPE', { type });
@@ -165,15 +191,29 @@ export function presetToCapabilities(type) {
  */
 export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES) {
   let caps;
+  const current = normalizeCapabilities(base);
+  const flagsSource = input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : input;
+  // `usesQrs` is independent of the preset: it is kept from the current value unless the body sets it.
+  const usesQrs = flagsSource.usesQrs === undefined ? current.usesQrs : Boolean(flagsSource.usesQrs);
+  const scheduleQuickLoad = flagsSource.scheduleQuickLoad === undefined ? current.scheduleQuickLoad : Boolean(flagsSource.scheduleQuickLoad);
   if (input.type !== undefined && input.type !== null) {
-    caps = presetToCapabilities(input.type);
+    caps = { ...presetToCapabilities(input.type), usesQrs, scheduleQuickLoad };
   } else {
-    const flags = input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : input;
-    const current = normalizeCapabilities(base);
     caps = {
-      executesServices: flags.executesServices === undefined ? current.executesServices : Boolean(flags.executesServices),
-      registersExternal: flags.registersExternal === undefined ? current.registersExternal : Boolean(flags.registersExternal),
+      executesServices: flagsSource.executesServices === undefined ? current.executesServices : Boolean(flagsSource.executesServices),
+      registersExternal: flagsSource.registersExternal === undefined ? current.registersExternal : Boolean(flagsSource.registersExternal),
+      usesQrs,
+      scheduleQuickLoad,
     };
+  }
+  // The requested result must be coherent (checked on the raw request: normalize would silently turn it off).
+  if (caps.scheduleQuickLoad && !caps.registersExternal) {
+    throw new ApiError(
+      400,
+      'La carga rápida desde el cronograma requiere el módulo Servicios de terceros: actívalo primero o apaga la carga rápida',
+      'INVALID_CAPABILITIES',
+      { capability: 'scheduleQuickLoad', requires: 'registersExternal' },
+    );
   }
   return assertValidCapabilities(caps);
 }
@@ -188,12 +228,26 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
  * @returns {string|null}
  */
 export function findRequiredCapability(pathname) {
-  if (typeof pathname !== 'string' || pathname === '') return null;
+  return findRequiredCapabilities(pathname)[0]?.capability ?? null;
+}
+
+/**
+ * Every map entry that matches a request path, as `{ capability, blockReads }` (a path can need several
+ * capabilities, e.g. `POST /tickets/work-order` needs executesServices and usesQrs). Same normalization as
+ * findRequiredCapability.
+ *
+ * @param {string} pathname  path without query string
+ * @returns {{ capability: string, blockReads: boolean }[]}
+ */
+export function findRequiredCapabilities(pathname) {
+  if (typeof pathname !== 'string' || pathname === '') return [];
   const path = pathname.toLowerCase().replace(/\/{2,}/g, '/');
-  for (const { prefix, capability } of CAPABILITY_ROUTE_MAP) {
-    if (path === prefix || path.startsWith(`${prefix}/`)) return capability;
+  const found = [];
+  for (const { prefix, pattern, capability, blockReads } of CAPABILITY_ROUTE_MAP) {
+    const hit = pattern ? pattern.test(path) : path === prefix || path.startsWith(`${prefix}/`);
+    if (hit) found.push({ capability, blockReads: Boolean(blockReads) });
   }
-  return null;
+  return found;
 }
 
 /** Shape returned by the exposure endpoints. */
@@ -202,6 +256,8 @@ export function describeCapabilities(capabilities, organizationCustomerId = null
   return {
     executesServices: caps.executesServices,
     registersExternal: caps.registersExternal,
+    usesQrs: caps.usesQrs,
+    scheduleQuickLoad: caps.scheduleQuickLoad,
     type: getTenantType(caps),
     organizationCustomerId: organizationCustomerId ? String(organizationCustomerId) : null,
   };

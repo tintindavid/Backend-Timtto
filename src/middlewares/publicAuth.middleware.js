@@ -4,6 +4,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { jwtConfig } from '../config/jwt.config.js';
 import { ServiceQr } from '../models/serviceQr.model.js';
 import { logger } from '../config/logger.config.js';
+import { isModuleEnabled } from '../utils/tenantModules.util.js';
 
 /**
  * Verifies a public sessionToken (signed with JWT_PUBLIC_SECRET) and attaches
@@ -49,6 +50,11 @@ export async function publicAuth(req, res, next) {
       .lean();
 
     if (!qr || qr.isDeleted || !qr.active) {
+      return next(new ApiError(401, 'Session invalidated', 'SESSION_INVALIDATED'));
+    }
+
+    // Premium module "QRs y tickets": turning it off invalidates the sessions already issued.
+    if (!(await isModuleEnabled(String(tenantId), 'usesQrs'))) {
       return next(new ApiError(401, 'Session invalidated', 'SESSION_INVALIDATED'));
     }
 

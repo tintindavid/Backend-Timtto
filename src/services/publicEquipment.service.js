@@ -4,9 +4,12 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { Customer } from '../models/customer.model.js';
 import { Sedes } from '../models/sedes.model.js';
 import { Report } from '../models/report.model.js';
+import { EquipoActividadExterna } from '../models/equipoActividadExterna.model.js';
+import { CadenaActividad } from '../models/cadenaActividad.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { PUBLIC_HISTORY_HARD_LIMIT } from '../constants/equipmentQr.constants.js';
+import { getTenantCapabilities, isModuleEnabled } from '../utils/tenantModules.util.js';
 
 /**
  * publicEquipmentService — NO auth, NO tenant header/query trust (design D6).
@@ -36,21 +39,40 @@ export class PublicEquipmentService {
     const tenantId = qr.tenantId;
     const equipoId = qr.equipoId;
 
+    // Premium module "QRs y tickets": a tenant without it answers like an unknown QR (no data, no hint).
+    const capabilities = await getTenantCapabilities(tenantId);
+    if (!(await isModuleEnabled(tenantId, 'usesQrs', capabilities))) {
+      throw new ApiError(404, 'No encontrado', 'NOT_FOUND');
+    }
+    // Premium module "Servicios de terceros": without it the external activities are not part of the page.
+    const incluyeExternas = await isModuleEnabled(tenantId, 'registersExternal', capabilities);
+
     // Step 2: equipo must exist, not be soft-deleted, and belong to this tenant.
     const equipo = await EquipoItem.findOne({ _id: equipoId, tenantId }).lean();
     if (!equipo) {
-      throw new ApiError(404, 'No encontrado', 'NOT_FOUND', { equipoId: equipoId?.toString(), tenantId });
+      // Public endpoint: no ids in the error body (same 404 as an unknown token).
+      throw new ApiError(404, 'No encontrado', 'NOT_FOUND');
     }
 
     // Step 3: cliente/sede display data + up to PUBLIC_HISTORY_HARD_LIMIT reports.
-    const [cliente, sede, reports] = await Promise.all([
+    const [cliente, sede, reports, actividades, cadenasVigentes] = await Promise.all([
       Customer.findOne({ _id: equipo.ClienteId, tenantId }).select('Razonsocial Logo').lean(),
       Sedes.findOne({ _id: equipo.SedeId, tenantId }).select('nombreSede').lean(),
       Report.find({ Equipo: equipo._id, tenantId, isDeleted: false })
         .sort({ fechaFinalizdo: -1, FechaCreacion: -1 })
         .limit(PUBLIC_HISTORY_HARD_LIMIT)
-        .select('consecutivo tipoMtto fechaFinalizdo FechaCreacion fechaProcesado estadoOperativo procesadoPor estado observacionEstadoFinal observacion')
+        .select('consecutivo tipoMtto fechaFinalizdo FechaCreacion fechaProcesado estadoOperativo procesadoPor estado observacionEstadoFinal observacion origen externo.proveedor')
         .populate('ResponsableMtto', 'firstName lastName')
+        .lean(),
+      // External activities (calibration, verification...) widen the audit scope of the equipment. Same tenant and
+      // equipment filters as the reports; soft-deleted ones are hidden by the model's pre-find hook.
+      !incluyeExternas ? Promise.resolve([]) : EquipoActividadExterna.find({ equipoId: equipo._id, tenantId })
+        .sort({ fecha: -1 })
+        .limit(PUBLIC_HISTORY_HARD_LIMIT)
+        .select('tipo tipoCustom fecha proveedor consecutivoExterno estadoFinal estadoFinalCustom estadoOperativo evidencia enlace')
+        .lean(),
+      !incluyeExternas ? Promise.resolve([]) : CadenaActividad.find({ equipoId: equipo._id, tenantId, estado: 'vigente', isDeleted: false })
+        .select('actividadVigenteId fechaProxima')
         .lean(),
     ]);
 
@@ -58,9 +80,14 @@ export class PublicEquipmentService {
     // here is a passthrough of a Mongoose/.lean() object.
     const historial = reports.map((r) => {
       const observacion = r.observacionEstadoFinal || r.observacion || null;
-      const responsableNombre = r.procesadoPor?.snapshotName
-        || [r.ResponsableMtto?.firstName, r.ResponsableMtto?.lastName].filter(Boolean).join(' ')
-        || null;
+      const esExterno = r.origen === 'externo';
+      // A service loaded from the equipment record was done by a third party: the provider is the responsible one
+      // (procesadoPor would only name the person who typed it in).
+      const responsableNombre = esExterno
+        ? (r.externo?.proveedor || null)
+        : (r.procesadoPor?.snapshotName
+          || [r.ResponsableMtto?.firstName, r.ResponsableMtto?.lastName].filter(Boolean).join(' ')
+          || null);
       return {
         consecutivo: r.consecutivo || null,
         tipoMtto: r.tipoMtto || null,
@@ -68,10 +95,30 @@ export class PublicEquipmentService {
         estado: r.estado || null,
         estadoOperativoFinal: r.estadoOperativo || null,
         responsable: responsableNombre,
+        origen: esExterno ? 'externo' : 'interno',
         observacion,
         tieneObservacion: Boolean(observacion),
       };
     });
+
+    // Next due date only for the activity that is the current one of a vigente chain.
+    const proximaPorActividad = new Map(
+      cadenasVigentes
+        .filter((c) => c.actividadVigenteId && c.fechaProxima)
+        .map((c) => [String(c.actividadVigenteId), c.fechaProxima]),
+    );
+    // Built field by field. The evidence (file or link) is NOT exposed on this public page: only whether there is one.
+    const actividadesExternas = actividades.map((a) => ({
+      tipo: a.tipo || null,
+      tipoCustom: a.tipoCustom || null,
+      fecha: a.fecha || null,
+      proveedor: a.proveedor || null,
+      consecutivoDocumento: a.consecutivoExterno || null,
+      resultado: a.estadoFinal === 'otro' ? (a.estadoFinalCustom || 'otro') : (a.estadoFinal || null),
+      estadoOperativo: a.estadoOperativo || null,
+      tieneEvidencia: Boolean(a.evidencia || a.enlace),
+      proximaFecha: proximaPorActividad.get(String(a._id)) || null,
+    }));
 
     // Compute ultimoMtto from the actual history (most recent CLOSED report)
     // so the summary tile stays consistent with what the user sees in the
@@ -108,7 +155,8 @@ export class PublicEquipmentService {
     const sedeDto = sede ? { nombre: sede.nombreSede || null } : null;
 
     return {
-      dto: { equipo: equipoDto, cliente: clienteDto, sede: sedeDto, historial },
+      // Omitted (not empty) without the external module, so the page does not even show the tab.
+      dto: { equipo: equipoDto, cliente: clienteDto, sede: sedeDto, historial, ...(incluyeExternas ? { actividadesExternas } : {}) },
       // Internal-only — used by the controller for structured logging.
       // NEVER merged into `dto` / sent to the client.
       _internal: { equipoId: equipo._id.toString(), tenantId },

@@ -38,6 +38,10 @@ const TenantSchema = new Schema(
           message: 'Al menos una capacidad debe estar habilitada',
         },
       },
+      // Premium module "QRs y tickets" (modulos-premium-por-tenant): off unless the superadmin turns it on.
+      usesQrs: { type: Boolean, default: false },
+      // Premium switch "Carga rápida desde el cronograma" (cronograma-carga-rapida): needs registersExternal.
+      scheduleQuickLoad: { type: Boolean, default: false },
     },
     // The single client of a tenant that does not execute services ("Mi información").
     organizationCustomerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },

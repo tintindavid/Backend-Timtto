@@ -56,6 +56,24 @@ describe('equipoItemService._appendEstadoOperativoHistory', () => {
     assert.ok(entry.at instanceof Date);
   });
 
+  it('stamps the entry with the event date when `at` is given, and with now otherwise', async () => {
+    stubFindOne({ _id: EQUIPO_ID, tenantId: TENANT_A, EstadoOperativo: 'Operativo' });
+    const pushed = [];
+    EquipoItem.findOneAndUpdate = (query, update) => {
+      pushed.push(update.$push.estadoOperativoHistory);
+      return Promise.resolve({ _id: EQUIPO_ID });
+    };
+    const when = new Date('2026-03-12T00:00:00.000Z');
+    await equipoItemService._appendEstadoOperativoHistory(EQUIPO_ID, 'En Reparacion', { source: 'report-external', tenantId: TENANT_A, at: when });
+    assert.equal(pushed[0].at.toISOString(), '2026-03-12T00:00:00.000Z');
+
+    const before = Date.now();
+    await equipoItemService._appendEstadoOperativoHistory(EQUIPO_ID, 'En Reparacion', { source: 'manual', tenantId: TENANT_A });
+    assert.ok(pushed[1].at.getTime() >= before);
+    await equipoItemService._appendEstadoOperativoHistory(EQUIPO_ID, 'En Reparacion', { source: 'manual', tenantId: TENANT_A, at: new Date('nope') });
+    assert.ok(pushed[2].at.getTime() >= before);
+  });
+
   it('is a no-op when next equals the currently stored value', async () => {
     stubFindOne({ _id: EQUIPO_ID, tenantId: TENANT_A, EstadoOperativo: 'Operativo' });
     let updateCalled = false;
@@ -120,5 +138,49 @@ describe('equipoItemService._appendEstadoOperativoHistory', () => {
         return true;
       },
     );
+  });
+});
+
+describe('equipoItemService._appendEstadoOperativoHistory - recordSame (adversarial F1)', () => {
+  afterEach(() => {
+    delete EquipoItem.findOne;
+    delete EquipoItem.findOneAndUpdate;
+  });
+
+  it('without recordSame an unchanged state is a noop and leaves no entry', async () => {
+    stubFindOne({ _id: EQUIPO_ID, tenantId: TENANT_A, EstadoOperativo: 'Operativo' });
+    let written = false;
+    EquipoItem.findOneAndUpdate = () => { written = true; return Promise.resolve({}); };
+    const r = await equipoItemService._appendEstadoOperativoHistory(EQUIPO_ID, 'Operativo', { source: 'report-external', tenantId: TENANT_A });
+    assert.equal(r.noop, true);
+    assert.equal(written, false);
+  });
+
+  it('with recordSame the entry is written with the service date even if the state is the same', async () => {
+    stubFindOne({ _id: EQUIPO_ID, tenantId: TENANT_A, EstadoOperativo: 'Operativo' });
+    let update = null;
+    EquipoItem.findOneAndUpdate = (q, u) => { update = u; return Promise.resolve({}); };
+    const at = new Date('2026-09-08T00:00:00Z');
+    await equipoItemService._appendEstadoOperativoHistory(EQUIPO_ID, 'Operativo', { source: 'report-external', tenantId: TENANT_A, at, recordSame: true });
+    const entry = update.$push.estadoOperativoHistory;
+    assert.equal(entry.from, 'Operativo');
+    assert.equal(entry.to, 'Operativo');
+    assert.equal(entry.at.toISOString(), at.toISOString());
+  });
+
+  it('end to end: a same-state September service then an older April service leaves the April one NOT applied', async () => {
+    const { aplicarEstadoDeServicio } = await import('../../src/services/estadoOperativoServicio.service.js');
+    const history = [{ at: new Date(), from: null, to: 'Operativo', source: 'bulk-upload' }];
+    const doc = { _id: EQUIPO_ID, tenantId: TENANT_A, EstadoOperativo: 'Operativo', estadoOperativoHistory: history };
+    stubFindOne(doc);
+    EquipoItem.findOneAndUpdate = (q, u) => {
+      doc.estadoOperativoHistory = [...doc.estadoOperativoHistory, u.$push.estadoOperativoHistory];
+      doc.EstadoOperativo = u.$set.EstadoOperativo;
+      return Promise.resolve({});
+    };
+    await aplicarEstadoDeServicio({ equipo: doc, estadoOperativo: 'Operativo', fecha: new Date('2026-09-08T00:00:00Z'), source: 'report-external', tenantId: TENANT_A });
+    const r = await aplicarEstadoDeServicio({ equipo: doc, estadoOperativo: 'Fuera de Servicio', fecha: new Date('2026-04-14T00:00:00Z'), source: 'report-external', tenantId: TENANT_A });
+    assert.equal(r.applied, false);
+    assert.equal(doc.EstadoOperativo, 'Operativo');
   });
 });

@@ -41,7 +41,7 @@ export class EquipoItemController {
       const { page, limit, sortBy, order, ...filters } = req.query;
 
       logger.info(`Listando EquipoItems con filtros: ${JSON.stringify(filters)}, página: ${page}, límite: ${limit}, orden: ${sortBy} ${order}`);
-      const result = await equipoItemService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const result = await equipoItemService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(result.data, 'EquipoItems recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }

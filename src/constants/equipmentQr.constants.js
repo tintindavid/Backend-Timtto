@@ -33,5 +33,8 @@ export const PUBLIC_RATE_LIMIT_PER_MIN = 60;
 /** Window (ms) matching PUBLIC_RATE_LIMIT_PER_MIN. */
 export const PUBLIC_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
-/** Number of stickers per A4 landscape page in the bulk PDF (2 cols x 5 rows). */
+/** Number of stickers per A4 portrait page in the bulk PDF (2 cols x 5 rows). */
 export const BULK_PDF_STICKERS_PER_PAGE = 10;
+
+/** Small brand line printed next to the QR on every sticker and shown in the sticker preview. */
+export const STICKER_BRAND_TEXT = 'www.timtto.com';

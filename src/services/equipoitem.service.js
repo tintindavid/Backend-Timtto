@@ -4,6 +4,8 @@ import { logger } from '../config/logger.config.js';
 import { requireTenant } from '../utils/tenant.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { Report } from '../models/report.model.js';
+import { EquipoActividadExterna } from '../models/equipoActividadExterna.model.js';
+import { getEnforcementMode } from '../config/tenantCapabilities.config.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { ticketService } from './ticket.service.js';
 import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
@@ -120,13 +122,16 @@ export class EquipoItemService {
    *   (defaults to 'Sistema')
    * @param {string} [opts.reportId] - populated only for source: 'report-close'
    * @param {string} [opts.tenantId] - applies tenant isolation to the read
+   * @param {boolean} [opts.recordSame] - writes the entry even when `next` equals the current value (from === to).
+   *   Used by dated third-party services so the "last service by date" rule can see a service that confirmed the
+   *   state the equipment already had.
    * @param {boolean} [opts.initialSeed] - forces the write even when `next`
    *   equals the (absent) current value — used only by `create()` to seed
    *   the very first entry.
    * @returns {Promise<object|{noop: true}>}
    */
   async _appendEstadoOperativoHistory(id, next, opts = {}) {
-    const { source, motivo = null, panelUser = null, changedByName = null, reportId = null, tenantId = null, initialSeed = false } = opts;
+    const { source, motivo = null, panelUser = null, changedByName = null, reportId = null, tenantId = null, initialSeed = false, at = null, recordSame = false } = opts;
 
     if (!EstadoOperativoValues.includes(next)) {
       throw new ApiError(400, 'Estado Operativo inválido', 'INVALID_ESTADO_OPERATIVO', { value: next });
@@ -136,7 +141,7 @@ export class EquipoItemService {
     const equipo = await EquipoItem.findOne(query).lean();
     if (!equipo) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
 
-    if (!initialSeed && equipo.EstadoOperativo === next) {
+    if (!initialSeed && !recordSame && equipo.EstadoOperativo === next) {
       return { noop: true };
     }
 
@@ -155,7 +160,8 @@ export class EquipoItemService {
       changedByName: resolvedChangedByName,
       source,
       reportId: reportId || null,
-      at: new Date(),
+      // Services loaded after the fact (reportes-externos-mp-mc) record the date they happened; default is now.
+      at: at instanceof Date && !Number.isNaN(at.getTime()) ? at : new Date(),
     };
 
     const updated = await EquipoItem.findOneAndUpdate(
@@ -238,7 +244,14 @@ export class EquipoItemService {
     }
   }
 
-  async list(filters = {}, pagination = {}) {
+  /**
+   * @param {object} filters
+   * @param {object} pagination
+   * @param {string} [_tenantId] unused (tenant scoping comes from the model layer)
+   * @param {object} [capabilities] req.tenant.capabilities; `UltimaActividadExterna` is only added when the tenant
+   *   has the premium module "Servicios de terceros" (registersExternal), or when the rollout switch is not `on`.
+   */
+  async list(filters = {}, pagination = {}, _tenantId = undefined, capabilities = undefined) {
     try {
       const { page = 1, limit = 500, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
@@ -256,6 +269,9 @@ export class EquipoItemService {
         .sort(sort).skip(skip).limit(limit).lean(),
         EquipoItem.countDocuments(query),
       ]);
+      if ((capabilities && capabilities.registersExternal) || getEnforcementMode() !== 'on') {
+        await this._attachUltimaActividadExterna(data);
+      }
       return {
         data,
         pagination: {
@@ -265,6 +281,28 @@ export class EquipoItemService {
     } catch (err) {
       logger.error('Error listando equipoItems:', err);
       throw new ApiError(500, 'Error listando EquipoItems', 'LIST_ERROR');
+    }
+  }
+
+  /**
+   * Adds `UltimaActividadExterna` (date of the latest non-deleted external activity) to each listed equipment so
+   * the list can show the last service including calibrations/verifications. `UltimoMtto` keeps its meaning.
+   * One aggregate for the whole page; a failure here never breaks the list.
+   */
+  async _attachUltimaActividadExterna(equipos) {
+    if (!Array.isArray(equipos) || equipos.length === 0) return;
+    try {
+      const ids = equipos.map((e) => e._id);
+      const tenantIds = [...new Set(equipos.map((e) => e.tenantId).filter(Boolean))];
+      if (tenantIds.length === 0) return;
+      const rows = await EquipoActividadExterna.aggregate([
+        { $match: { equipoId: { $in: ids }, tenantId: { $in: tenantIds }, isDeleted: false } },
+        { $group: { _id: '$equipoId', ultima: { $max: '$fecha' } } },
+      ]);
+      const byId = new Map(rows.map((r) => [String(r._id), r.ultima]));
+      for (const e of equipos) e.UltimaActividadExterna = byId.get(String(e._id)) || null;
+    } catch (err) {
+      logger.warn('equipoItem.list: could not attach the last external activity', { err: String(err) });
     }
   }
 

@@ -28,7 +28,7 @@ import {
  * @param {string[]} mesesProgramados - Array de meses programados
  * @returns {string} Próximo mes programado
  */
-function calcularProximoMtto(mesActual, mesesProgramados) {
+export function calcularProximoMtto(mesActual, mesesProgramados) {
   const mesActualNum = MESES_MAP[mesActual.toLowerCase()];
   
   // Convertir meses programados a números y ordenarlos
@@ -50,6 +50,17 @@ function calcularProximoMtto(mesActual, mesesProgramados) {
   } else {
     // No hay ninguno más adelante, usar el primero del ciclo (circularmente)
     return MESES_ARRAY[mesesProgramadosNum[0]];
+  }
+}
+
+/**
+ * Services registered as external (reportes-externos-mp-mc) are created and deleted only through
+ * `/equipos/:equipoId/reportes-externos`. The work-order endpoints (update, procesar, unprocess) must not
+ * rewrite them: they would re-run the schedule effects or flip `tipoMtto`/`isDeleted` behind the schedule's back.
+ */
+function assertNotExternalReport(report) {
+  if (report && report.origen === 'externo') {
+    throw new ApiError(409, 'Los servicios externos solo se gestionan desde la hoja de vida del equipo', 'EXTERNAL_REPORT_IMMUTABLE');
   }
 }
 
@@ -265,11 +276,17 @@ export class ReportService {
       // Capture pre-update state so we can detect transitions for the ticket
       // cascade (design D14: cross-collection cascades live in services).
       const previous = await Report.findById(id).lean();
+      assertNotExternalReport(previous);
       // A provider can never become the client of a report (terceros-customers-providers).
       if (data.ClienteId) {
         await assertCustomerKindIfChanged(data.ClienteId, previous?.ClienteId, tenantId || previous?.tenantId);
       }
-      const e = await Report.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+      // `origen` / `externo` are never writable here: an internal report cannot be turned into an external one.
+      // Dotted paths (`externo.proveedor`) are dropped too: `$set` would write them as nested fields.
+      const safeData = Object.fromEntries(
+        Object.entries(data).filter(([k]) => k !== 'origen' && k !== 'externo' && !k.startsWith('origen.') && !k.startsWith('externo.')),
+      );
+      const e = await Report.findByIdAndUpdate(id, { $set: safeData }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Report no encontrado', 'NOT_FOUND', { id });
       logger.info('Report actualizado: ' + id);
 
@@ -341,6 +358,7 @@ export class ReportService {
 
       // Capture previous estado for transition detection (ticket cascade D14).
       const previous = await Report.findOne(applyTenantFilter({ _id: reporteId }, t)).lean();
+      assertNotExternalReport(previous);
 
       // Responsibility guard (ot-responsables-programacion-trazable, design
       // D3/D7) — MUST run before any mutation. Retro-compat: an OT with no
@@ -587,6 +605,7 @@ export class ReportService {
       requireTenant(tenantId);
       const previous = await Report.findOne(applyTenantFilter({ _id: reporteId }, tenantId)).lean();
       if (!previous) throw new ApiError(404, 'Report no encontrado', 'REPORT_NOT_FOUND', { id: reporteId });
+      assertNotExternalReport(previous);
       if (previous.estado !== 'Procesado') {
         throw new ApiError(409, 'Solo reportes en estado Procesado pueden anularse', 'REPORT_NOT_PROCESSED', { estado: previous.estado });
       }

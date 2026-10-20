@@ -34,6 +34,33 @@ const EvidenciaSchema = new Schema({
   uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
 }, { _id: true });
 
+/* External services (reportes-externos-mp-mc): a maintenance done by a third party and loaded by the
+   tenant. `storagePath` is select:false so no read (lean included) leaks the storage location. */
+const ExternoDocumentoSchema = new Schema({
+  url: { type: String, trim: true },
+  storagePath: { type: String, trim: true, select: false },
+  nombreOriginal: { type: String, trim: true },
+  mimetype: { type: String, trim: true },
+  tamanoBytes: { type: Number, min: 0 },
+  uploadedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const ExternoSchema = new Schema({
+  proveedor: { type: String, trim: true },
+  proveedorId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
+  consecutivoDocumento: { type: String, trim: true },
+  enlace: {
+    type: String,
+    trim: true,
+    validate: {
+      validator: (v) => v == null || v === '' || /^https?:\/\//i.test(v),
+      message: 'enlace debe iniciar con http(s)://',
+    },
+  },
+  documento: { type: ExternoDocumentoSchema, default: undefined },
+  registradoPor: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+}, { _id: false });
+
 const ReportSchema = new Schema({
     tenantId: { type: String, required: true },
     AccesoriosDelEquipo: { type: String,  trim: true },
@@ -145,6 +172,11 @@ const ReportSchema = new Schema({
     ticket: { type: Schema.Types.ObjectId, ref: 'Ticket', default: null, index: true },
     isFromTicket: { type: Boolean, default: false, index: true },
 
+    /* Origin of the report: 'interno' (work orders, the whole existing flow) or 'externo' (service done by a third
+       party and loaded from the equipment record). Optional additions: nothing in the work-order flow reads them. */
+    origen: { type: String, enum: ['interno', 'externo'], default: 'interno' },
+    externo: { type: ExternoSchema, default: undefined },
+
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
@@ -178,6 +210,7 @@ const ReportSchema = new Schema({
 ReportSchema.index({ tenantId: 1, isDeleted: 1 });
 ReportSchema.index({ tenantId: 1, createdAt: -1 });
 ReportSchema.index({ tenantId: 1, isFromTicket: 1, ticket: 1 });
+ReportSchema.index({ tenantId: 1, Equipo: 1, origen: 1 });
 
 // Exclude sensitive fields
 ReportSchema.set('toJSON', {
@@ -185,6 +218,7 @@ ReportSchema.set('toJSON', {
     delete ret.__v;
     delete ret.isDeleted;
     delete ret.deletedAt;
+    if (ret.externo?.documento) delete ret.externo.documento.storagePath;
     return ret;
   }
 });

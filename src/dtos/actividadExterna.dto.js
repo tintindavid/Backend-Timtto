@@ -1,6 +1,7 @@
 import Joi from 'joi';
 import { TIPOS_ACTIVIDAD_EXTERNA } from '../models/cadenaActividad.model.js';
 import { ESTADOS_FINAL } from '../models/equipoActividadExterna.model.js';
+import { EstadoOperativoValues } from '../constants/estadoOperativo.js';
 
 const objectId = Joi.string().length(24).hex();
 
@@ -17,6 +18,7 @@ export const createActividadExternaDto = Joi.object({
   proveedorId: objectId.optional(),
   proveedor: Joi.string().trim().when('proveedorId', { is: Joi.exist(), then: Joi.optional(), otherwise: Joi.required() }),
   observacion: Joi.string().trim().allow('').optional(),
+  estadoOperativo: Joi.string().valid(...EstadoOperativoValues).optional(),
   estadoFinal: Joi.string().valid(...ESTADOS_FINAL).required(),
   estadoFinalCustom: Joi.string().trim().when('estadoFinal', { is: 'otro', then: Joi.required() }),
   enlace: Joi.string().uri({ scheme: ['http', 'https'] }).optional(),

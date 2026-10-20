@@ -13,6 +13,7 @@ import { Servicios } from '../models/servicios.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertIsCustomer } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
+import { isModuleEnabled } from '../utils/tenantModules.util.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { jwtConfig } from '../config/jwt.config.js';
 import { env } from '../config/env.js';
@@ -278,6 +279,11 @@ export class ServiceQrService {
     // Include passwordHash explicitly (select:false on schema).
     const qr = await ServiceQr.findOne({ qrToken }).select('+passwordHash');
     if (!qr || qr.isDeleted || !qr.active) {
+      throw new ApiError(401, 'Credenciales inválidas', 'INVALID_CREDENTIALS');
+    }
+
+    // Premium module "QRs y tickets": a tenant without it cannot open the public ticket portal (same error as bad credentials).
+    if (!(await isModuleEnabled(qr.tenantId, 'usesQrs'))) {
       throw new ApiError(401, 'Credenciales inválidas', 'INVALID_CREDENTIALS');
     }
 

@@ -18,6 +18,18 @@ describe('Tenant.capabilities', () => {
     assert.equal(t.validateSync(), undefined);
   });
 
+  it('usesQrs defaults to false and does not count for the "at least one capability" rule', () => {
+    assert.equal(new Tenant(base).capabilities.usesQrs, false);
+    assert.equal(new Tenant({ ...base, capabilities: { usesQrs: true } }).validateSync(), undefined);
+    const none = new Tenant({ ...base, capabilities: { executesServices: false, registersExternal: false, usesQrs: true } }).validateSync();
+    assert.ok(none, 'usesQrs alone is not a valid tenant');
+  });
+
+  it('scheduleQuickLoad defaults to false', () => {
+    assert.equal(new Tenant(base).capabilities.scheduleQuickLoad, false);
+    assert.equal(new Tenant({ ...base, capabilities: { registersExternal: true, scheduleQuickLoad: true } }).validateSync(), undefined);
+  });
+
   it('accepts client, hybrid and provider combinations', () => {
     for (const caps of [
       { executesServices: false, registersExternal: true },

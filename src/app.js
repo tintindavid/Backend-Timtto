@@ -57,6 +57,7 @@ import ticketRoutes from './routes/ticket.routes.js';
 import serviceQrRoutes from './routes/serviceQr.routes.js';
 import equipmentQrRoutes from './routes/equipmentQr.routes.js';
 import actividadExternaRouter from './routes/actividadExterna.routes.js';
+import reporteExternoRouter from './routes/reporteExterno.routes.js';
 import publicTicketRoutes from './routes/publicTicket.routes.js';
 import publicEquipmentRoutes from './routes/publicEquipment.routes.js';
 import platformTenantRoutes from './routes/platformTenant.routes.js';
@@ -232,6 +233,7 @@ app.use('/api/v1/service-qrs', serviceQrRoutes);
 app.use('/api/v1/equipment-qrs', equipmentQrRoutes);
 // Equipo external activities + chains (nested under /equipos/:equipoId)
 app.use('/api/v1/equipos/:equipoId', actividadExternaRouter);
+app.use('/api/v1/equipos/:equipoId', reporteExternoRouter);
 
 // Real-time notifications infrastructure (history/read + admin rules + self preferences)
 app.use('/api/v1/notifications', notificationRoutes);

@@ -2,7 +2,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import {
   MUTATING_METHODS,
-  findRequiredCapability,
+  findRequiredCapabilities,
   getEnforcementMode,
   normalizeCapabilities,
 } from '../config/tenantCapabilities.config.js';
@@ -12,7 +12,8 @@ import {
  * (spec: tenant-capabilities). Mutating requests (POST/PUT/PATCH/DELETE) of the execution flow
  * (the declarative map in config/tenantCapabilities.config.js) are rejected with
  * 403 CAPABILITY_DISABLED when the tenant does not have the capability. Reads stay available so
- * history remains readable.
+ * history remains readable, EXCEPT for the entries of the premium modules (`blockReads`), whose reads are
+ * rejected too. A path that matches several entries needs all their capabilities.
  *
  * Scope:
  *   - only authenticated, non-superadmin requests (superadmin is already read-only on domain routes
@@ -27,7 +28,6 @@ import {
  * denial and let the request through) and `off` (bypass).
  */
 export function enforceTenantCapabilities(req, _res, next) {
-  if (!MUTATING_METHODS.has(req.method)) return next();
   if (!req.user) return next();
   if (req.user.role === 'superadmin') return next();
 
@@ -37,11 +37,15 @@ export function enforceTenantCapabilities(req, _res, next) {
   // req.path is the pathname Express routes on. For an absolute-form request target (`POST http://x/api/v1/ots`)
   // req.originalUrl is the full URL and would not match any prefix.
   const pathname = String(req.path || '');
-  const capability = findRequiredCapability(pathname);
-  if (!capability) return next();
+  const mutating = MUTATING_METHODS.has(req.method);
+  const required = findRequiredCapabilities(pathname)
+    .filter((entry) => mutating || entry.blockReads)
+    .map((entry) => entry.capability);
+  if (required.length === 0) return next();
 
   const capabilities = normalizeCapabilities(req.tenant?.capabilities);
-  if (capabilities[capability]) return next();
+  const capability = required.find((name) => !capabilities[name]);
+  if (!capability) return next();
 
   const meta = {
     tenantId: req.tenantId ?? req.tenant?.tenantId ?? req.user.tenantId,

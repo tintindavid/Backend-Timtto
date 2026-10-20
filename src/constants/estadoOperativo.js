@@ -25,6 +25,8 @@ export const EstadoOperativoDefault = 'Operativo';
 export const EstadoOperativoSources = [
   'manual',
   'report-close',
+  'report-external',
+  'actividad-externa',
   'bulk-upload',
   'migration',
 ];

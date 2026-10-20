@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { TIPOS_ACTIVIDAD_EXTERNA } from './cadenaActividad.model.js';
+import { EstadoOperativoValues } from '../constants/estadoOperativo.js';
 
 const { Schema, model } = mongoose;
 
@@ -28,6 +29,10 @@ const EquipoActividadExternaSchema = new Schema({
   // name so history survives a later rename or deletion of the provider.
   proveedorId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
   observacion: { type: String, trim: true },
+  // Operative state of the equipment after the activity; it also becomes the current state when the activity is the
+  // most recent service (see estadoOperativoServicio.service). Optional: activities loaded before this field exist.
+  estadoOperativo: { type: String, enum: EstadoOperativoValues },
+  // Result of the activity itself (approved, rejected, pending...).
   estadoFinal: { type: String, enum: ESTADOS_FINAL, required: true },
   estadoFinalCustom: { type: String, trim: true },
   evidencia: { type: EvidenciaSchema, default: undefined },

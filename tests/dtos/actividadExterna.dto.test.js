@@ -114,3 +114,25 @@ describe('provider fields of the external activity DTOs', () => {
     assert.ok(error);
   });
 });
+
+describe('estadoOperativo of the external activity', () => {
+  const base = {
+    tipo: 'calibracion', consecutivoExterno: 'CAL-001', fecha: '2026-01-15', proveedor: 'ACME',
+    estadoFinal: 'aprobada', frecuencia: { meses: 12, esUnica: false },
+  };
+  it('is optional so activities loaded without it stay valid', () => {
+    assert.equal(createActividadExternaDto.validate(base).error, undefined);
+  });
+  it('accepts the shared operative states', () => {
+    for (const estado of ['Operativo', 'Fuera de Servicio', 'En Mantenimiento', 'Espera de Repuestos', 'En Reparacion']) {
+      assert.equal(createActividadExternaDto.validate({ ...base, estadoOperativo: estado }).error, undefined, estado);
+    }
+  });
+  it('rejects anything else, including the result values', () => {
+    assert.ok(createActividadExternaDto.validate({ ...base, estadoOperativo: 'aprobada' }).error);
+    assert.ok(createActividadExternaDto.validate({ ...base, estadoOperativo: 'Roto' }).error);
+  });
+  it('cannot be edited afterwards', () => {
+    assert.ok(updateActividadExternaDto.validate({ estadoOperativo: 'Operativo' }).error);
+  });
+});
