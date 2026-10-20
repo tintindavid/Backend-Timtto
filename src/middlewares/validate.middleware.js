@@ -1,6 +1,7 @@
 'use strict';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
+import { redactSensitiveUrl } from '../utils/redactUrl.util.js';
 
 /**
  * Per-detail-type overrides for Joi validation errors that must surface as a
@@ -49,7 +50,7 @@ function handleJoiOutcome(req, res, next, property, error, value) {
   });
 
   try {
-    logger.info('Validation failed payload preview', { url: req.originalUrl, property, payload: req[property] });
+    logger.info('Validation failed payload preview', { url: redactSensitiveUrl(req.originalUrl), property, fieldNames: Object.keys(req[property] || {}) });
   } catch (e) { /* ignore logging errors */ }
 
   if (override) {
@@ -62,7 +63,7 @@ export function validate(schema, property = 'body') {
   return (req, res, next) => {
     // Debug: log incoming value being validated
     try {
-      logger.debug && logger.debug('Validating request', { url: req.originalUrl, method: req.method, property, valuePreview: Object.keys(req[property] || {}).slice(0, 100) });
+      logger.debug && logger.debug('Validating request', { url: redactSensitiveUrl(req.originalUrl), method: req.method, property, valuePreview: Object.keys(req[property] || {}).slice(0, 100) });
     } catch (e) { /* ignore logging errors */ }
 
     // Most DTOs are fully synchronous — keep calling `schema.validate()` so

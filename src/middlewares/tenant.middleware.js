@@ -1,6 +1,7 @@
 import { ApiError } from '../utils/apiError.util.js';
 import { Tenant } from '../models/tenant.model.js';
 import { env } from '../config/env.js';
+import { ALL_CAPABILITIES_ENABLED, normalizeCapabilities } from '../config/tenantCapabilities.config.js';
 
 /**
  * tenantResolver — resolves and validates the tenantId for every request.
@@ -16,7 +17,9 @@ import { env } from '../config/env.js';
  *
  * On success sets:
  *   - req.tenantId  {string}  lowercase tenantId
- *   - req.tenant    {object}  { tenantId, status } for downstream enforcement
+ *   - req.tenant    {object}  { tenantId, status, capabilities } for downstream enforcement
+ *                             (capabilities are normalized: a tenant without the stored field is a provider;
+ *                              superadmin and the platform sentinel get everything enabled)
  */
 export async function tenantResolver(req, res, next) {
   try {
@@ -40,7 +43,7 @@ export async function tenantResolver(req, res, next) {
     // if no header is present their own sentinel is kept and the DB lookup is skipped.
     if (req.user?.role === 'superadmin') {
       req.tenantId = tenantId;
-      req.tenant = { tenantId, status: 'active' };
+      req.tenant = { tenantId, status: 'active', capabilities: { ...ALL_CAPABILITIES_ENABLED } };
       return next();
     }
 
@@ -50,14 +53,14 @@ export async function tenantResolver(req, res, next) {
     // so a non-superadmin sending this header will only see empty results.
     if (tenantId === '__platform__') {
       req.tenantId = tenantId;
-      req.tenant = { tenantId, status: 'active' };
+      req.tenant = { tenantId, status: 'active', capabilities: { ...ALL_CAPABILITIES_ENABLED } };
       return next();
     }
 
     // Single query — the spec mandates exactly one DB call per request.
     const tenant = await Tenant.findOne(
       { tenantId },
-      { tenantId: 1, status: 1 },
+      { tenantId: 1, status: 1, capabilities: 1 },
     ).lean();
 
     if (!tenant) {
@@ -65,7 +68,12 @@ export async function tenantResolver(req, res, next) {
     }
 
     req.tenantId = tenant.tenantId;
-    req.tenant = { tenantId: tenant.tenantId, status: tenant.status };
+    // Lean queries skip schema defaults, so normalize (legacy tenants have no field).
+    req.tenant = {
+      tenantId: tenant.tenantId,
+      status: tenant.status,
+      capabilities: normalizeCapabilities(tenant.capabilities),
+    };
 
     // Enforcement of Tenant.status (design D3).
     // Activated via env.ENFORCE_TENANT_STATUS=true after a 7-day observation window.

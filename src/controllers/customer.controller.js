@@ -9,11 +9,10 @@ export class CustomerController {
     try {
       logger.info('Creando Customer con datos desde controller', {
         tenantId: req.tenantId,
-        data: req.body,
         hasFile: !!req.file,
       });
       // req.file contiene el archivo de logo si se proporcionó
-      const data = await customerService.create(req.body, req.tenantId, req.file);
+      const data = await customerService.create(req.body, req.tenantId, req.file, req.tenant?.capabilities);
       res.status(201).json(successResponse(data, 'Customer creado exitosamente', 201));
     } catch (err) { next(err); }
   }
@@ -56,7 +55,6 @@ export class CustomerController {
         id: req.params.id,
         hasFile: !!req.file,
       });
-      logger.debug('Datos de actualización del Customer:', req.body);
       // req.file contiene el nuevo logo si se proporcionó
       const data = await customerService.update(req.params.id, req.body, req.tenantId, req.file);
       res.json(successResponse(data, 'Customer actualizado exitosamente'));
@@ -65,7 +63,7 @@ export class CustomerController {
 
   async delete(req, res, next) {
     try {
-      await customerService.delete(req.params.id, req.tenantId);
+      await customerService.delete(req.params.id, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(null, 'Customer eliminado exitosamente'));
     } catch (err) { next(err); }
   }

@@ -7,6 +7,7 @@ import { ApiError } from '../utils/apiError.util.js';
  *
  * GET  /api/v1/my-tenant  — any authenticated user can read their tenant.
  * PUT  /api/v1/my-tenant  — restricted to role='admin' (enforced by requireRole).
+ * GET  /api/v1/my-tenant/capabilities — any authenticated user (no RBAC permission).
  *
  * tenantId is resolved from req.user.tenantId (JWT), never from req.body.
  */
@@ -23,6 +24,25 @@ export class MyTenantController {
 
       const tenant = await TenantService.getByTenantId(tenantId);
       return res.status(200).json(successResponse(tenant, 'Tenant recuperado'));
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  /**
+   * GET /api/v1/my-tenant/capabilities
+   * Effective tenant of the request: for a regular user it is the token's tenant (enforceTenantTokenMatch),
+   * for a superadmin in view-as it is the viewed tenant, otherwise the platform sentinel.
+   */
+  static async getCapabilities(req, res, next) {
+    try {
+      const tenantId = req.tenantId || req.user?.tenantId;
+      if (!tenantId) {
+        return next(new ApiError(400, 'No tenantId asociado al usuario', 'TENANT_MISSING'));
+      }
+
+      const data = await TenantService.getCapabilities(String(tenantId).trim().toLowerCase());
+      return res.status(200).json(successResponse(data, 'Capacidades recuperadas'));
     } catch (err) {
       return next(err);
     }

@@ -6,6 +6,7 @@ import { uploadLogoOptional, handleMulterError } from '../middlewares/upload.mid
 import { createTenantWithAdminSchema } from '../dtos/createTenantWithAdmin.dto.js';
 import { suspendTenantSchema } from '../dtos/suspendTenant.dto.js';
 import { updateTenantMetadataSchema } from '../dtos/updateTenantMetadata.dto.js';
+import { updateTenantCapabilitiesSchema } from '../dtos/updateTenantCapabilities.dto.js';
 import { PlatformTenantController } from '../controllers/platformTenant.controller.js';
 
 const router = Router();
@@ -14,12 +15,12 @@ const router = Router();
 // Middleware chain: authenticate → requireSuperAdmin → [validate] → controller
 
 /**
- * Parses `tenant` and `admin` from JSON strings when the request comes as
+ * Parses `tenant`, `admin` and `capabilities` from JSON strings when the request comes as
  * multipart/form-data (i.e., includes a logo file). No-op for application/json
  * requests, which already have proper objects on req.body.
  */
 function parseMultipartJsonFields(req, _res, next) {
-  for (const field of ['tenant', 'admin']) {
+  for (const field of ['tenant', 'admin', 'capabilities']) {
     if (typeof req.body[field] === 'string') {
       try {
         req.body[field] = JSON.parse(req.body[field]);
@@ -84,6 +85,19 @@ router.put(
   handleMulterError,
   validate(updateTenantMetadataSchema),
   PlatformTenantController.updateMetadata,
+);
+
+/**
+ * PATCH /api/v1/platform/tenants/:id/capabilities
+ * Changes the capability flags (or applies a preset). Audited as TENANT_CAPABILITIES_CHANGED.
+ * Body: { type } | { executesServices?, registersExternal? } + optional organizationCustomerId.
+ */
+router.patch(
+  '/:id/capabilities',
+  authenticate,
+  requireSuperAdmin,
+  validate(updateTenantCapabilitiesSchema),
+  PlatformTenantController.updateCapabilities,
 );
 
 /**

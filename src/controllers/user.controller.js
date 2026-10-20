@@ -8,7 +8,6 @@ export class UserController {
     try {
       logger.info('Creando Usuario con datos desde controller', {
         tenantId: req.tenantId,
-        data: req.body,
       });
       const body = { ...req.body, tenantId: req.tenantId };
       const data = await userService.create(body);

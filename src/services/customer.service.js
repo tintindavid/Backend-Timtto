@@ -7,9 +7,18 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { buildCsv } from '../utils/csvBuilder.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
+import { assertCapability } from '../config/tenantCapabilities.config.js';
 
 const CUSTOMER_KINDS = ['customer', 'provider'];
 const CUSTOMER_LIST_KINDS = [...CUSTOMER_KINDS, 'all'];
+
+// Fields the default branch ("Principal") needs; the Sede model requires them, so a client created
+// without them used to leave an orphan customer behind (500).
+const BRANCH_REQUIRED_FIELDS = ['TelContacto', 'UserContacto', 'Departamento'];
+const BRANCH_FIELD_LABELS = { TelContacto: 'teléfono de contacto', UserContacto: 'persona de contacto', Departamento: 'departamento' };
+
+const CUSTOMER_KIND_DENIED_MESSAGE =
+  'Tu organización no ejecuta servicios, por lo que no puede crear ni eliminar clientes. Los proveedores sí están permitidos.';
 
 export class CustomerService {
   /**
@@ -17,9 +26,11 @@ export class CustomerService {
    * @param {object} data - Datos del customer
    * @param {string} tenantId - ID del tenant
    * @param {object} logoFile - Archivo del logo (opcional) { buffer, originalname, mimetype }
+   * @param {object} [capabilities] - req.tenant.capabilities; a kind=customer needs executesServices
+   *   (providers are always allowed). Omitted = defaults (provider tenant).
    * @returns {Promise<object>} Customer creado
    */
-  async create(data, tenantId, logoFile = null) {
+  async create(data, tenantId, logoFile = null, capabilities = undefined) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -31,6 +42,26 @@ export class CustomerService {
         throw new ApiError(400, "El tipo de tercero debe ser 'customer' o 'provider'", 'INVALID_KIND', { kind });
       }
       data.kind = kind;
+
+      if (kind === 'customer') {
+        // Capability ceiling (tenant-capabilities-hybrid-mode): before any upload or insert.
+        assertCapability(capabilities, 'executesServices', CUSTOMER_KIND_DENIED_MESSAGE);
+
+        // Validate the data of the default branch BEFORE inserting so a failure never leaves an
+        // orphan customer (the Sede insert would otherwise fail after the Customer was stored).
+        const missing = BRANCH_REQUIRED_FIELDS.filter((f) => {
+          const v = data[f];
+          return v === undefined || v === null || String(v).trim() === '';
+        });
+        if (missing.length) {
+          throw new ApiError(
+            400,
+            `Para crear la sede principal del cliente faltan datos: ${missing.map((f) => BRANCH_FIELD_LABELS[f]).join(', ')}`,
+            'MISSING_BRANCH_DATA',
+            { fields: missing },
+          );
+        }
+      }
 
       // Si se proporciona un logo, subirlo a Firebase Storage
       if (logoFile && logoFile.buffer) {
@@ -224,8 +255,10 @@ export class CustomerService {
    * Elimina un customer (soft delete) y su logo de Firebase Storage
    * @param {string} id - ID del customer
    * @param {string} tenantId - ID del tenant
+   * @param {object} [capabilities] - req.tenant.capabilities; deleting a kind=customer needs
+   *   executesServices (providers are always allowed). Omitted = defaults (provider tenant).
    */
-  async delete(id, tenantId) {
+  async delete(id, tenantId, capabilities = undefined) {
     try {
       requireTenant(tenantId);
       
@@ -233,6 +266,11 @@ export class CustomerService {
       const customer = await Customer.findOne(applyTenantFilter({ _id: id }, tenantId));
       if (!customer) {
         throw new ApiError(404, 'Customer no encontrado', 'NOT_FOUND', { id });
+      }
+
+      // Capability ceiling by the STORED kind (legacy documents without kind are customers).
+      if (customer.kind !== 'provider') {
+        assertCapability(capabilities, 'executesServices', CUSTOMER_KIND_DENIED_MESSAGE);
       }
 
       // Soft delete del customer

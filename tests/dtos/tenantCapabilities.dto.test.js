@@ -1,0 +1,134 @@
+/**
+ * tests/dtos/tenantCapabilities.dto.test.js
+ * tenant-capabilities-hybrid-mode, tasks 6.2 and 6.4 (DTO side).
+ */
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createTenantWithAdminSchema } from '../../src/dtos/createTenantWithAdmin.dto.js';
+import { updateTenantCapabilitiesSchema } from '../../src/dtos/updateTenantCapabilities.dto.js';
+import { updateTenantMetadataSchema } from '../../src/dtos/updateTenantMetadata.dto.js';
+
+const OID = '507f1f77bcf86cd799439011';
+const admin = { email: 'a@b.com', firstName: 'Ana', lastName: 'Perez' };
+const fullTenant = {
+  tenantId: 'acme', name: 'Acme', nit: '900123456-7', ciudad: 'Bogota', departamento: 'Cundinamarca',
+  email: 'info@acme.com', telefono: '6011234567',
+};
+const validate = (schema, value) => schema.validate(value, { abortEarly: false });
+
+describe('createTenantWithAdminSchema capabilities / type', () => {
+  it('a provider tenant keeps validating exactly as before (no type, minimal tenant)', () => {
+    const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin });
+    assert.equal(error, undefined);
+  });
+
+  it('accepts type provider|client|hybrid at the top level', () => {
+    for (const type of ['provider', 'client', 'hybrid']) {
+      const { error } = validate(createTenantWithAdminSchema, { type, tenant: fullTenant, admin });
+      assert.equal(error, undefined, type);
+    }
+  });
+
+  it('accepts capabilities flags at the top level', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      capabilities: { executesServices: false, registersExternal: true }, tenant: fullTenant, admin,
+    });
+    assert.equal(error, undefined);
+  });
+
+  it('also accepts type / capabilities inside tenant (multipart friendly)', () => {
+    assert.equal(validate(createTenantWithAdminSchema, { tenant: { ...fullTenant, type: 'client' }, admin }).error, undefined);
+    assert.equal(
+      validate(createTenantWithAdminSchema, { tenant: { ...fullTenant, capabilities: { executesServices: true, registersExternal: true } }, admin }).error,
+      undefined,
+    );
+  });
+
+  it('rejects an unknown type and unknown capability keys', () => {
+    assert.ok(validate(createTenantWithAdminSchema, { type: 'weird', tenant: fullTenant, admin }).error);
+    assert.ok(validate(createTenantWithAdminSchema, { capabilities: { executesServices: true, other: 1 }, tenant: fullTenant, admin }).error);
+  });
+
+  it('rejects type and capabilities together (ambiguous)', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      type: 'client', capabilities: { executesServices: false, registersExternal: true }, tenant: fullTenant, admin,
+    });
+    assert.ok(error);
+  });
+
+  it('rejects both flags false', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      capabilities: { executesServices: false, registersExternal: false }, tenant: fullTenant, admin,
+    });
+    assert.ok(error);
+  });
+
+  for (const missing of ['nit', 'ciudad', 'departamento', 'email', 'telefono']) {
+    it(`a client tenant without ${missing} is rejected`, () => {
+      const tenant = { ...fullTenant };
+      delete tenant[missing];
+      const { error } = validate(createTenantWithAdminSchema, { type: 'client', tenant, admin });
+      assert.ok(error);
+      assert.match(error.message, new RegExp(missing));
+    });
+
+    it(`a client tenant with an empty ${missing} is rejected`, () => {
+      const { error } = validate(createTenantWithAdminSchema, { type: 'client', tenant: { ...fullTenant, [missing]: '' }, admin });
+      assert.ok(error);
+    });
+
+    it(`a tenant created through flags with executesServices=false also needs ${missing}`, () => {
+      const tenant = { ...fullTenant };
+      delete tenant[missing];
+      const { error } = validate(createTenantWithAdminSchema, {
+        capabilities: { executesServices: false, registersExternal: true }, tenant, admin,
+      });
+      assert.ok(error);
+    });
+  }
+
+  it('hybrid and provider do not require the organization data', () => {
+    for (const type of ['provider', 'hybrid']) {
+      const { error } = validate(createTenantWithAdminSchema, { type, tenant: { tenantId: 'acme', name: 'Acme' }, admin });
+      assert.equal(error, undefined, type);
+    }
+  });
+
+  it('still rejects unknown top-level keys', () => {
+    assert.ok(validate(createTenantWithAdminSchema, { tenant: fullTenant, admin, tenantId: 'x' }).error);
+  });
+});
+
+describe('updateTenantCapabilitiesSchema', () => {
+  it('accepts a preset, flags, or a chosen organization client', () => {
+    assert.equal(validate(updateTenantCapabilitiesSchema, { type: 'client' }).error, undefined);
+    assert.equal(validate(updateTenantCapabilitiesSchema, { executesServices: false }).error, undefined);
+    assert.equal(validate(updateTenantCapabilitiesSchema, { executesServices: false, registersExternal: true }).error, undefined);
+    assert.equal(validate(updateTenantCapabilitiesSchema, { type: 'client', organizationCustomerId: OID }).error, undefined);
+  });
+
+  it('rejects an empty body, an unknown key, a bad type, a bad id and a non-boolean flag', () => {
+    for (const bad of [{}, { type: 'client', foo: 1 }, { type: 'nope' }, { organizationCustomerId: 'xyz' }, { executesServices: 'maybe' }]) {
+      assert.ok(validate(updateTenantCapabilitiesSchema, bad).error, JSON.stringify(bad));
+    }
+  });
+
+  it('rejects type combined with flags', () => {
+    assert.ok(validate(updateTenantCapabilitiesSchema, { type: 'client', executesServices: false }).error);
+    assert.ok(validate(updateTenantCapabilitiesSchema, { type: 'client', registersExternal: true }).error);
+  });
+
+  it('does not accept tenantId or status', () => {
+    assert.ok(validate(updateTenantCapabilitiesSchema, { type: 'client', tenantId: 'x' }).error);
+    assert.ok(validate(updateTenantCapabilitiesSchema, { type: 'client', status: 'closed' }).error);
+  });
+});
+
+describe('updateTenantMetadataSchema (PUT /my-tenant) stays closed to capabilities', () => {
+  it('rejects capabilities, type and organizationCustomerId', () => {
+    assert.ok(validate(updateTenantMetadataSchema, { name: 'x', capabilities: { executesServices: false, registersExternal: true } }).error);
+    assert.ok(validate(updateTenantMetadataSchema, { name: 'x', type: 'client' }).error);
+    assert.ok(validate(updateTenantMetadataSchema, { name: 'x', organizationCustomerId: OID }).error);
+  });
+});

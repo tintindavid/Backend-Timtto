@@ -25,6 +25,8 @@ function buildContext({ header, user } = {}) {
   return { req, res, next, errors };
 }
 
+const ALL_ENABLED = { executesServices: true, registersExternal: true };
+
 describe('tenantResolver — platform sentinel', () => {
   const originalFindOne = Tenant.findOne;
   afterEach(() => { Tenant.findOne = originalFindOne; });
@@ -42,7 +44,7 @@ describe('tenantResolver — platform sentinel', () => {
     assert.equal(dbCalled, false, 'DB lookup must be bypassed for the sentinel');
     assert.equal(errors.length, 0, 'no error should be raised');
     assert.equal(req.tenantId, '__platform__');
-    assert.deepEqual(req.tenant, { tenantId: '__platform__', status: 'active' });
+    assert.deepEqual(req.tenant, { tenantId: '__platform__', status: 'active', capabilities: ALL_ENABLED });
   });
 
   it("normalizes header casing to lowercase before comparing to sentinel", async () => {
@@ -102,3 +104,53 @@ describe('tenantResolver — platform sentinel', () => {
     assert.equal(req.tenantId, undefined, 'body.tenantId must be ignored');
   });
 });
+
+describe('tenantResolver — capabilities (tenant-capabilities-hybrid-mode)', () => {
+  const originalFindOne = Tenant.findOne;
+  afterEach(() => { Tenant.findOne = originalFindOne; });
+
+  it('projects capabilities in the single tenant query', async () => {
+    let calls = 0;
+    let projection = null;
+    Tenant.findOne = (_filter, proj) => {
+      calls += 1;
+      projection = proj;
+      return { lean: () => Promise.resolve({ tenantId: 'clinicaxyz', status: 'active' }) };
+    };
+    const { req, res, next } = buildContext({ header: 'clinicaxyz' });
+    await tenantResolver(req, res, next);
+    assert.equal(calls, 1);
+    assert.equal(projection.capabilities, 1);
+    assert.equal(projection.tenantId, 1);
+    assert.equal(projection.status, 1);
+  });
+
+  it('normalizes a legacy tenant without the field to the provider defaults', async () => {
+    Tenant.findOne = () => ({ lean: () => Promise.resolve({ tenantId: 'old', status: 'active' }) });
+    const { req, res, next } = buildContext({ header: 'old' });
+    await tenantResolver(req, res, next);
+    assert.deepEqual(req.tenant.capabilities, { executesServices: true, registersExternal: false });
+  });
+
+  it('exposes the stored capabilities of a client tenant', async () => {
+    Tenant.findOne = () => ({
+      lean: () => Promise.resolve({
+        tenantId: 'hosp', status: 'active', capabilities: { executesServices: false, registersExternal: true },
+      }),
+    });
+    const { req, res, next } = buildContext({ header: 'hosp' });
+    await tenantResolver(req, res, next);
+    assert.deepEqual(req.tenant.capabilities, { executesServices: false, registersExternal: true });
+    assert.equal(req.tenant.status, 'active');
+  });
+
+  it('superadmin (view-as) gets everything enabled without a lookup', async () => {
+    let dbCalled = false;
+    Tenant.findOne = () => { dbCalled = true; return { lean: () => Promise.resolve(null) }; };
+    const { req, res, next } = buildContext({ header: 'hosp', user: { role: 'superadmin', tenantId: '__platform__' } });
+    await tenantResolver(req, res, next);
+    assert.equal(dbCalled, false);
+    assert.deepEqual(req.tenant, { tenantId: 'hosp', status: 'active', capabilities: ALL_ENABLED });
+  });
+});
+

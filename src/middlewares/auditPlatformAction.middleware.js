@@ -6,6 +6,15 @@ import { logger } from '../config/logger.config.js';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+// Actions whose target is an existing tenant addressed by /platform/tenants/:id (before/after captured).
+const EXISTING_TENANT_ACTIONS = [
+  'TENANT_UPDATED',
+  'TENANT_SUSPENDED',
+  'TENANT_REACTIVATED',
+  'TENANT_SOFT_DELETED',
+  'TENANT_CAPABILITIES_CHANGED',
+];
+
 /**
  * Maps (HTTP method + URL path) to a PLATFORM_AUDIT_ACTIONS value.
  * Returns null when the route is not a known auditable platform action.
@@ -16,6 +25,7 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 function resolveAction(method, urlPath) {
   if (method === 'POST' && /\/platform\/tenants\/?$/.test(urlPath)) return 'TENANT_CREATED';
   if (method === 'PUT' && /\/platform\/tenants\/[^/]+\/?$/.test(urlPath)) return 'TENANT_UPDATED';
+  if (method === 'PATCH' && /\/platform\/tenants\/[^/]+\/capabilities\/?$/.test(urlPath)) return 'TENANT_CAPABILITIES_CHANGED';
   if (method === 'PATCH' && /\/platform\/tenants\/[^/]+\/suspend\/?$/.test(urlPath)) return 'TENANT_SUSPENDED';
   if (method === 'PATCH' && /\/platform\/tenants\/[^/]+\/reactivate\/?$/.test(urlPath)) return 'TENANT_REACTIVATED';
   if (method === 'DELETE' && /\/platform\/tenants\/[^/]+\/?$/.test(urlPath)) return 'TENANT_SOFT_DELETED';
@@ -54,7 +64,7 @@ function extractUserMongoId(urlPath) {
  */
 async function captureBeforeState(action, urlPath) {
   try {
-    if (['TENANT_UPDATED', 'TENANT_SUSPENDED', 'TENANT_REACTIVATED', 'TENANT_SOFT_DELETED'].includes(action)) {
+    if (EXISTING_TENANT_ACTIONS.includes(action)) {
       const tenantMongoId = extractTenantMongoId(urlPath);
       if (tenantMongoId && mongoose.isValidObjectId(tenantMongoId)) {
         return Tenant.findById(tenantMongoId).lean();
@@ -78,7 +88,7 @@ async function captureBeforeState(action, urlPath) {
  */
 async function captureAfterState(action, urlPath) {
   try {
-    if (['TENANT_UPDATED', 'TENANT_SUSPENDED', 'TENANT_REACTIVATED', 'TENANT_SOFT_DELETED'].includes(action)) {
+    if (EXISTING_TENANT_ACTIONS.includes(action)) {
       const tenantMongoId = extractTenantMongoId(urlPath);
       if (tenantMongoId && mongoose.isValidObjectId(tenantMongoId)) {
         // Use includeDeleted so soft-deleted docs are still visible.
@@ -112,7 +122,7 @@ async function resolveTargetId(action, urlPath, capturedBody, tenantIdFromBody, 
       return null;
     }
 
-    if (['TENANT_UPDATED', 'TENANT_SUSPENDED', 'TENANT_REACTIVATED', 'TENANT_SOFT_DELETED'].includes(action)) {
+    if (EXISTING_TENANT_ACTIONS.includes(action)) {
       const tenantMongoId = extractTenantMongoId(urlPath);
       if (tenantMongoId && mongoose.isValidObjectId(tenantMongoId)) {
         return new mongoose.Types.ObjectId(tenantMongoId);
@@ -150,7 +160,7 @@ async function resolveTargetId(action, urlPath, capturedBody, tenantIdFromBody, 
  */
 async function resolveTargetTenantId(action, urlPath, capturedBody, tenantIdFromBody, tenantIdFromHeader, beforeState) {
   // For tenant operations, we can extract from before-state or response body.
-  if (['TENANT_SUSPENDED', 'TENANT_REACTIVATED', 'TENANT_SOFT_DELETED', 'TENANT_UPDATED'].includes(action)) {
+  if (EXISTING_TENANT_ACTIONS.includes(action)) {
     return beforeState?.tenantId ?? null;
   }
   if (action === 'TENANT_CREATED') {
