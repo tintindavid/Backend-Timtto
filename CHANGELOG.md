@@ -1,3 +1,10 @@
+# [2.23.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.22.0...v2.23.0) (2026-10-20)
+
+
+### Features
+
+* **cronogramas:** read scheduled external activities and link a provider to them (backend) ([#42](https://github.com/tintindavid/Backend-Timtto/issues/42)) ([78eb4d9](https://github.com/tintindavid/Backend-Timtto/commit/78eb4d9414dc5f83fdbc949144e66977a0c4eafa))
+
 # [2.22.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.21.1...v2.22.0) (2026-10-20)
 
 
