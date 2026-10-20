@@ -14,7 +14,9 @@ const TENANT = 'tenant-a';
 const ID = '507f1f77bcf86cd799439001';
 
 const payload = (extra = {}) => ({
-  Razonsocial: 'Acme', Ciudad: 'Bogota', Departamento: 'Cundinamarca', Email: 'a@acme.com', Nit: 900, ...extra,
+  Razonsocial: 'Acme', Ciudad: 'Bogota', Departamento: 'Cundinamarca', Email: 'a@acme.com', Nit: 900,
+  // The default Sede requires phone and contact: validated up front by customerService.create (E5).
+  TelContacto: '3001234567', UserContacto: 'Ana Perez', ...extra,
 });
 
 function stubCreate() {

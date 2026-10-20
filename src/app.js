@@ -14,6 +14,7 @@ import morgan from 'morgan';
 
 import { env } from './config/env.js';
 import { logger, loggerStream } from './config/logger.config.js';
+import { ACCESS_LOG_FORMAT } from './config/accessLog.config.js';
 import { rateLimiter } from './middlewares/rateLimiter.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { tenantResolver } from './middlewares/tenant.middleware.js';
@@ -22,6 +23,7 @@ import { enforceTenantTokenMatch } from './middlewares/enforceTenantTokenMatch.m
 import { auditPlatformAction } from './middlewares/auditPlatformAction.middleware.js';
 import { enforceReadOnlyForSuperadmin } from './middlewares/enforceReadOnlyForSuperadmin.middleware.js';
 import { enforceMustChangePassword } from './middlewares/enforceMustChangePassword.middleware.js';
+import { enforceTenantCapabilities } from './middlewares/enforceTenantCapabilities.middleware.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
@@ -129,7 +131,7 @@ app.use(tryAuthenticate);
 app.use(enforceTenantTokenMatch);
 app.use(tenantResolver);
 
-app.use(morgan('combined', { stream: loggerStream }));
+app.use(morgan(ACCESS_LOG_FORMAT, { stream: loggerStream }));
 
 // ──────────────────────────────────────────────────────────────────────────────
 // auditPlatformAction: post-response hook for SuperAdmin platform mutations.
@@ -173,10 +175,14 @@ app.use('/api/v1/auth', authRoutes);
 app.use(enforceMustChangePassword);
 // Blocks mutating methods on domain routes for superadmin role.
 app.use(enforceReadOnlyForSuperadmin);
+// Tenant capability ceiling: mutating requests of the execution flow (OT, reports, worksheets,
+// client portal tokens) need Tenant.capabilities.executesServices. See config/tenantCapabilities.config.js.
+app.use(enforceTenantCapabilities);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Domain routes — ALL registered AFTER the enforce-* guards.
-// Adding a new domain router here automatically inherits both guards.
+// Adding a new domain router here automatically inherits all guards
+// (and must be classified in config/tenantCapabilities.config.js, enforced by a test).
 // ──────────────────────────────────────────────────────────────────────────────
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);

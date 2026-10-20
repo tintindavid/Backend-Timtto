@@ -84,6 +84,22 @@ export class PlatformTenantController {
   }
 
   /**
+   * PATCH /api/v1/platform/tenants/:id/capabilities
+   * Body validated by updateTenantCapabilitiesSchema: { type } | { executesServices?, registersExternal? }
+   * plus optional organizationCustomerId. The audit entry (TENANT_CAPABILITIES_CHANGED) is written by
+   * the auditPlatformAction middleware.
+   */
+  static async updateCapabilities(req, res, next) {
+    try {
+      const actorId = req.user._id || req.user.userId;
+      const result = await PlatformTenantService.updateCapabilities(req.params.id, req.body, actorId);
+      return res.status(200).json(successResponse(result, 'Capacidades del tenant actualizadas'));
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  /**
    * PATCH /api/v1/platform/tenants/:id/suspend
    * Body validated by suspendTenantSchema.
    */

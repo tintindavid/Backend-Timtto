@@ -1,7 +1,11 @@
 import { Tenant } from '../models/tenant.model.js';
+import { Customer } from '../models/customer.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { logger } from '../config/logger.config.js';
+import { ALL_CAPABILITIES_ENABLED, describeCapabilities } from '../config/tenantCapabilities.config.js';
+
+const PLATFORM_TENANT_ID = '__platform__';
 
 export class TenantService {
   /**
@@ -33,6 +37,29 @@ export class TenantService {
     const tenant = await Tenant.findOne({ tenantId }).lean();
     if (!tenant) throw new ApiError(404, 'Tenant not found', 'TENANT_NOT_FOUND');
     return tenant;
+  }
+
+  /**
+   * Capabilities of a tenant for the exposure endpoint (GET /my-tenant/capabilities).
+   * Does its own small query (instead of req.tenant) because superadmin view-as skips the lookup in
+   * tenantResolver. The platform sentinel has everything enabled and no organization client.
+   *
+   * @param {string} tenantId
+   * @returns {Promise<{ executesServices, registersExternal, type, organizationCustomerId }>}
+   */
+  static async getCapabilities(tenantId) {
+    if (tenantId === PLATFORM_TENANT_ID) {
+      return describeCapabilities({ ...ALL_CAPABILITIES_ENABLED }, null);
+    }
+    const tenant = await Tenant.findOne({ tenantId }, { capabilities: 1, organizationCustomerId: 1 }).lean();
+    if (!tenant) throw new ApiError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
+    // A soft-deleted organization client must not be advertised (the sidebar would link to a 404).
+    let organizationCustomerId = tenant.organizationCustomerId ?? null;
+    if (organizationCustomerId) {
+      const alive = await Customer.exists({ _id: organizationCustomerId, tenantId: tenant.tenantId ?? tenantId, isDeleted: false });
+      if (!alive) organizationCustomerId = null;
+    }
+    return describeCapabilities(tenant.capabilities, organizationCustomerId);
   }
 
   static async list({ page = 1, limit = 10, search = null } = {}) {

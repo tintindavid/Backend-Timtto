@@ -92,7 +92,6 @@ export class UserService {
      logger.info('Usuario autenticado1', {
         userId: user._id.toString(),
         tenantId,
-        password: user.password
       });
 
       if (!user) throw new ApiError(401, 'Credenciales inválidas', 'INVALID_CREDENTIALS');

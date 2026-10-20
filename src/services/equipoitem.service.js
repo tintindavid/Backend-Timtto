@@ -438,7 +438,7 @@ export class EquipoItemService {
       const t = tenantId || payload.tenantId;
       requireTenant(t);
 
-      logger.info('Updating EquipoItem and snapshot for Report', {payload})
+      logger.info('Updating EquipoItem and snapshot for Report', { equipoId, tenantId: t });
       // Update equipo fields (only fields provided in payload)
       const updateFields = {};
       ['Marca','Serie','Inventario','Ubicacion','Modelo','Riesgo','Invima','mesesMtto','Servicio','SedeId','ItemId'].forEach((k) => {

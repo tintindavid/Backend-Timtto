@@ -107,7 +107,7 @@ export const downloadCronogramaPDF = async (req, res, next) => {
       details: error.details || {},
       stack: error.stack,
       userId: req.userId,
-      tenantId: req.headers['x-tenant-id'],
+      tenantId: req.tenantId,
       requestBody: {
         hasClienteId: !!req.body?.clienteId,
         hasFiltros: !!req.body?.filtros,

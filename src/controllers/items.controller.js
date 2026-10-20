@@ -5,7 +5,7 @@ import { successResponse } from '../utils/apiResponse.util.js';
 export class ItemsController {
   async create(req, res, next) {
     try {
-      logger.info('Creating Items', { body: req.body, tenantId: req.tenantId });
+      logger.info('Creating Items', { tenantId: req.tenantId });
       const data = await itemsService.create(req.body, req.tenantId);
       res.status(201).json(successResponse(data, 'Items creado exitosamente', 201));
     } catch (err) { next(err); }

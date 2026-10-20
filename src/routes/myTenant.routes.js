@@ -18,6 +18,13 @@ const router = Router();
 router.get('/', authenticate, authorize(PERMISSIONS.MY_TENANT_READ), MyTenantController.get);
 
 /**
+ * GET /api/v1/my-tenant/capabilities
+ * Capability flags, derived type and organization client of the effective tenant.
+ * Only authentication is required (NO RBAC permission): every role needs it to render the UI.
+ */
+router.get('/capabilities', authenticate, MyTenantController.getCapabilities);
+
+/**
  * PUT /api/v1/my-tenant
  * Updates editable metadata of the user's own tenant.
  * Restricted to role='admin'. Technicians and regular users receive 403.
