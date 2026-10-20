@@ -1,3 +1,10 @@
+# [2.24.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.23.0...v2.24.0) (2026-10-20)
+
+
+### Features
+
+* **tenants:** external services, premium modules and quick-load capability (backend) ([#43](https://github.com/tintindavid/Backend-Timtto/issues/43)) ([d717220](https://github.com/tintindavid/Backend-Timtto/commit/d7172204eb79ff93a8429108f75bd9231912218a))
+
 # [2.23.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.22.0...v2.23.0) (2026-10-20)
 
 
