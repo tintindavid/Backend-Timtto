@@ -50,7 +50,7 @@ describe('createActividadExternaDto', () => {
 });
 
 describe('updateActividadExternaDto', () => {
-  for (const [campo, valor] of [['fecha', '2026-02-01'], ['consecutivoExterno', 'X-1'], ['tipo', 'calibracion'], ['proveedor', 'ACME']]) {
+  for (const [campo, valor] of [['fecha', '2026-02-01'], ['consecutivoExterno', 'X-1'], ['tipo', 'calibracion']]) {
     it(`rechaza actualizar ${campo}`, () => {
       const { error } = updateActividadExternaDto.validate({ observacion: 'n', [campo]: valor });
       assert.ok(error);
@@ -72,5 +72,45 @@ describe('cerrarCadenaDto', () => {
   });
   it('acepta motivoCierre', () => {
     assert.equal(cerrarCadenaDto.validate({ motivoCierre: 'baja equipo' }).error, undefined);
+  });
+});
+
+describe('provider fields of the external activity DTOs', () => {
+  const PROV = '507f1f77bcf86cd799439021';
+  const base = {
+    tipo: 'calibracion', consecutivoExterno: 'CAL-001', fecha: '2026-01-15',
+    estadoFinal: 'aprobada', frecuencia: { meses: 12, esUnica: false },
+  };
+
+  it('create accepts a proveedorId without a name', () => {
+    const { error } = createActividadExternaDto.validate({ ...base, proveedorId: PROV });
+    assert.equal(error, undefined);
+  });
+
+  it('create accepts a name without proveedorId', () => {
+    const { error } = createActividadExternaDto.validate({ ...base, proveedor: 'ACME' });
+    assert.equal(error, undefined);
+  });
+
+  it('create rejects neither proveedorId nor proveedor', () => {
+    const { error } = createActividadExternaDto.validate(base);
+    assert.ok(error);
+  });
+
+  it('create rejects a malformed proveedorId', () => {
+    const { error } = createActividadExternaDto.validate({ ...base, proveedorId: 'abc' });
+    assert.ok(error);
+  });
+
+  it('update accepts a proveedorId, a name, null and the empty string (unlink)', () => {
+    for (const body of [{ proveedorId: PROV }, { proveedor: 'Nuevo' }, { proveedorId: null }, { proveedorId: '' }]) {
+      const { error } = updateActividadExternaDto.validate(body);
+      assert.equal(error, undefined, JSON.stringify(body));
+    }
+  });
+
+  it('update rejects a malformed proveedorId', () => {
+    const { error } = updateActividadExternaDto.validate({ proveedorId: 'abc' });
+    assert.ok(error);
   });
 });

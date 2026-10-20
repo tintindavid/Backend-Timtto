@@ -3,6 +3,7 @@ import { CadenaActividad } from '../models/cadenaActividad.model.js';
 import { EquipoActividadExterna } from '../models/equipoActividadExterna.model.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { ApiError } from '../utils/apiError.util.js';
+import { assertCustomerIsProvider } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 
 /**
@@ -68,6 +69,11 @@ export const actividadExternaService = {
       throw new ApiError(400, 'frecuenciaMeses requerido con valor >= 1 cuando !esUnica', 'FRECUENCIA_REQUIRED');
     }
 
+    // Provider link (validated before any upload): the stored name is always the provider's own.
+    const provider = await assertCustomerIsProvider(dto.proveedorId, tenantId);
+    const proveedorNombre = provider ? provider.Razonsocial : dto.proveedor;
+    const proveedorId = provider ? provider._id : null;
+
     // 1. Validar sucesión antes de subir nada (evita huérfanos por validación)
     let cadenaSucesion = null;
     if (dto.cadenaIdSucesion) {
@@ -92,7 +98,7 @@ export const actividadExternaService = {
         const base = {
           tenantId, clienteId, equipoId,
           tipo: dto.tipo, tipoCustom: dto.tipoCustom,
-          consecutivoExterno: dto.consecutivoExterno, fecha, proveedor: dto.proveedor,
+          consecutivoExterno: dto.consecutivoExterno, fecha, proveedor: proveedorNombre, proveedorId,
           observacion: dto.observacion, estadoFinal: dto.estadoFinal, estadoFinalCustom: dto.estadoFinalCustom,
           evidencia, enlace: dto.enlace,
           cerradaAt: null,
@@ -185,6 +191,18 @@ export const actividadExternaService = {
     const set = {};
     for (const k of ['observacion', 'estadoFinal', 'estadoFinalCustom', 'enlace']) {
       if (dto[k] !== undefined) set[k] = dto[k];
+    }
+    // Provider: a linked provider overrides any name sent; '' or null unlinks and keeps the last text.
+    if (dto.proveedorId) {
+      const provider = await assertCustomerIsProvider(dto.proveedorId, tenantId);
+      set.proveedorId = provider._id;
+      set.proveedor = provider.Razonsocial;
+    } else if (dto.proveedorId === null || dto.proveedorId === '') {
+      set.proveedorId = null;
+      if (dto.proveedor) set.proveedor = dto.proveedor;
+    } else if (dto.proveedor) {
+      set.proveedor = dto.proveedor;
+      set.proveedorId = null;
     }
     const unset = {};
     const efectivo = set.estadoFinal !== undefined ? set.estadoFinal : existing.estadoFinal;

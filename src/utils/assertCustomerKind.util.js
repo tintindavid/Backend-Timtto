@@ -70,3 +70,39 @@ export async function assertCustomerKindIfChanged(customerId, currentCustomerId,
   if (currentCustomerId && String(customerId) === String(currentCustomerId)) return null;
   return assertCustomerKind(customerId, tenantId);
 }
+
+/**
+ * Verifies that `providerId` is a non-deleted third party of the tenant with kind 'provider'.
+ * Mirror of assertCustomerKind (external activities reference providers, never clients).
+ *
+ * - No id supplied: no-op, returns null.
+ * - Invalid id, other tenant or soft-deleted: 404 CUSTOMER_NOT_FOUND.
+ * - kind 'customer' (or legacy documents without kind): 400 INVALID_PROVIDER.
+ *
+ * @param {string} providerId
+ * @param {string} tenantId
+ * @returns {Promise<object|null>} the lean provider ({ _id, kind, Razonsocial })
+ */
+export async function assertCustomerIsProvider(providerId, tenantId) {
+  if (!providerId) return null;
+
+  if (!mongoose.isValidObjectId(providerId)) {
+    logger.warn('assertCustomerIsProvider: invalid provider id', { tenantId, providerId: String(providerId) });
+    throw new ApiError(404, 'Proveedor no encontrado', 'CUSTOMER_NOT_FOUND', { customerId: String(providerId) });
+  }
+
+  const provider = await Customer.findOne(applyTenantFilter({ _id: providerId }, tenantId))
+    .select('_id kind Razonsocial')
+    .lean();
+
+  if (!provider) {
+    logger.warn('assertCustomerIsProvider: provider not found in tenant', { tenantId, providerId: String(providerId) });
+    throw new ApiError(404, 'Proveedor no encontrado', 'CUSTOMER_NOT_FOUND', { customerId: String(providerId) });
+  }
+
+  if (provider.kind !== 'provider') {
+    logger.warn('assertCustomerIsProvider: client rejected as provider', { tenantId, customerId: String(provider._id) });
+    throw new ApiError(400, 'El tercero seleccionado no es un proveedor', 'INVALID_PROVIDER', { customerId: String(provider._id) });
+  }
+  return provider;
+}

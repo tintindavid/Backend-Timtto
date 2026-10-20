@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { TIPOS_ACTIVIDAD_EXTERNA } from '../models/cadenaActividad.model.js';
 
 const MESES_VALIDOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -21,3 +22,14 @@ export const cronogramaPDFDto = Joi.object({
   'object.base': 'El campo {#label} debe ser un objeto válido',
   'array.base': 'El campo {#label} debe ser un array',
 });
+
+/**
+ * Query of GET /cronogramas/actividades-externas. `tenantId` is never accepted here: it comes from the token.
+ */
+export const actividadesExternasQueryDto = Joi.object({
+  clienteId: Joi.string().length(24).hex().optional(),
+  mes: Joi.string().valid(...MESES_VALIDOS).optional(),
+  tipo: Joi.string().valid(...TIPOS_ACTIVIDAD_EXTERNA).optional(),
+  anio: Joi.number().integer().min(2000).max(2100).optional(),
+  limit: Joi.number().integer().min(1).max(5000).optional(),
+}).unknown(false);

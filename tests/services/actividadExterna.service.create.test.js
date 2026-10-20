@@ -5,6 +5,7 @@ import { actividadExternaService } from '../../src/services/actividadExterna.ser
 import { CadenaActividad } from '../../src/models/cadenaActividad.model.js';
 import { EquipoActividadExterna } from '../../src/models/equipoActividadExterna.model.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
+import { Customer } from '../../src/models/customer.model.js';
 
 const oid = () => new mongoose.Types.ObjectId().toString();
 const addDate = (base, months) => { const d = new Date(base); d.setMonth(d.getMonth() + months); return d; };
@@ -179,5 +180,56 @@ describe('actividadExternaService.create', () => {
       (err) => err.statusCode === 400 && err.code === 'FRECUENCIA_REQUIRED',
     );
     assert.equal(uploads, 0);
+  });
+});
+
+describe('actividadExternaService.create - provider link', () => {
+  const PROV = '507f1f77bcf86cd799439021';
+  afterEach(() => { delete Customer.findOne; });
+
+  const stubProvider = (doc) => {
+    Customer.findOne = (q) => ({
+      select() { return this; },
+      lean: () => Promise.resolve(doc && doc.tenantId === q.tenantId && String(doc._id) === String(q._id) ? doc : null),
+    });
+  };
+
+  it('stores proveedorId and copies the provider name, ignoring the name sent', async () => {
+    stubProvider({ _id: PROV, tenantId: 't1', kind: 'provider', Razonsocial: 'ACME SAS' });
+    const created = [];
+    EquipoActividadExterna.create = async (docs) => { created.push(docs[0]); return docs.map((d) => ({ ...d, _id: oid() })); };
+    await actividadExternaService.create('t1', 'eq1', 'cli1', { ...dtoBase(), proveedor: 'Otro nombre', proveedorId: PROV }, null, 'u1');
+    assert.equal(String(created[0].proveedorId), PROV);
+    assert.equal(created[0].proveedor, 'ACME SAS');
+  });
+
+  it('free text keeps working and leaves proveedorId null', async () => {
+    const created = [];
+    EquipoActividadExterna.create = async (docs) => { created.push(docs[0]); return docs.map((d) => ({ ...d, _id: oid() })); };
+    await actividadExternaService.create('t1', 'eq1', 'cli1', dtoBase(), null, 'u1');
+    assert.equal(created[0].proveedor, 'ACME');
+    assert.equal(created[0].proveedorId, null);
+  });
+
+  it('a client used as provider -> 400 INVALID_PROVIDER and nothing is written or uploaded', async () => {
+    stubProvider({ _id: PROV, tenantId: 't1', kind: 'customer', Razonsocial: 'Hospital' });
+    let wrote = false; let uploaded = false;
+    CadenaActividad.create = async () => { wrote = true; return []; };
+    EquipoActividadExterna.create = async () => { wrote = true; return []; };
+    firebaseStorageService.uploadActividadExternaEvidencia = async () => { uploaded = true; return {}; };
+    await assert.rejects(
+      () => actividadExternaService.create('t1', 'eq1', 'cli1', { ...dtoBase(), proveedorId: PROV }, pdfFile(), 'u1'),
+      (err) => err.statusCode === 400 && err.code === 'INVALID_PROVIDER',
+    );
+    assert.equal(wrote, false);
+    assert.equal(uploaded, false);
+  });
+
+  it('a provider of another tenant -> 404 CUSTOMER_NOT_FOUND', async () => {
+    stubProvider({ _id: PROV, tenantId: 'other', kind: 'provider', Razonsocial: 'Ajeno' });
+    await assert.rejects(
+      () => actividadExternaService.create('t1', 'eq1', 'cli1', { ...dtoBase(), proveedorId: PROV }, null, 'u1'),
+      (err) => err.statusCode === 404 && err.code === 'CUSTOMER_NOT_FOUND',
+    );
   });
 });

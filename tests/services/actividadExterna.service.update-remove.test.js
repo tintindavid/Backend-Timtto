@@ -5,6 +5,7 @@ import { actividadExternaService } from '../../src/services/actividadExterna.ser
 import { CadenaActividad } from '../../src/models/cadenaActividad.model.js';
 import { EquipoActividadExterna } from '../../src/models/equipoActividadExterna.model.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
+import { Customer } from '../../src/models/customer.model.js';
 
 let sessionMock;
 beforeEach(() => {
@@ -178,5 +179,66 @@ describe('actividadExternaService.removeEvidencia', () => {
     EquipoActividadExterna.findOneAndUpdate = async () => ({ _id: 'a1' });
     await actividadExternaService.removeEvidencia('t1', 'eq1', 'a1');
     assert.equal(deleted, 'p/1');
+  });
+});
+
+describe('actividadExternaService.update - provider link', () => {
+  const PROV = '507f1f77bcf86cd799439021';
+  afterEach(() => { delete Customer.findOne; });
+
+  const stubProvider = (doc) => {
+    Customer.findOne = (q) => ({
+      select() { return this; },
+      lean: () => Promise.resolve(doc && doc.tenantId === q.tenantId && String(doc._id) === String(q._id) ? doc : null),
+    });
+  };
+  const arrange = () => {
+    EquipoActividadExterna.findOne = async () => ({ _id: 'a1', tenantId: 't1', equipoId: 'eq1', proveedor: 'Viejo', proveedorId: null });
+    const calls = { set: undefined };
+    EquipoActividadExterna.findOneAndUpdate = async (_q, u) => { calls.set = u.$set; return { ...u.$set }; };
+    return calls;
+  };
+
+  it('links a provider and copies its name', async () => {
+    stubProvider({ _id: PROV, tenantId: 't1', kind: 'provider', Razonsocial: 'ACME SAS' });
+    const calls = arrange();
+    await actividadExternaService.update('t1', 'eq1', 'a1', { proveedorId: PROV, proveedor: 'ignorado' });
+    assert.equal(String(calls.set.proveedorId), PROV);
+    assert.equal(calls.set.proveedor, 'ACME SAS');
+  });
+
+  it('unlinks with null or empty string and keeps the last text', async () => {
+    for (const value of [null, '']) {
+      const calls = arrange();
+      await actividadExternaService.update('t1', 'eq1', 'a1', { proveedorId: value });
+      assert.equal(calls.set.proveedorId, null);
+      assert.equal(calls.set.proveedor, undefined);
+    }
+  });
+
+  it('a new free-text name replaces the link', async () => {
+    const calls = arrange();
+    await actividadExternaService.update('t1', 'eq1', 'a1', { proveedor: 'Nuevo texto' });
+    assert.equal(calls.set.proveedor, 'Nuevo texto');
+    assert.equal(calls.set.proveedorId, null);
+  });
+
+  it('a client used as provider -> 400 INVALID_PROVIDER and nothing is written', async () => {
+    stubProvider({ _id: PROV, tenantId: 't1', kind: 'customer', Razonsocial: 'Hospital' });
+    const calls = arrange();
+    await assert.rejects(
+      () => actividadExternaService.update('t1', 'eq1', 'a1', { proveedorId: PROV }),
+      (err) => err.code === 'INVALID_PROVIDER',
+    );
+    assert.equal(calls.set, undefined);
+  });
+
+  it('a provider of another tenant -> 404 CUSTOMER_NOT_FOUND', async () => {
+    stubProvider({ _id: PROV, tenantId: 'other', kind: 'provider', Razonsocial: 'Ajeno' });
+    arrange();
+    await assert.rejects(
+      () => actividadExternaService.update('t1', 'eq1', 'a1', { proveedorId: PROV }),
+      (err) => err.statusCode === 404,
+    );
   });
 });

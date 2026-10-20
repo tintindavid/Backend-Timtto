@@ -31,6 +31,7 @@ const CadenaActividadSchema = new Schema({
 CadenaActividadSchema.index({ tenantId: 1, equipoId: 1, tipo: 1, isDeleted: 1 });
 CadenaActividadSchema.index({ tenantId: 1, equipoId: 1, estado: 1, isDeleted: 1 });
 CadenaActividadSchema.index({ tenantId: 1, fechaProxima: 1 });
+CadenaActividadSchema.index({ tenantId: 1, estado: 1, clienteId: 1 });
 
 CadenaActividadSchema.pre('validate', function(next) {
   if (this.tipo === 'otro' && !this.tipoCustom) {
