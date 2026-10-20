@@ -1,3 +1,10 @@
+# [2.22.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.21.1...v2.22.0) (2026-10-20)
+
+
+### Features
+
+* **tenant:** add tenant capabilities for hybrid mode and clean token logs (backend) ([#41](https://github.com/tintindavid/Backend-Timtto/issues/41)) ([ae46d4f](https://github.com/tintindavid/Backend-Timtto/commit/ae46d4fcdb3059ca6346ad841dbc5491e077a374))
+
 ## [2.21.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.21.0...v2.21.1) (2026-10-13)
 
 

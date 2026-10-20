@@ -1,6 +1,6 @@
 {
   "name": "timttoapp",
-  "version": "2.21.1",
+  "version": "2.22.0",
   "type": "module",
   "private": true,
   "main": "dist/server.js",
