@@ -107,7 +107,7 @@ export class EquipmentQrController {
 
   /**
    * GET /api/v1/equipment-qrs/export-pdf?ids=…|&filter=<json>
-   * Bulk A4-landscape PDF, capped at MAX_BULK_PDF (design D12).
+   * Bulk A4-portrait PDF, capped at MAX_BULK_PDF (design D12).
    */
   async exportPdfBulk(req, res, next) {
     try {

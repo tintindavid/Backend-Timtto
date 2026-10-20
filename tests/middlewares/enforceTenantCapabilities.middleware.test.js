@@ -24,9 +24,13 @@ const TENANTS = {
   prov2: { tenantId: 'prov2', status: 'active', capabilities: { executesServices: true, registersExternal: false } },
   hosp: { tenantId: 'hosp', status: 'active', capabilities: { executesServices: false, registersExternal: true } },
   mixed: { tenantId: 'mixed', status: 'active', capabilities: { executesServices: true, registersExternal: true } },
+  // premium modules (modulos-premium-por-tenant)
+  qrcli: { tenantId: 'qrcli', status: 'active', capabilities: { executesServices: false, registersExternal: true, usesQrs: true } },
+  qrprov: { tenantId: 'qrprov', status: 'active', capabilities: { executesServices: true, registersExternal: false, usesQrs: true } },
+  full: { tenantId: 'full', status: 'active', capabilities: { executesServices: true, registersExternal: true, usesQrs: true } },
 };
 const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE'];
-const PREFIXES = CAPABILITY_ROUTE_MAP.map((e) => e.prefix);
+const PREFIXES = CAPABILITY_ROUTE_MAP.filter((e) => e.capability === 'executesServices').map((e) => e.prefix);
 
 let server;
 let base;
@@ -47,7 +51,7 @@ before(async () => {
   app.use(enforceReadOnlyForSuperadmin);
   app.use(enforceTenantCapabilities);
   const reached = (req, res) => res.json({ reached: true, method: req.method });
-  for (const prefix of [...PREFIXES, '/api/v1/customers', '/api/v1/informes', '/api/v1/tickets', '/api/v1/repuestos']) app.use(prefix, reached);
+  for (const prefix of [...PREFIXES, '/api/v1/customers', '/api/v1/informes', '/api/v1/tickets', '/api/v1/repuestos', '/api/v1/equipos', '/api/v1/cronogramas', '/api/v1/service-qrs', '/api/v1/equipment-qrs']) app.use(prefix, reached);
   app.use(errorHandler);
   server = http.createServer(app);
   await new Promise((r) => server.listen(0, r));
@@ -90,7 +94,8 @@ describe('enforceTenantCapabilities over HTTP', () => {
   });
 
   it('GET passes so history stays readable', async () => {
-    for (const prefix of PREFIXES) {
+    // tickets/work-order also belongs to the QR module (reads blocked): it has its own test below
+    for (const prefix of PREFIXES.filter((p) => p !== '/api/v1/tickets/work-order')) {
       const { status, body } = await call('GET', `${prefix}/abc`, { Authorization: admin('hosp') });
       assert.equal(status, 200, prefix);
       assert.equal(body.reached, true);
@@ -104,7 +109,7 @@ describe('enforceTenantCapabilities over HTTP', () => {
 
   it('provider tenants pass, with or without the stored field', async () => {
     for (const tenant of ['prov', 'prov2', 'mixed']) {
-      for (const prefix of PREFIXES) {
+      for (const prefix of PREFIXES.filter((p) => p !== '/api/v1/tickets/work-order')) {
         assert.equal((await call('POST', prefix, { Authorization: admin(tenant) })).status, 200, `${tenant} ${prefix}`);
       }
     }
@@ -176,9 +181,25 @@ describe('enforceTenantCapabilities: endpoints of common mounts that create OTs 
     }
   });
 
-  it('the rest of tickets and spare parts stays open for a client tenant', async () => {
-    assert.equal((await call('POST', '/api/v1/tickets', { Authorization: admin('hosp') })).status, 200);
+  it('the rest of tickets (with the QR module) and spare parts stays open for a client tenant', async () => {
+    assert.equal((await call('POST', '/api/v1/tickets', { Authorization: admin('qrcli') })).status, 200);
     assert.equal((await call('POST', '/api/v1/repuestos', { Authorization: admin('hosp') })).status, 200);
+  });
+
+  it('POST /tickets/work-order needs BOTH usesQrs and executesServices', async () => {
+    const path = '/api/v1/tickets/work-order';
+    const denied = async (tenant) => (await call('POST', path, { Authorization: admin(tenant) }));
+    // client with the QR module: lacks executesServices
+    let r = await denied('qrcli');
+    assert.equal(r.status, 403);
+    assert.equal(r.body.error.details.capability, 'executesServices');
+    // provider without the QR module: lacks usesQrs
+    r = await denied('prov');
+    assert.equal(r.status, 403);
+    assert.equal(r.body.error.details.capability, 'usesQrs');
+    // both
+    assert.equal((await denied('qrprov')).status, 200);
+    assert.equal((await denied('full')).status, 200);
   });
 });
 
@@ -267,5 +288,79 @@ describe('enforceTenantCapabilities unit', () => {
     const out = run({ method: 'POST', path: '/api/v1/ots', originalUrl: '/api/v1/ots', user: { role: 'admin', tenantId: 't' } });
     assert.equal(out.err, null);
     assert.equal(out.called, true);
+  });
+});
+
+describe('enforceTenantCapabilities: premium modules block reads and writes (modulos-premium-por-tenant)', () => {
+  const EXTERNAL_PATHS = [
+    '/api/v1/cronogramas/actividades-externas',
+    '/api/v1/equipos/507f1f77bcf86cd799439011/actividades-externas',
+    '/api/v1/equipos/507f1f77bcf86cd799439011/actividades-externas/abc/evidencia/url',
+    '/api/v1/equipos/507f1f77bcf86cd799439011/cadenas-actividad',
+    '/api/v1/equipos/507f1f77bcf86cd799439011/reportes-externos',
+  ];
+  const QR_PATHS = ['/api/v1/tickets', '/api/v1/tickets/abc', '/api/v1/service-qrs', '/api/v1/service-qrs/abc/qr-image', '/api/v1/equipment-qrs', '/api/v1/equipment-qrs/export-pdf'];
+
+  it('a tenant without registersExternal gets 403 on reads and writes of the external paths', async () => {
+    for (const path of EXTERNAL_PATHS) {
+      for (const method of ['GET', ...MUTATING]) {
+        const { status, body } = await call(method, path, { Authorization: admin('qrprov') });
+        assert.equal(status, 403, `${method} ${path}`);
+        assert.equal(body.error.code, 'CAPABILITY_DISABLED');
+        assert.equal(body.error.details.capability, 'registersExternal');
+      }
+    }
+  });
+
+  it('a tenant with registersExternal passes on the same paths', async () => {
+    for (const path of EXTERNAL_PATHS) {
+      for (const method of ['GET', 'POST']) {
+        assert.equal((await call(method, path, { Authorization: admin('mixed') })).status, 200, `${method} ${path}`);
+      }
+    }
+  });
+
+  it('a tenant without usesQrs gets 403 on reads and writes of QRs and tickets', async () => {
+    for (const path of QR_PATHS) {
+      for (const method of ['GET', ...MUTATING]) {
+        const { status, body } = await call(method, path, { Authorization: admin('mixed') });
+        assert.equal(status, 403, `${method} ${path}`);
+        assert.equal(body.error.details.capability, 'usesQrs');
+      }
+    }
+  });
+
+  it('a tenant with usesQrs passes, whatever its other flags', async () => {
+    for (const tenant of ['qrcli', 'qrprov', 'full']) {
+      for (const path of QR_PATHS) {
+        assert.equal((await call('GET', path, { Authorization: admin(tenant) })).status, 200, `${tenant} ${path}`);
+      }
+    }
+  });
+
+  it('a legacy tenant without the stored field has both premium modules off', async () => {
+    assert.equal((await call('GET', '/api/v1/tickets', { Authorization: admin('prov') })).status, 403);
+    assert.equal((await call('GET', EXTERNAL_PATHS[0], { Authorization: admin('prov') })).status, 403);
+  });
+
+  it('look-alike paths are not gated', async () => {
+    assert.equal((await call('GET', '/api/v1/equipos/abc/otra-cosa', { Authorization: admin('prov') })).status, 200);
+    assert.equal((await call('GET', '/api/v1/cronogramas', { Authorization: admin('prov') })).status, 200);
+  });
+
+  it('the superadmin keeps reading a tenant without the module (view-as)', async () => {
+    const sa = bearer({ userId: 's1', role: 'superadmin', tenantId: '__platform__' });
+    assert.equal((await call('GET', '/api/v1/tickets', { Authorization: sa, 'x-tenant-id': 'mixed' })).status, 200);
+  });
+
+  it('warn lets the request through and off bypasses the guard', async () => {
+    process.env.ENFORCE_TENANT_CAPABILITIES = 'warn';
+    assert.equal((await call('GET', '/api/v1/equipment-qrs', { Authorization: admin('mixed') })).status, 200);
+    process.env.ENFORCE_TENANT_CAPABILITIES = 'off';
+    assert.equal((await call('GET', EXTERNAL_PATHS[1], { Authorization: admin('qrprov') })).status, 200);
+  });
+
+  it('unauthenticated requests pass through (route-level authenticate decides)', async () => {
+    assert.equal((await call('GET', '/api/v1/tickets', { 'x-tenant-id': 'mixed' })).status, 200);
   });
 });

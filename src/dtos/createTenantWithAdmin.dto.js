@@ -9,6 +9,8 @@ const typeSchema = Joi.string().valid(...TENANT_TYPES);
 const capabilitiesSchema = Joi.object({
   executesServices: Joi.boolean(),
   registersExternal: Joi.boolean(),
+  usesQrs: Joi.boolean(),
+  scheduleQuickLoad: Joi.boolean(),
 })
   .unknown(false)
   .min(1);

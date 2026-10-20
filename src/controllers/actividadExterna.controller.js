@@ -45,7 +45,7 @@ export const actividadExternaController = {
     try {
       const { tenantId } = req.user;
       const clienteId = await deriveClienteId(tenantId, req.params.equipoId);
-      const data = await actividadExternaService.create(tenantId, req.params.equipoId, clienteId, req.body, req.file, userIdOf(req));
+      const data = await actividadExternaService.create(tenantId, req.params.equipoId, clienteId, req.body, req.file, userIdOf(req), req.user);
       res.status(201).json(successResponse(data, 'Actividad externa registrada', 201));
     } catch (err) { next(err); }
   },
