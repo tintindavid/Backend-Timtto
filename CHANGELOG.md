@@ -1,3 +1,10 @@
+# [2.25.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.24.0...v2.25.0) (2026-10-22)
+
+
+### Features
+
+* **inventario:** add basic/advanced spare-parts stock module ([#44](https://github.com/tintindavid/Backend-Timtto/issues/44)) ([23aa373](https://github.com/tintindavid/Backend-Timtto/commit/23aa373a36fc21d0d1aa4524fafe832d396b970b))
+
 # [2.24.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.23.0...v2.24.0) (2026-10-20)
 
 
