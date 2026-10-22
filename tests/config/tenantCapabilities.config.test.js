@@ -26,19 +26,19 @@ import {
 describe('normalizeCapabilities', () => {
   it('applies the provider defaults when the field is missing', () => {
     for (const missing of [undefined, null, {}, 'x', 5]) {
-      assert.deepEqual(normalizeCapabilities(missing), { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
+      assert.deepEqual(normalizeCapabilities(missing), { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     }
   });
 
   it('keeps stored values and defaults only the missing flag', () => {
-    assert.deepEqual(normalizeCapabilities({ executesServices: false }), { executesServices: false, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
-    assert.deepEqual(normalizeCapabilities({ registersExternal: true }), { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
-    assert.deepEqual(normalizeCapabilities({ executesServices: false, registersExternal: true }), { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
-    assert.deepEqual(normalizeCapabilities({ usesQrs: true }), { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false });
+    assert.deepEqual(normalizeCapabilities({ executesServices: false }), { executesServices: false, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(normalizeCapabilities({ registersExternal: true }), { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(normalizeCapabilities({ executesServices: false, registersExternal: true }), { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(normalizeCapabilities({ usesQrs: true }), { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('coerces to booleans and ignores unknown keys', () => {
-    assert.deepEqual(normalizeCapabilities({ executesServices: 0, registersExternal: 1, usesQrs: 1, junk: 1 }), { executesServices: false, registersExternal: true, usesQrs: true, scheduleQuickLoad: false });
+    assert.deepEqual(normalizeCapabilities({ executesServices: 0, registersExternal: 1, usesQrs: 1, junk: 1 }), { executesServices: false, registersExternal: true, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 });
 
@@ -91,20 +91,20 @@ describe('presetToCapabilities', () => {
 
 describe('resolveCapabilitiesInput', () => {
   it('defaults to provider when nothing is sent', () => {
-    assert.deepEqual(resolveCapabilitiesInput({}), { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(resolveCapabilitiesInput({}), { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('uses the preset or the flags', () => {
-    assert.deepEqual(resolveCapabilitiesInput({ type: 'client' }), { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(resolveCapabilitiesInput({ type: 'client' }), { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.deepEqual(
       resolveCapabilitiesInput({ capabilities: { executesServices: false, registersExternal: true } }),
-      { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false },
+      { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false },
     );
   });
 
   it('merges partial flags over the CURRENT values when a base is given', () => {
     const base = { executesServices: true, registersExternal: false };
-    assert.deepEqual(resolveCapabilitiesInput({ registersExternal: true }, base), { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(resolveCapabilitiesInput({ registersExternal: true }, base), { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('usesQrs is independent: a preset keeps the current value, flags and the preset can set it', () => {
@@ -309,15 +309,15 @@ describe('scheduleQuickLoad (cronograma-carga-rapida): premium switch that needs
     bad(() => resolveCapabilitiesInput({ capabilities: { executesServices: true, registersExternal: false, scheduleQuickLoad: true } }));
     assert.deepEqual(
       resolveCapabilitiesInput({ registersExternal: true, scheduleQuickLoad: true }),
-      { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true },
+      { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false },
     );
   });
 
   it('turning registersExternal off while it is on is rejected; off together is fine', () => {
     const base = { executesServices: true, registersExternal: true, scheduleQuickLoad: true };
     bad(() => resolveCapabilitiesInput({ registersExternal: false }, base));
-    assert.equal(resolveCapabilitiesInput({ registersExternal: false, scheduleQuickLoad: false }, base).scheduleQuickLoad, false);
-    assert.equal(resolveCapabilitiesInput({ scheduleQuickLoad: false }, base).registersExternal, true);
+    assert.equal(resolveCapabilitiesInput({ registersExternal: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false }, base).scheduleQuickLoad, false);
+    assert.equal(resolveCapabilitiesInput({ scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false }, base).registersExternal, true);
   });
 
   it('presets keep the current value: hybrid/client keep it, provider is rejected while it is on', () => {
@@ -325,7 +325,7 @@ describe('scheduleQuickLoad (cronograma-carga-rapida): premium switch that needs
     assert.equal(resolveCapabilitiesInput({ type: 'hybrid' }, base).scheduleQuickLoad, true);
     assert.equal(resolveCapabilitiesInput({ type: 'client' }, base).scheduleQuickLoad, true);
     bad(() => resolveCapabilitiesInput({ type: 'provider' }, base));
-    assert.equal(resolveCapabilitiesInput({ type: 'provider', scheduleQuickLoad: false }, base).registersExternal, false);
+    assert.equal(resolveCapabilitiesInput({ type: 'provider', scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false }, base).registersExternal, false);
     assert.equal(resolveCapabilitiesInput({ type: 'hybrid' }).scheduleQuickLoad, false, 'a preset never turns it on');
   });
 
@@ -342,5 +342,64 @@ describe('scheduleQuickLoad (cronograma-carga-rapida): premium switch that needs
     assert.ok(CAPABILITY_NAMES.includes('scheduleQuickLoad'));
     assert.equal(describeCapabilities({ registersExternal: true, scheduleQuickLoad: true }).scheduleQuickLoad, true);
     assert.equal(describeCapabilities({}).scheduleQuickLoad, false);
+  });
+});
+
+describe('usesInventoryBasic / usesInventoryAdvanced (inventario-stock)', () => {
+  const bad = (fn) => assert.throws(fn, (err) => err.statusCode === 400 && err.code === 'INVALID_CAPABILITIES' && err.details.requires === 'usesInventoryBasic');
+
+  it('default to false, are capability names and appear in the exposure shape', () => {
+    const n = normalizeCapabilities(undefined);
+    assert.equal(n.usesInventoryBasic, false);
+    assert.equal(n.usesInventoryAdvanced, false);
+    assert.ok(CAPABILITY_NAMES.includes('usesInventoryBasic') && CAPABILITY_NAMES.includes('usesInventoryAdvanced'));
+    const d = describeCapabilities({ usesInventoryBasic: true, usesInventoryAdvanced: true });
+    assert.equal(d.usesInventoryBasic, true);
+    assert.equal(d.usesInventoryAdvanced, true);
+  });
+
+  it('advanced is effective only together with basic', () => {
+    assert.equal(normalizeCapabilities({ usesInventoryAdvanced: true }).usesInventoryAdvanced, false);
+    assert.equal(normalizeCapabilities({ usesInventoryBasic: true, usesInventoryAdvanced: true }).usesInventoryAdvanced, true);
+  });
+
+  it('advanced without basic is rejected with 400 INVALID_CAPABILITIES; both together are fine', () => {
+    bad(() => resolveCapabilitiesInput({ usesInventoryAdvanced: true }));
+    bad(() => resolveCapabilitiesInput({ usesInventoryAdvanced: true, usesInventoryBasic: false }));
+    const r = resolveCapabilitiesInput({ usesInventoryBasic: true, usesInventoryAdvanced: true });
+    assert.equal(r.usesInventoryBasic, true);
+    assert.equal(r.usesInventoryAdvanced, true);
+  });
+
+  it('turning basic off while advanced is on is rejected unless advanced goes off too', () => {
+    const base = { executesServices: true, registersExternal: false, usesInventoryBasic: true, usesInventoryAdvanced: true };
+    bad(() => resolveCapabilitiesInput({ usesInventoryBasic: false }, base));
+    const r = resolveCapabilitiesInput({ usesInventoryBasic: false, usesInventoryAdvanced: false }, base);
+    assert.equal(r.usesInventoryBasic, false);
+    assert.equal(r.usesInventoryAdvanced, false);
+  });
+
+  it('presets keep the current inventory flags and never turn them on', () => {
+    const base = { executesServices: true, registersExternal: false, usesInventoryBasic: true };
+    assert.equal(resolveCapabilitiesInput({ type: 'hybrid' }, base).usesInventoryBasic, true);
+    assert.equal(resolveCapabilitiesInput({ type: 'hybrid' }).usesInventoryBasic, false);
+  });
+
+  it('they take no part in the derived type nor in "at least one capability"', () => {
+    assert.equal(getTenantType({ executesServices: true, registersExternal: false, usesInventoryBasic: true }), 'provider');
+    assert.throws(
+      () => resolveCapabilitiesInput({ capabilities: { executesServices: false, registersExternal: false, usesInventoryBasic: true } }),
+      (err) => err.code === 'INVALID_CAPABILITIES',
+    );
+  });
+
+  it('route map: catalogue needs basic, movements need advanced, reads included; inventory is no longer "common"', () => {
+    const caps = (p) => findRequiredCapabilities(p);
+    assert.deepEqual(caps('/api/v1/inventario-repuestos'), [{ capability: 'usesInventoryBasic', blockReads: true }]);
+    assert.deepEqual(caps('/api/v1/inventario-repuestos/abc'), [{ capability: 'usesInventoryBasic', blockReads: true }]);
+    assert.deepEqual(caps('/API/V1//inventario-movimientos'), [{ capability: 'usesInventoryAdvanced', blockReads: true }]);
+    assert.deepEqual(caps('/api/v1/inventario-movimientosx'), []);
+    assert.ok(!COMMON_ROUTE_PREFIXES.includes('/api/v1/inventario-repuestos'));
+    assert.ok(COMMON_ROUTE_PREFIXES.includes('/api/v1/repuestos'), 'spare-part requests stay open');
   });
 });

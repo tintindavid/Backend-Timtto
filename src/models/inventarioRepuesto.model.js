@@ -2,12 +2,17 @@ import mongoose from 'mongoose';
 
 const { Schema, model } = mongoose;
 
+export const INVENTARIO_TIPOS = Object.freeze(['repuesto', 'accesorio']);
+
 const InventarioRepuestoSchema = new Schema({
   tenantId: { type: String, required: true },
   nombre: { type: String, required: true, trim: true },
+  tipo: { type: String, enum: INVENTARIO_TIPOS, default: 'repuesto' },
+  activo: { type: Boolean, default: true },
   referencia: { type: String, trim: true },
   descripcion: { type: String, trim: true },
-  stockActual: { type: Number, required: true, default: 0, min: 0 },
+  // Only changes through movements (inventario-stock); basic tenants always keep 0.
+  stockActual: { type: Number, default: 0, min: 0 },
   stockMinimo: { type: Number, default: 0, min: 0 },
   unidad: { type: String, trim: true },
   precio: { type: Number, min: 0 },
@@ -19,6 +24,7 @@ const InventarioRepuestoSchema = new Schema({
 });
 
 InventarioRepuestoSchema.index({ tenantId: 1, isDeleted: 1 });
+// Not unique on purpose: legacy data may hold duplicates; the service prevents new ones (case-insensitive, 409).
 InventarioRepuestoSchema.index({ tenantId: 1, nombre: 1 });
 
 InventarioRepuestoSchema.set('toJSON', {

@@ -107,7 +107,7 @@ describe('GET /api/v1/my-tenant/capabilities', () => {
     assert.equal(status, 200);
     assert.equal(body.success, true);
     assert.deepEqual(body.data, {
-      executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, type: 'provider', organizationCustomerId: null,
+      executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, type: 'provider', organizationCustomerId: null,
     });
   });
 
@@ -115,7 +115,7 @@ describe('GET /api/v1/my-tenant/capabilities', () => {
     const { status, body } = await req('GET', '/api/v1/my-tenant/capabilities', { headers: { Authorization: techOf('hosp') } });
     assert.equal(status, 200);
     assert.deepEqual(body.data, {
-      executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, type: 'client', organizationCustomerId: '507f1f77bcf86cd799439099',
+      executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, type: 'client', organizationCustomerId: '507f1f77bcf86cd799439099',
     });
   });
 
@@ -148,7 +148,7 @@ describe('GET /api/v1/my-tenant/capabilities', () => {
     const { status, body } = await req('GET', '/api/v1/my-tenant/capabilities', { headers: { Authorization: superadmin() } });
     assert.equal(status, 200);
     assert.deepEqual(body.data, {
-      executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, type: 'hybrid', organizationCustomerId: null,
+      executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true, type: 'hybrid', organizationCustomerId: null,
     });
   });
 

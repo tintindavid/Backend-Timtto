@@ -16,16 +16,20 @@ import { ApiError } from '../utils/apiError.util.js';
  *                     interface offers loading from the schedule cells. It REQUIRES registersExternal; it does not
  *                     protect any endpoint (the forms use the existing, already protected ones) and takes no part
  *                     in the derived type
+ *   usesInventoryBasic    premium module "Stock" basic level (change: inventario-stock): spare parts / accessories
+ *                         catalogue. Independent of the derived type
+ *   usesInventoryAdvanced premium module "Stock" advanced level: quantities, movements (kardex) and the stock
+ *                         discount on work-order completion. It REQUIRES usesInventoryBasic
  *
  * The tenant "type" is derived, never stored:
  *   provider = executesServices only, client = registersExternal only, hybrid = both.
  * At least one flag must be true.
  */
 
-export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
-export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true });
+export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true });
 export const TENANT_TYPES = Object.freeze(['provider', 'client', 'hybrid']);
-export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal', 'usesQrs', 'scheduleQuickLoad']);
+export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal', 'usesQrs', 'scheduleQuickLoad', 'usesInventoryBasic', 'usesInventoryAdvanced']);
 
 export const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -66,6 +70,9 @@ export const CAPABILITY_ROUTE_MAP = Object.freeze([
   { prefix: '/api/v1/tickets', capability: 'usesQrs', blockReads: true },
   { prefix: '/api/v1/service-qrs', capability: 'usesQrs', blockReads: true },
   { prefix: '/api/v1/equipment-qrs', capability: 'usesQrs', blockReads: true },
+  // Premium module "Stock" (inventario-stock): catalogue (basic) and movements (advanced), reads included.
+  { prefix: '/api/v1/inventario-repuestos', capability: 'usesInventoryBasic', blockReads: true },
+  { prefix: '/api/v1/inventario-movimientos', capability: 'usesInventoryAdvanced', blockReads: true },
 ]);
 
 /**
@@ -111,7 +118,6 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
   '/api/v1/protocolo-mtto',
   // spare parts
   '/api/v1/repuestos',
-  '/api/v1/inventario-repuestos',
   '/api/v1/repuesto-trazabilidad',
   // documents
   '/api/v1/informes',
@@ -135,13 +141,15 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
  * @param {object|null|undefined} value
  * `scheduleQuickLoad` is the EFFECTIVE value: true only when it is stored true AND registersExternal is true, so a
  * document with an inconsistent pair reads as off and no read path ever fails.
- * @returns {{ executesServices: boolean, registersExternal: boolean, usesQrs: boolean, scheduleQuickLoad: boolean }}
+ * `usesInventoryAdvanced` is effective the same way (needs usesInventoryBasic).
+ * @returns {{ executesServices: boolean, registersExternal: boolean, usesQrs: boolean, scheduleQuickLoad: boolean, usesInventoryBasic: boolean, usesInventoryAdvanced: boolean }}
  */
 export function normalizeCapabilities(value) {
   const src = value && typeof value === 'object' ? value : {};
   const registersExternal = src.registersExternal === undefined || src.registersExternal === null
     ? DEFAULT_CAPABILITIES.registersExternal
     : Boolean(src.registersExternal);
+  const usesInventoryBasic = Boolean(src.usesInventoryBasic);
   return {
     executesServices: src.executesServices === undefined || src.executesServices === null
       ? DEFAULT_CAPABILITIES.executesServices
@@ -151,6 +159,8 @@ export function normalizeCapabilities(value) {
       ? DEFAULT_CAPABILITIES.usesQrs
       : Boolean(src.usesQrs),
     scheduleQuickLoad: registersExternal && Boolean(src.scheduleQuickLoad),
+    usesInventoryBasic,
+    usesInventoryAdvanced: usesInventoryBasic && Boolean(src.usesInventoryAdvanced),
   };
 }
 
@@ -196,14 +206,18 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
   // `usesQrs` is independent of the preset: it is kept from the current value unless the body sets it.
   const usesQrs = flagsSource.usesQrs === undefined ? current.usesQrs : Boolean(flagsSource.usesQrs);
   const scheduleQuickLoad = flagsSource.scheduleQuickLoad === undefined ? current.scheduleQuickLoad : Boolean(flagsSource.scheduleQuickLoad);
+  const usesInventoryBasic = flagsSource.usesInventoryBasic === undefined ? current.usesInventoryBasic : Boolean(flagsSource.usesInventoryBasic);
+  const usesInventoryAdvanced = flagsSource.usesInventoryAdvanced === undefined ? current.usesInventoryAdvanced : Boolean(flagsSource.usesInventoryAdvanced);
   if (input.type !== undefined && input.type !== null) {
-    caps = { ...presetToCapabilities(input.type), usesQrs, scheduleQuickLoad };
+    caps = { ...presetToCapabilities(input.type), usesQrs, scheduleQuickLoad, usesInventoryBasic, usesInventoryAdvanced };
   } else {
     caps = {
       executesServices: flagsSource.executesServices === undefined ? current.executesServices : Boolean(flagsSource.executesServices),
       registersExternal: flagsSource.registersExternal === undefined ? current.registersExternal : Boolean(flagsSource.registersExternal),
       usesQrs,
       scheduleQuickLoad,
+      usesInventoryBasic,
+      usesInventoryAdvanced,
     };
   }
   // The requested result must be coherent (checked on the raw request: normalize would silently turn it off).
@@ -213,6 +227,14 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
       'La carga rápida desde el cronograma requiere el módulo Servicios de terceros: actívalo primero o apaga la carga rápida',
       'INVALID_CAPABILITIES',
       { capability: 'scheduleQuickLoad', requires: 'registersExternal' },
+    );
+  }
+  if (caps.usesInventoryAdvanced && !caps.usesInventoryBasic) {
+    throw new ApiError(
+      400,
+      'La gestión avanzada de stock requiere el inventario básico: actívalo primero o apaga la gestión avanzada',
+      'INVALID_CAPABILITIES',
+      { capability: 'usesInventoryAdvanced', requires: 'usesInventoryBasic' },
     );
   }
   return assertValidCapabilities(caps);
@@ -258,6 +280,8 @@ export function describeCapabilities(capabilities, organizationCustomerId = null
     registersExternal: caps.registersExternal,
     usesQrs: caps.usesQrs,
     scheduleQuickLoad: caps.scheduleQuickLoad,
+    usesInventoryBasic: caps.usesInventoryBasic,
+    usesInventoryAdvanced: caps.usesInventoryAdvanced,
     type: getTenantType(caps),
     organizationCustomerId: organizationCustomerId ? String(organizationCustomerId) : null,
   };

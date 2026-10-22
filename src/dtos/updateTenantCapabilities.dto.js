@@ -15,6 +15,8 @@ export const updateTenantCapabilitiesSchema = Joi.object({
   registersExternal: Joi.boolean(),
   usesQrs: Joi.boolean(),
   scheduleQuickLoad: Joi.boolean(),
+  usesInventoryBasic: Joi.boolean(),
+  usesInventoryAdvanced: Joi.boolean(),
   organizationCustomerId: Joi.string().hex().length(24),
 })
   .oxor('type', 'executesServices')

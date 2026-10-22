@@ -171,3 +171,17 @@ describe('scheduleQuickLoad (premium switch "Carga rápida desde el cronograma")
     assert.equal(error, undefined);
   });
 });
+
+describe('usesInventoryBasic / usesInventoryAdvanced (inventario-stock)', () => {
+  it('the update accepts both flags, alone or together, and rejects non-boolean values', () => {
+    for (const body of [{ usesInventoryBasic: true }, { usesInventoryAdvanced: false }, { usesInventoryBasic: true, usesInventoryAdvanced: true }]) {
+      assert.equal(validate(updateTenantCapabilitiesSchema, body).error, undefined, JSON.stringify(body));
+    }
+    assert.ok(validate(updateTenantCapabilitiesSchema, { usesInventoryBasic: 'maybe' }).error);
+  });
+
+  it('the tenant creation accepts them inside capabilities', () => {
+    const body = { tenant: fullTenant, admin, capabilities: { usesInventoryBasic: true, usesInventoryAdvanced: true } };
+    assert.equal(validate(createTenantWithAdminSchema, body).error, undefined);
+  });
+});

@@ -6,6 +6,7 @@ import { Report } from '../models/report.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 import { Customer } from '../models/customer.model.js';
+import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
@@ -14,6 +15,15 @@ import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
 import { nameShort } from '../utils/nameShort.util.js';
 import { notificationService } from './notification.service.js';
 import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
+
+// The linked inventory item must belong to the tenant and not be soft-deleted (the model hook hides deleted
+// docs); otherwise OT completion would later fail on the stock discount.
+async function assertInventarioItem(itemId, tenantId) {
+  const item = await InventarioRepuesto.findOne(applyTenantFilter({ _id: itemId }, tenantId)).select('_id').lean();
+  if (!item) {
+    throw new ApiError(400, 'El ítem de inventario no existe para este tenant', 'INVENTARIO_ITEM_NOT_FOUND', { InventarioItemId: String(itemId) });
+  }
+}
 
 export class RepuestosService {
   async createStatusTrace({ solicitudRepuestoId, estadoAnterior, estadoNuevo, comentarios, tenantId }) {
@@ -37,6 +47,7 @@ export class RepuestosService {
       requireTenant(t);
       data.tenantId = t;
       await assertCustomerKind(data.ClienteId, t);
+      if (data.InventarioItemId) await assertInventarioItem(data.InventarioItemId, t);
       const entity = await Repuestos.create(data);
       logger.info('Repuestos creado: ' + entity._id);
       return entity;
@@ -168,6 +179,9 @@ export class RepuestosService {
     try {
       const current = await Repuestos.findById(id).lean();
       if (data.ClienteId && current?.tenantId) await assertCustomerKindIfChanged(data.ClienteId, current.ClienteId, current.tenantId);
+      if (data.InventarioItemId && current?.tenantId && String(data.InventarioItemId) !== String(current.InventarioItemId || '')) {
+        await assertInventarioItem(data.InventarioItemId, current.tenantId);
+      }
       const e = await Repuestos.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       if (data.EstadoSolicitud && current?.EstadoSolicitud !== data.EstadoSolicitud) {

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { Tenant } from '../../src/models/tenant.model.js';
 import { backfillTenantCapabilities } from '../../scripts/2026-10-13-backfill-tenant-capabilities.js';
 
-const DEFAULTS = { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false };
+const DEFAULTS = { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false };
 
 describe('backfillTenantCapabilities', () => {
   afterEach(() => { delete Tenant.countDocuments; delete Tenant.updateMany; });

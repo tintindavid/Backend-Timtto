@@ -141,7 +141,7 @@ describe('PlatformTenantService.createWithAdmin with a type', () => {
       it('creates the organization client without logo, with its default branch and service', async () => {
         const out = await PlatformTenantService.createWithAdmin(clientInput());
         const tenantDoc = log.tenantCreates[0].doc;
-        assert.deepEqual(tenantDoc.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+        assert.deepEqual(tenantDoc.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
 
         assert.equal(log.customers.length, 1);
         const c = log.customers[0].doc;
@@ -196,7 +196,7 @@ describe('PlatformTenantService.createWithAdmin with a type', () => {
     const input = clientInput();
     input.type = 'hybrid';
     await PlatformTenantService.createWithAdmin(input);
-    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(log.customers.length, 0);
   });
 
@@ -204,7 +204,7 @@ describe('PlatformTenantService.createWithAdmin with a type', () => {
     const input = clientInput();
     delete input.type;
     await PlatformTenantService.createWithAdmin(input);
-    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(log.customers.length, 0);
     assert.equal(log.sedes.length, 0);
     assert.equal('organizationCustomerId' in log.tenantCreates[0].doc && log.tenantCreates[0].doc.organizationCustomerId != null, false);
@@ -288,24 +288,24 @@ describe('PlatformTenantService.updateCapabilities', () => {
 
   it('applies a preset', async () => {
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { type: 'hybrid' }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(out.type, 'hybrid');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(log.customers.length, 0, 'keeping executesServices needs no organization client');
   });
 
   it('merges partial flags over the stored ones', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('turns the QR module on without touching the other flags, the type or the organization client', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { usesQrs: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(out.type, 'provider', 'usesQrs takes no part in the derived type');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(log.customers.length, 0);
   });
 
@@ -318,9 +318,9 @@ describe('PlatformTenantService.updateCapabilities', () => {
   it('turns the quick load on together with "Servicios de terceros", audit-ready before/after, type hybrid', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: true, scheduleQuickLoad: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(out.type, 'hybrid');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('turning the quick load on without the module is 400 and nothing is written', async () => {
@@ -337,8 +337,8 @@ describe('PlatformTenantService.updateCapabilities', () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: true, scheduleQuickLoad: true } });
     await assert.rejects(() => PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false }, 'a'), (err) => err.code === 'INVALID_CAPABILITIES');
     assert.equal(tenantUpdates.length, 0);
-    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false, scheduleQuickLoad: false }, 'a');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false });
+    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false }, 'a');
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
   });
 
   it('a preset keeps the quick load as it was', async () => {
@@ -377,7 +377,7 @@ describe('PlatformTenantService.updateCapabilities', () => {
     assert.equal(out.organizationCustomerCreated, true);
     assert.equal(String(out.organizationCustomerId), String(c._id));
     assert.equal(String(tenantUpdates[0].update.$set.organizationCustomerId), String(c._id));
-    assert.deepEqual(out.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false });
+    assert.deepEqual(out.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
     assert.equal(out.type, 'client');
   });
 

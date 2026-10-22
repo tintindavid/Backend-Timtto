@@ -11,6 +11,8 @@ const capabilitiesSchema = Joi.object({
   registersExternal: Joi.boolean(),
   usesQrs: Joi.boolean(),
   scheduleQuickLoad: Joi.boolean(),
+  usesInventoryBasic: Joi.boolean(),
+  usesInventoryAdvanced: Joi.boolean(),
 })
   .unknown(false)
   .min(1);
