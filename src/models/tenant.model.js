@@ -42,6 +42,9 @@ const TenantSchema = new Schema(
       usesQrs: { type: Boolean, default: false },
       // Premium switch "Carga rápida desde el cronograma" (cronograma-carga-rapida): needs registersExternal.
       scheduleQuickLoad: { type: Boolean, default: false },
+      // Premium module "Stock" (inventario-stock): basic catalogue and advanced movements (needs basic).
+      usesInventoryBasic: { type: Boolean, default: false },
+      usesInventoryAdvanced: { type: Boolean, default: false },
     },
     // The single client of a tenant that does not execute services ("Mi información").
     organizationCustomerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },

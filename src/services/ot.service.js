@@ -5,7 +5,8 @@ import { Customer } from '../models/customer.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { Repuestos } from '../models/repuestos.model.js';
 import { RepuestoTrazabilidad } from '../models/repuestotrazabilidad.model.js';
-import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
+import { inventarioMovimientoService } from './inventarioMovimiento.service.js';
+import { isModuleEnabled } from '../utils/tenantModules.util.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
@@ -259,36 +260,95 @@ export class OTService {
           currentOt.EstadoOt !== 'Cancelado' &&
           data.EstadoOt === 'Cancelado';
 
+        const isCompleting = currentOt.EstadoOt !== 'Completado' && data.EstadoOt === 'Completado';
+
+        // Completion claims the transition atomically: the `EstadoOt != Completado` precondition makes a
+        // concurrent/double completion fail here instead of discounting stock twice.
+        const updateFilter = applyTenantFilter({ _id: id }, t);
+        if (isCompleting) updateFilter.EstadoOt = { $ne: 'Completado' };
         updatedOt = await OT.findOneAndUpdate(
-          applyTenantFilter({ _id: id }, t),
+          updateFilter,
           { $set: data },
           { new: true, runValidators: true, ...sessOpts }
         );
+        if (isCompleting && !updatedOt) {
+          throw new ApiError(409, 'La OT ya fue completada', 'OT_ALREADY_COMPLETED', { id });
+        }
 
-        const isCompleting = currentOt.EstadoOt !== 'Completado' && data.EstadoOt === 'Completado';
         if (!isCompleting) return;
 
         const repuestos = await withSess(
           Repuestos.find(applyTenantFilter({ OrdenId: currentOt._id, EstadoSolicitud: 'En Proceso' }, t))
         );
 
-        for (const repuesto of repuestos) {
-          const qty = Number(repuesto.CantidadInstalacion || 0);
-          if (repuesto.InventarioItemId && qty > 0) {
-            // Atomic decrement with stock guard; fails the (txn or plain) op if stock is insufficient.
-            const inv = await InventarioRepuesto.findOneAndUpdate(
-              applyTenantFilter({ _id: repuesto.InventarioItemId, stockActual: { $gte: qty } }, t),
-              { $inc: { stockActual: -qty } },
-              { new: true, ...sessOpts }
-            );
-            if (!inv) {
-              throw new ApiError(400, 'Insufficient stock', 'INSUFFICIENT_STOCK', {
-                inventarioItemId: repuesto.InventarioItemId,
-                required: qty,
-              });
-            }
-          }
+        // Stock is only validated and discounted by tenants with the advanced inventory level
+        // (inventario-stock); basic tenants complete the OT without touching stock.
+        const needsStock = repuestos.some((r) => r.InventarioItemId && Number(r.CantidadInstalacion || 0) > 0);
+        const discountsStock = needsStock && (await isModuleEnabled(t, 'usesInventoryAdvanced'));
 
+        // Pass 1: discount stock for every repuesto BEFORE marking anything Instalado. Inside a transaction a
+        // failure aborts everything; on the standalone fallback (no session) the movements already applied are
+        // reversed and the OT state is restored so a retry starts from a clean slate.
+        const applied = [];
+        if (discountsStock) {
+          const reference = currentOt.Consecutivo || String(currentOt._id);
+          try {
+            for (const repuesto of repuestos) {
+              const qty = Number(repuesto.CantidadInstalacion || 0);
+              if (!repuesto.InventarioItemId || qty <= 0) continue;
+              // Atomic decrement with stock guard + kardex row; fails the (txn or plain) op if stock is insufficient.
+              await inventarioMovimientoService.create(
+                t,
+                {
+                  itemId: repuesto.InventarioItemId,
+                  tipo: 'salida',
+                  cantidad: qty,
+                  motivo: `Instalación en OT ${reference}`,
+                  referenciaTipo: 'OT',
+                  referenciaId: String(currentOt._id),
+                },
+                user?.userId ?? null,
+                { session: sess },
+              );
+              applied.push({ itemId: repuesto.InventarioItemId, qty });
+            }
+          } catch (err) {
+            if (!sess) {
+              for (const m of applied) {
+                try {
+                  await inventarioMovimientoService.create(
+                    t,
+                    {
+                      itemId: m.itemId,
+                      tipo: 'entrada',
+                      cantidad: m.qty,
+                      motivo: `Reversa por fallo al completar OT ${reference}`,
+                      referenciaTipo: 'OT',
+                      referenciaId: String(currentOt._id),
+                    },
+                    user?.userId ?? null,
+                  );
+                } catch (compErr) {
+                  logger.error('OT completion: stock compensation failed, manual adjustment needed', {
+                    tenantId: t, otId: String(currentOt._id), itemId: String(m.itemId), qty: m.qty, err: String(compErr),
+                  });
+                }
+              }
+              try {
+                await OT.findOneAndUpdate(
+                  applyTenantFilter({ _id: id }, t),
+                  { $set: { EstadoOt: currentOt.EstadoOt } },
+                );
+              } catch (revertErr) {
+                logger.error('OT completion: could not restore previous EstadoOt', { otId: String(id), err: String(revertErr) });
+              }
+            }
+            throw err;
+          }
+        }
+
+        // Pass 2: mark repuestos Instalado + trazabilidad.
+        for (const repuesto of repuestos) {
           const previousStatus = repuesto.EstadoSolicitud || 'En Proceso';
           repuesto.EstadoAnterior = previousStatus;
           repuesto.EstadoSolicitud = 'Instalado';
