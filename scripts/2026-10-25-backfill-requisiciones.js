@@ -2,7 +2,7 @@
  * 2026-10-25-backfill-requisiciones.js
  *
  * One-shot, idempotent migration (change: requisiciones-e1-base-aprobacion):
- *   1. every admin-tier role (name "admin", case-insensitive, or isDefault: true) receives the new permissions
+ *   1. every admin-tier role (name "admin", case-insensitive, or the seeded system role isSystem: true; never isDefault) receives the new permissions
  *      `requisiciones:*`, `areas:*`, `approval-rules:*`, `budgets:*` and `request-types:*` with `$addToSet`
  *      (only roles that lack at least one of them are matched and written; existing permissions are untouched);
  *   2. every tenant without `capabilities.usesRequisiciones` gets it set to `false` explicitly (the code already reads
@@ -56,9 +56,11 @@ export const REQUISICIONES_PERMISSIONS = Object.freeze([
 ]);
 
 // Admin-tier roles that still miss at least one of the new permissions.
-const ROLE_FILTER = {
+export const ROLE_FILTER = {
   isDeleted: { $ne: true },
-  $or: [{ name: { $regex: /^admin$/i } }, { isDefault: true }],
+  // Admin tier = a role named "admin" or the seeded system role. NEVER `isDefault`: the default role of a tenant is
+  // the one given to ordinary users (e.g. Technician) and must not receive approval or configuration permissions.
+  $or: [{ name: { $regex: /^admin$/i } }, { isSystem: true }],
   permissions: { $not: { $all: REQUISICIONES_PERMISSIONS } },
 };
 const TENANT_FILTER = { 'capabilities.usesRequisiciones': { $exists: false } };

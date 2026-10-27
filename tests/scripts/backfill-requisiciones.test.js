@@ -8,14 +8,15 @@ import assert from 'node:assert/strict';
 import { Role } from '../../src/models/role.model.js';
 import { Tenant } from '../../src/models/tenant.model.js';
 import { Requisicion } from '../../src/models/requisicion.model.js';
-import { backfillRequisiciones, REQUISICIONES_PERMISSIONS } from '../../scripts/2026-10-25-backfill-requisiciones.js';
+import { ROLE_FILTER, backfillRequisiciones, REQUISICIONES_PERMISSIONS } from '../../scripts/2026-10-25-backfill-requisiciones.js';
 
 let roles;
 let tenants;
 let reqs;
 const saved = {};
 
-const isAdminTier = (r) => !r.isDeleted && (/^admin$/i.test(r.name) || r.isDefault === true);
+// Admin tier = a role named admin or the seeded system role. NEVER isDefault (it is the ordinary users' role).
+const isAdminTier = (r) => !r.isDeleted && (/^admin$/i.test(r.name) || r.isSystem === true);
 const missesSome = (r) => !REQUISICIONES_PERMISSIONS.every((p) => r.permissions.includes(p));
 const roleMatches = (r) => isAdminTier(r) && missesSome(r);
 const tenantMatches = (t) => t.capabilities?.usesRequisiciones === undefined;
@@ -24,9 +25,10 @@ beforeEach(() => {
   roles = [
     { _id: 'r1', name: 'Admin', permissions: ['users:read'] },
     { _id: 'r2', name: 'Biomedico', permissions: ['ots:read'] },
-    { _id: 'r3', name: 'custom', isDefault: true, permissions: [] },
+    { _id: 'r3', name: 'Technician', isDefault: true, isSystem: false, permissions: ['ots:read'] },
     { _id: 'r4', name: 'admin', permissions: [...REQUISICIONES_PERMISSIONS, 'users:read'] },
     { _id: 'r5', name: 'Admin', isDeleted: true, permissions: [] },
+    { _id: 'r6', name: 'Propietario', isSystem: true, permissions: ['users:read'] },
   ];
   tenants = [
     { _id: 't1' },
@@ -138,7 +140,8 @@ describe('backfillRequisiciones', () => {
     assert.equal(r.tenantsUpdated, 2);
     assert.ok(REQUISICIONES_PERMISSIONS.every((p) => roles[0].permissions.includes(p)));
     assert.ok(roles[0].permissions.includes('users:read'), 'existing permissions are kept');
-    assert.ok(REQUISICIONES_PERMISSIONS.every((p) => roles[2].permissions.includes(p)), 'isDefault role');
+    assert.deepEqual(roles[2].permissions, ['ots:read'], 'a default role (Technician) NEVER receives the permissions');
+    assert.ok(REQUISICIONES_PERMISSIONS.every((p) => roles[5].permissions.includes(p)), 'seeded system role');
     assert.deepEqual(roles[1].permissions, ['ots:read'], 'non-admin role untouched');
     assert.deepEqual(roles[4].permissions, [], 'deleted role untouched');
     assert.equal(tenants[0].capabilities.usesRequisiciones, false);
@@ -165,5 +168,14 @@ describe('backfillRequisiciones', () => {
     const r = await backfillRequisiciones();
     assert.equal(r.tenantsUpdated, 3);
     assert.equal(tenants[4].capabilities.usesRequisiciones, false);
+  });
+});
+
+describe('ROLE_FILTER (the real filter used by the script)', () => {
+  it('targets admin / system roles and never the default role of a tenant', () => {
+    const text = JSON.stringify(ROLE_FILTER, (_, v) => (v instanceof RegExp ? `regex:${v.source}` : v));
+    assert.match(text, /isSystem/);
+    assert.match(text, /regex:\^admin\$/);
+    assert.doesNotMatch(text, /isDefault/, 'isDefault is the ordinary users role (e.g. Technician)');
   });
 });
