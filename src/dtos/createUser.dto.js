@@ -10,6 +10,8 @@ export const createUserDto = Joi.object({
   password: Joi.string().min(8).optional().allow('', null),
   role: Joi.string().valid('admin', 'technician', 'user').default('technician'),
   roleId: Joi.string().hex().length(24).optional().allow(null),
+  // Optional organizational area (Requisiciones module). The service validates it belongs to the tenant and is active.
+  areaId: Joi.string().hex().length(24).optional().allow(null),
   phone: Joi.string().allow('').optional(),
   city: Joi.string().allow('').optional(),
   registroInvima: Joi.string().allow('').optional(),

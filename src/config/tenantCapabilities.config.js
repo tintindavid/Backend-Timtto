@@ -20,16 +20,23 @@ import { ApiError } from '../utils/apiError.util.js';
  *                         catalogue. Independent of the derived type
  *   usesInventoryAdvanced premium module "Stock" advanced level: quantities, movements (kardex) and the stock
  *                         discount on work-order completion. It REQUIRES usesInventoryBasic
+ *   usesRequisiciones     premium module "Requisiciones" (change: requisiciones-e1-base-aprobacion): purchase requisitions,
+ *                         areas, approval rules and area budgets. Independent of every other flag (default false)
+ *   managesCustomers      premium capability "Gestiona clientes" (change: requisiciones-e1-base-aprobacion): the tenant
+ *                         creates/edits/deletes customers (kind=customer). It REQUIRES executesServices. With
+ *                         executesServices=true and managesCustomers=false the tenant is in "mantenimiento propio": full
+ *                         package, but every OT/report/worksheet uses its organization customer. New tenants start OFF;
+ *                         a stored capabilities object WITHOUT the flag (legacy) reads as executesServices (see normalize).
  *
  * The tenant "type" is derived, never stored:
  *   provider = executesServices only, client = registersExternal only, hybrid = both.
  * At least one flag must be true.
  */
 
-export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
-export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true });
+export const DEFAULT_CAPABILITIES = Object.freeze({ executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
+export const ALL_CAPABILITIES_ENABLED = Object.freeze({ executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true, usesRequisiciones: true, managesCustomers: true });
 export const TENANT_TYPES = Object.freeze(['provider', 'client', 'hybrid']);
-export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal', 'usesQrs', 'scheduleQuickLoad', 'usesInventoryBasic', 'usesInventoryAdvanced']);
+export const CAPABILITY_NAMES = Object.freeze(['executesServices', 'registersExternal', 'usesQrs', 'scheduleQuickLoad', 'usesInventoryBasic', 'usesInventoryAdvanced', 'usesRequisiciones', 'managesCustomers']);
 
 export const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -73,6 +80,13 @@ export const CAPABILITY_ROUTE_MAP = Object.freeze([
   // Premium module "Stock" (inventario-stock): catalogue (basic) and movements (advanced), reads included.
   { prefix: '/api/v1/inventario-repuestos', capability: 'usesInventoryBasic', blockReads: true },
   { prefix: '/api/v1/inventario-movimientos', capability: 'usesInventoryAdvanced', blockReads: true },
+  // Premium module "Requisiciones" (requisiciones-e1-base-aprobacion): requisitions, areas, approval rules,
+  // area budgets and requisition types, reads included.
+  { prefix: '/api/v1/requisiciones', capability: 'usesRequisiciones', blockReads: true },
+  { prefix: '/api/v1/areas', capability: 'usesRequisiciones', blockReads: true },
+  { prefix: '/api/v1/reglas-aprobacion', capability: 'usesRequisiciones', blockReads: true },
+  { prefix: '/api/v1/presupuestos-area', capability: 'usesRequisiciones', blockReads: true },
+  { prefix: '/api/v1/tipos-requisicion', capability: 'usesRequisiciones', blockReads: true },
 ]);
 
 /**
@@ -142,7 +156,10 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
  * `scheduleQuickLoad` is the EFFECTIVE value: true only when it is stored true AND registersExternal is true, so a
  * document with an inconsistent pair reads as off and no read path ever fails.
  * `usesInventoryAdvanced` is effective the same way (needs usesInventoryBasic).
- * @returns {{ executesServices: boolean, registersExternal: boolean, usesQrs: boolean, scheduleQuickLoad: boolean, usesInventoryBasic: boolean, usesInventoryAdvanced: boolean }}
+ * `managesCustomers` is effective the same way (needs executesServices). LEGACY READ: when the stored object has no
+ * `managesCustomers` key (or the tenant has no capabilities at all) it reads as executesServices, so tenants created
+ * before the flag existed keep managing customers. An explicit false/true is always honoured.
+ * @returns {{ executesServices: boolean, registersExternal: boolean, usesQrs: boolean, scheduleQuickLoad: boolean, usesInventoryBasic: boolean, usesInventoryAdvanced: boolean, usesRequisiciones: boolean, managesCustomers: boolean }}
  */
 export function normalizeCapabilities(value) {
   const src = value && typeof value === 'object' ? value : {};
@@ -150,10 +167,14 @@ export function normalizeCapabilities(value) {
     ? DEFAULT_CAPABILITIES.registersExternal
     : Boolean(src.registersExternal);
   const usesInventoryBasic = Boolean(src.usesInventoryBasic);
+  const executesServices = src.executesServices === undefined || src.executesServices === null
+    ? DEFAULT_CAPABILITIES.executesServices
+    : Boolean(src.executesServices);
+  const managesStored = src.managesCustomers === undefined || src.managesCustomers === null
+    ? executesServices
+    : Boolean(src.managesCustomers);
   return {
-    executesServices: src.executesServices === undefined || src.executesServices === null
-      ? DEFAULT_CAPABILITIES.executesServices
-      : Boolean(src.executesServices),
+    executesServices,
     registersExternal,
     usesQrs: src.usesQrs === undefined || src.usesQrs === null
       ? DEFAULT_CAPABILITIES.usesQrs
@@ -161,6 +182,8 @@ export function normalizeCapabilities(value) {
     scheduleQuickLoad: registersExternal && Boolean(src.scheduleQuickLoad),
     usesInventoryBasic,
     usesInventoryAdvanced: usesInventoryBasic && Boolean(src.usesInventoryAdvanced),
+    usesRequisiciones: Boolean(src.usesRequisiciones),
+    managesCustomers: executesServices && managesStored,
   };
 }
 
@@ -208,8 +231,11 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
   const scheduleQuickLoad = flagsSource.scheduleQuickLoad === undefined ? current.scheduleQuickLoad : Boolean(flagsSource.scheduleQuickLoad);
   const usesInventoryBasic = flagsSource.usesInventoryBasic === undefined ? current.usesInventoryBasic : Boolean(flagsSource.usesInventoryBasic);
   const usesInventoryAdvanced = flagsSource.usesInventoryAdvanced === undefined ? current.usesInventoryAdvanced : Boolean(flagsSource.usesInventoryAdvanced);
+  const usesRequisiciones = flagsSource.usesRequisiciones === undefined ? current.usesRequisiciones : Boolean(flagsSource.usesRequisiciones);
+  // Like usesQrs, managesCustomers is independent of the preset: kept from the current value unless the body sets it.
+  const managesCustomers = flagsSource.managesCustomers === undefined ? current.managesCustomers : Boolean(flagsSource.managesCustomers);
   if (input.type !== undefined && input.type !== null) {
-    caps = { ...presetToCapabilities(input.type), usesQrs, scheduleQuickLoad, usesInventoryBasic, usesInventoryAdvanced };
+    caps = { ...presetToCapabilities(input.type), usesQrs, scheduleQuickLoad, usesInventoryBasic, usesInventoryAdvanced, usesRequisiciones, managesCustomers };
   } else {
     caps = {
       executesServices: flagsSource.executesServices === undefined ? current.executesServices : Boolean(flagsSource.executesServices),
@@ -218,6 +244,8 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
       scheduleQuickLoad,
       usesInventoryBasic,
       usesInventoryAdvanced,
+      usesRequisiciones,
+      managesCustomers,
     };
   }
   // The requested result must be coherent (checked on the raw request: normalize would silently turn it off).
@@ -235,6 +263,17 @@ export function resolveCapabilitiesInput(input = {}, base = DEFAULT_CAPABILITIES
       'La gestión avanzada de stock requiere el inventario básico: actívalo primero o apaga la gestión avanzada',
       'INVALID_CAPABILITIES',
       { capability: 'usesInventoryAdvanced', requires: 'usesInventoryBasic' },
+    );
+  }
+  // Switching a tenant to one that does not execute services drops the inherited flag instead of failing;
+  // asking for managesCustomers explicitly without executesServices is the error.
+  if (!caps.executesServices && flagsSource.managesCustomers === undefined) caps.managesCustomers = false;
+  if (caps.managesCustomers && !caps.executesServices) {
+    throw new ApiError(
+      400,
+      'Gestionar clientes requiere ejecutar servicios: actívalo primero o apaga la gestión de clientes',
+      'INVALID_CAPABILITIES',
+      { capability: 'managesCustomers', requires: 'executesServices' },
     );
   }
   return assertValidCapabilities(caps);
@@ -282,6 +321,8 @@ export function describeCapabilities(capabilities, organizationCustomerId = null
     scheduleQuickLoad: caps.scheduleQuickLoad,
     usesInventoryBasic: caps.usesInventoryBasic,
     usesInventoryAdvanced: caps.usesInventoryAdvanced,
+    usesRequisiciones: caps.usesRequisiciones,
+    managesCustomers: caps.managesCustomers,
     type: getTenantType(caps),
     organizationCustomerId: organizationCustomerId ? String(organizationCustomerId) : null,
   };

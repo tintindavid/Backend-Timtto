@@ -60,7 +60,7 @@ export async function tenantResolver(req, res, next) {
     // Single query — the spec mandates exactly one DB call per request.
     const tenant = await Tenant.findOne(
       { tenantId },
-      { tenantId: 1, status: 1, capabilities: 1 },
+      { tenantId: 1, status: 1, capabilities: 1, organizationCustomerId: 1 },
     ).lean();
 
     if (!tenant) {
@@ -73,6 +73,8 @@ export async function tenantResolver(req, res, next) {
       tenantId: tenant.tenantId,
       status: tenant.status,
       capabilities: normalizeCapabilities(tenant.capabilities),
+      // Used by the "mantenimiento propio" scope (managesCustomers=false) to fill/validate ClienteId.
+      organizationCustomerId: tenant.organizationCustomerId ? String(tenant.organizationCustomerId) : null,
     };
 
     // Enforcement of Tenant.status (design D3).

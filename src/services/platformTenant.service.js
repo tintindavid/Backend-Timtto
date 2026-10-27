@@ -236,7 +236,8 @@ export class PlatformTenantService {
     // Validate everything the organization client needs BEFORE touching the DB or Firebase.
     const contactName = `${adminData.firstName} ${adminData.lastName}`.trim();
     let organization = null;
-    if (!capabilities.executesServices) {
+    // The organization customer is also needed in "mantenimiento propio" (executes services, does not manage customers).
+    if (!capabilities.executesServices || !capabilities.managesCustomers) {
       buildOrganizationCustomerData(tenantData, contactName);
       organization = { customerId: new mongoose.Types.ObjectId(), contactName };
     }
@@ -517,7 +518,8 @@ export class PlatformTenantService {
    * Input: { type } preset OR { executesServices?, registersExternal? } merged over the stored
    * values, plus optional organizationCustomerId. At least one resulting flag must be true.
    *
-   * When the result has executesServices=false the tenant must end with ONE organization client:
+   * When the result has executesServices=false OR managesCustomers=false ("mantenimiento propio") the tenant must
+   * end with ONE organization client (idempotent: an existing valid one is kept, never duplicated):
    *   - organizationCustomerId given: it must be a client of the tenant (400 otherwise);
    *   - the tenant already references a valid one: it is kept;
    *   - no client: it is created from the tenant data (branch + service, no logo);
@@ -538,10 +540,14 @@ export class PlatformTenantService {
     const next = resolveCapabilitiesInput(input, before);
     const requestedOrgId = input.organizationCustomerId ? String(input.organizationCustomerId) : null;
 
-    if (requestedOrgId && next.executesServices) {
+    // The tenant needs ONE organization customer when it does not execute services or, executing them,
+    // does not manage customers ("mantenimiento propio", managesCustomers=false).
+    const needsOrganizationCustomer = !next.executesServices || !next.managesCustomers;
+
+    if (requestedOrgId && !needsOrganizationCustomer) {
       throw new ApiError(
         400,
-        'El cliente de la organización solo aplica cuando el tenant no ejecuta servicios',
+        'El cliente de la organización solo aplica cuando el tenant no ejecuta servicios o no gestiona clientes',
         'ORGANIZATION_CUSTOMER_NOT_APPLICABLE',
       );
     }
@@ -549,7 +555,7 @@ export class PlatformTenantService {
     let organizationCustomerId = tenant.organizationCustomerId ? String(tenant.organizationCustomerId) : null;
     let customerToCreate = null; // { customerId, contactName }
 
-    if (!next.executesServices) {
+    if (needsOrganizationCustomer) {
       const isClientOfTenant = async (customerId) => Boolean(
         customerId &&
           (await Customer.findOne({
@@ -603,7 +609,7 @@ export class PlatformTenantService {
     }
 
     const $set = { capabilities: next };
-    if (!next.executesServices) $set.organizationCustomerId = organizationCustomerId;
+    if (needsOrganizationCustomer) $set.organizationCustomerId = organizationCustomerId;
 
     const apply = async (session) => {
       let createdDocs = null;

@@ -34,7 +34,7 @@ export async function backfillTenantCapabilities({ dryRun = false } = {}) {
     return { matched, updated: 0, dryRun };
   }
 
-  const res = await Tenant.updateMany(FILTER, { $set: { capabilities: { ...DEFAULT_CAPABILITIES } } })
+  const res = await Tenant.updateMany(FILTER, { $set: { capabilities: { ...DEFAULT_CAPABILITIES, managesCustomers: true } } })
     .setOptions({ includeDeleted: true });
   const updated = res.modifiedCount ?? 0;
   console.log(`[backfill-tenant-capabilities] updated ${updated} tenant(s)`);

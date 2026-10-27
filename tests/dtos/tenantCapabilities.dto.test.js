@@ -38,9 +38,29 @@ describe('usesQrs (premium module "QRs y tickets")', () => {
 });
 
 describe('createTenantWithAdminSchema capabilities / type', () => {
-  it('a provider tenant keeps validating exactly as before (no type, minimal tenant)', () => {
-    const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin });
+  it('a provider tenant that manages customers validates with a minimal tenant (no organization data needed)', () => {
+    const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin, capabilities: { managesCustomers: true } });
     assert.equal(error, undefined);
+  });
+
+  it('managesCustomers defaults OFF: a minimal tenant now needs the organization data (mantenimiento propio)', () => {
+    const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin });
+    assert.ok(error);
+    assert.equal(validate(createTenantWithAdminSchema, { tenant: fullTenant, admin }).error, undefined);
+  });
+
+  it('managesCustomers without executesServices is rejected', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      tenant: fullTenant, admin, capabilities: { executesServices: false, registersExternal: true, managesCustomers: true },
+    });
+    assert.ok(error);
+  });
+
+  it('the capabilities update accepts managesCustomers alone or with flags', () => {
+    for (const body of [{ managesCustomers: true }, { managesCustomers: false, usesQrs: true }, { type: 'hybrid', managesCustomers: true }]) {
+      assert.equal(validate(updateTenantCapabilitiesSchema, body).error, undefined, JSON.stringify(body));
+    }
+    assert.ok(validate(updateTenantCapabilitiesSchema, { managesCustomers: 'si' }).error);
   });
 
   it('accepts type provider|client|hybrid at the top level', () => {
@@ -108,9 +128,9 @@ describe('createTenantWithAdminSchema capabilities / type', () => {
     });
   }
 
-  it('hybrid and provider do not require the organization data', () => {
+  it('hybrid and provider do not require the organization data when they manage customers', () => {
     for (const type of ['provider', 'hybrid']) {
-      const { error } = validate(createTenantWithAdminSchema, { type, tenant: { tenantId: 'acme', name: 'Acme' }, admin });
+      const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme', capabilities: { ...(type === 'hybrid' ? { executesServices: true, registersExternal: true } : {}), managesCustomers: true } }, admin });
       assert.equal(error, undefined, type);
     }
   });
@@ -183,5 +203,32 @@ describe('usesInventoryBasic / usesInventoryAdvanced (inventario-stock)', () => 
   it('the tenant creation accepts them inside capabilities', () => {
     const body = { tenant: fullTenant, admin, capabilities: { usesInventoryBasic: true, usesInventoryAdvanced: true } };
     assert.equal(validate(createTenantWithAdminSchema, body).error, undefined);
+  });
+});
+
+describe('createTenantWithAdminSchema error messages (managesCustomers adversarial #4)', () => {
+  const msgs = (e) => (e ? e.details.map((d) => d.message).join(' | ') : '');
+
+  it('provider/hybrid without organization data and without managesCustomers asks for the data unless "Gestiona clientes"', () => {
+    for (const body of [{ type: 'provider' }, { type: 'hybrid' }, {}]) {
+      const { error } = validate(createTenantWithAdminSchema, { tenant: { tenantId: 'acme', name: 'Acme' }, admin, ...body });
+      assert.match(msgs(error), /Gestiona clientes/, JSON.stringify(body));
+      assert.doesNotMatch(msgs(error), /no ejecuta servicios/i, JSON.stringify(body));
+    }
+  });
+
+  it('managesCustomers without executesServices says it requires "Ejecuta servicios", not "at least one capability"', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      tenant: fullTenant, admin, capabilities: { executesServices: false, registersExternal: true, managesCustomers: true },
+    });
+    assert.match(msgs(error), /ejecutar servicios/i);
+    assert.doesNotMatch(msgs(error), /Al menos una capacidad/);
+  });
+
+  it('no capability enabled keeps the "at least one capability" reason', () => {
+    const { error } = validate(createTenantWithAdminSchema, {
+      tenant: fullTenant, admin, capabilities: { executesServices: false, registersExternal: false },
+    });
+    assert.match(msgs(error), /Al menos una capacidad/);
   });
 });

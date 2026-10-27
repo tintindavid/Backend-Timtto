@@ -10,6 +10,7 @@ import { isModuleEnabled } from '../utils/tenantModules.util.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
+import { applyOwnCustomerOnCreate, assertOwnCustomerOnUpdate } from '../utils/ownCustomerScope.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
@@ -24,13 +25,22 @@ import { buildOtNoteAddedPayload } from './notifications/otNoteAddedPayload.util
 import { PERMISSIONS } from '../constants/permissions.js';
 
 export class OTService {
-  async create(data, tenantId, user) {
+  /**
+   * @param {object} [tenantCtx] req.tenant ({ capabilities, organizationCustomerId }). When the tenant executes
+   *   services but does not manage customers ("mantenimiento propio") ClienteId is filled with its organization
+   *   customer when absent and any other value is 403 CLIENTE_NO_PERMITIDO.
+   */
+  async create(data, tenantId, user, tenantCtx = undefined) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
       // Map possible front-end field names to internal ones
       if (data.customerId && !data.ClienteId) data.ClienteId = data.customerId;
+      applyOwnCustomerOnCreate(tenantCtx, data, 'ClienteId');
+      if (!data.ClienteId) {
+        throw new ApiError(400, 'ClienteId es requerido', 'VALIDATION_ERROR', { field: 'ClienteId' });
+      }
       // A provider can never be the client of an OT (terceros-customers-providers).
       await assertCustomerKind(data.ClienteId, t);
       if (data.tipoServicio && !data.TipoServicio) data.TipoServicio = data.tipoServicio;
@@ -58,7 +68,7 @@ export class OTService {
       const reportIds = [];
       for (const equipo of equipos) {
         // Load equipoItem to build snapshot
-        const eq = await EquipoItem.findById(equipo)
+        const eq = await EquipoItem.findOne(applyTenantFilter({ _id: equipo }, t))
           .populate('ItemId', 'Nombre')
           .populate('SedeId', 'nombreSede')
           .populate('Servicio', 'nombre')
@@ -219,7 +229,7 @@ export class OTService {
     }
   }
 
-  async update(id, data, tenantId, user) {
+  async update(id, data, tenantId, user, tenantCtx = undefined) {
     const session = await OT.startSession();
     let cascadeCancelOt = false;
     let previousEstado = null;
@@ -242,6 +252,7 @@ export class OTService {
         previousEstado = currentOt.EstadoOt;
 
         // A provider can never become the client of an OT (terceros-customers-providers).
+        assertOwnCustomerOnUpdate(tenantCtx, data.ClienteId, currentOt.ClienteId, 'ClienteId');
         if (data.ClienteId) await assertCustomerKindIfChanged(data.ClienteId, currentOt.ClienteId, t);
 
         // isFromTicket guards (design D19): TipoServicio change is rejected.

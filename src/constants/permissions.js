@@ -194,6 +194,43 @@ export const PERMISSIONS = {
   SERVICE_QRS_CREATE: 'service-qrs:create',
   SERVICE_QRS_UPDATE: 'service-qrs:update',
   SERVICE_QRS_DELETE: 'service-qrs:delete',
+
+  // Requisiciones (premium module, requisiciones-e1-base-aprobacion). Every route is also gated by the
+  // usesRequisiciones tenant capability. `approve` only makes a user ELIGIBLE: who may decide a given level
+  // comes from the approval rules (area head / role / listed users).
+  REQUISICIONES_READ: 'requisiciones:read',
+  REQUISICIONES_CREATE: 'requisiciones:create',
+  REQUISICIONES_UPDATE: 'requisiciones:update',
+  REQUISICIONES_DELETE: 'requisiciones:delete',
+  REQUISICIONES_SEND: 'requisiciones:send',
+  REQUISICIONES_APPROVE: 'requisiciones:approve',
+  REQUISICIONES_CANCEL: 'requisiciones:cancel',
+  // Supervisor override: edit/delete/send/withdraw/reopen ANY draft and reassign approvers of a pending level.
+  REQUISICIONES_MANAGE_ALL: 'requisiciones:manage-all',
+
+  // Areas (organizational structure of the requisitions module)
+  AREAS_READ: 'areas:read',
+  AREAS_CREATE: 'areas:create',
+  AREAS_UPDATE: 'areas:update',
+  AREAS_DELETE: 'areas:delete',
+
+  // Approval rules (levels by amount)
+  APPROVAL_RULES_READ: 'approval-rules:read',
+  APPROVAL_RULES_CREATE: 'approval-rules:create',
+  APPROVAL_RULES_UPDATE: 'approval-rules:update',
+  APPROVAL_RULES_DELETE: 'approval-rules:delete',
+
+  // Area budgets (informative)
+  BUDGETS_READ: 'budgets:read',
+  BUDGETS_CREATE: 'budgets:create',
+  BUDGETS_UPDATE: 'budgets:update',
+  BUDGETS_DELETE: 'budgets:delete',
+
+  // Requisition types
+  REQUEST_TYPES_READ: 'request-types:read',
+  REQUEST_TYPES_CREATE: 'request-types:create',
+  REQUEST_TYPES_UPDATE: 'request-types:update',
+  REQUEST_TYPES_DELETE: 'request-types:delete',
 };
 
 export const PERMISSION_VALUES = Object.values(PERMISSIONS);

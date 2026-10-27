@@ -23,4 +23,7 @@ export const updateRepuestosDto = Joi.object({
   ReporteSolicitudId: Joi.string().hex().length(24).optional().label('ReporteSolicitudId'),
   ResponsableInstalacion: Joi.string().hex().length(24).optional().label('ResponsableInstalacion'),
   ResponsableSolicitud: Joi.string().hex().length(24).optional().label('ResponsableSolicitud'),
+  // Owned by the Requisiciones module (E2): never writable through the Repuestos API.
+  requisicion: Joi.forbidden(),
+  stockDescontadoPor: Joi.forbidden(),
 });

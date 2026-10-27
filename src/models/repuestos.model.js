@@ -28,6 +28,20 @@ const RepuestosSchema = new Schema({
     ResponsableSolicitud: { type: Schema.Types.ObjectId, ref: 'User',  required: true },
     FrecuenciaDeCambio: { type: Number,  trim: true }, // en meses o según criterio del cliente
     Fotos: [{ type: String,  trim: true }], // array de URLs o paths a las fotos
+    // Additive, optional, NO default (requisiciones-e1-base-aprobacion, design D15). Declared here but written only by
+    // the Requisiciones module in E2; never accepted from the request DTOs and never serialized by this model's toJSON.
+    requisicion: {
+      type: new Schema({
+        requisicionId: { type: Schema.Types.ObjectId, ref: 'Requisicion' },
+        lineaId: { type: Schema.Types.ObjectId },
+        disponibilidad: {
+          type: String,
+          enum: ['En_Requisicion', 'En_Aprobacion', 'En_Compra', 'En_Camino', 'Disponible', 'Cancelada'],
+        },
+      }, { _id: false }),
+      default: undefined,
+    },
+    stockDescontadoPor: { type: String, enum: ['requisicion'], default: undefined },
   // Soft delete & audit
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
@@ -47,6 +61,9 @@ RepuestosSchema.set('toJSON', {
     delete ret.__v;
     delete ret.isDeleted;
     delete ret.deletedAt;
+    // Requisiciones fields are not part of the Repuestos contract until E2 exposes them behind the capability.
+    delete ret.requisicion;
+    delete ret.stockDescontadoPor;
     return ret;
   }
 });

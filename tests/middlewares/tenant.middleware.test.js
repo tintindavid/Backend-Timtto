@@ -25,7 +25,7 @@ function buildContext({ header, user } = {}) {
   return { req, res, next, errors };
 }
 
-const ALL_ENABLED = { executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true };
+const ALL_ENABLED = { executesServices: true, registersExternal: true, usesQrs: true, scheduleQuickLoad: true, usesInventoryBasic: true, usesInventoryAdvanced: true, usesRequisiciones: true, managesCustomers: true };
 
 describe('tenantResolver — platform sentinel', () => {
   const originalFindOne = Tenant.findOne;
@@ -129,7 +129,7 @@ describe('tenantResolver — capabilities (tenant-capabilities-hybrid-mode)', ()
     Tenant.findOne = () => ({ lean: () => Promise.resolve({ tenantId: 'old', status: 'active' }) });
     const { req, res, next } = buildContext({ header: 'old' });
     await tenantResolver(req, res, next);
-    assert.deepEqual(req.tenant.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(req.tenant.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
   });
 
   it('exposes the stored capabilities of a client tenant', async () => {
@@ -140,7 +140,7 @@ describe('tenantResolver — capabilities (tenant-capabilities-hybrid-mode)', ()
     });
     const { req, res, next } = buildContext({ header: 'hosp' });
     await tenantResolver(req, res, next);
-    assert.deepEqual(req.tenant.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(req.tenant.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
     assert.equal(req.tenant.status, 'active');
   });
 

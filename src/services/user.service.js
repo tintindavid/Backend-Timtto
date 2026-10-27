@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { User } from '../models/user.model.js';
 import { Role } from '../models/role.model.js';
 import { Tenant } from '../models/tenant.model.js';
+import { Area } from '../models/area.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { hashPassword, comparePassword } from '../utils/password.util.js';
@@ -20,6 +21,14 @@ export class UserService {
       if (data.roleId) {
         const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
         if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
+
+      // Optional area: must exist in this tenant and be active. A null/empty value just means "no area".
+      if (data.areaId) {
+        const area = await Area.findOne({ _id: data.areaId, tenantId, activa: true }).select('_id').lean();
+        if (!area) throw new ApiError(400, 'El área no existe o está inactiva', 'AREA_INVALIDA', { areaId: data.areaId });
+      } else if ('areaId' in data) {
+        delete data.areaId;
       }
 
       // Uniqueness by (tenantId, email) is enforced by a compound unique index
@@ -209,7 +218,12 @@ export class UserService {
     }
   }
 
-  async update(id, data) {
+  /**
+   * @param {string} id       user being updated
+   * @param {object} data     validated body + tenantId
+   * @param {string} [actorId] user performing the update; they cannot change their OWN area (areaId)
+   */
+  async update(id, data, actorId = null) {
     try {
       if (data.password) {
         data.password = await hashPassword(data.password);
@@ -221,6 +235,22 @@ export class UserService {
       if (data.roleId) {
         const role = await Role.findOne({ _id: data.roleId, tenantId, isDeleted: false });
         if (!role) throw new ApiError(404, 'Rol no encontrado', 'ROLE_NOT_FOUND', { roleId: data.roleId });
+      }
+
+      if (data.areaId !== undefined) {
+        // Only an actual CHANGE of the own area is forbidden (re-sending the same value, or null -> null, is fine).
+        let areaChanges = true;
+        if (actorId && String(actorId) === String(id)) {
+          const current = await User.findOne({ _id: id, tenantId }).select('areaId').lean();
+          areaChanges = String(current?.areaId ?? '') !== String(data.areaId ?? '');
+          if (areaChanges) {
+            throw new ApiError(403, 'No puedes cambiar tu propia área', 'AREA_SELF_ASSIGN_FORBIDDEN');
+          }
+        }
+        if (areaChanges && data.areaId !== null) {
+          const area = await Area.findOne({ _id: data.areaId, tenantId, activa: true }).select('_id').lean();
+          if (!area) throw new ApiError(400, 'El área no existe o está inactiva', 'AREA_INVALIDA', { areaId: data.areaId });
+        }
       }
 
       const user = await User.findOneAndUpdate({ _id: id, tenantId }, { $set: data }, { new: true, runValidators: true });

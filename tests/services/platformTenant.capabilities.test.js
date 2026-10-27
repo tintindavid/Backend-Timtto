@@ -141,7 +141,7 @@ describe('PlatformTenantService.createWithAdmin with a type', () => {
       it('creates the organization client without logo, with its default branch and service', async () => {
         const out = await PlatformTenantService.createWithAdmin(clientInput());
         const tenantDoc = log.tenantCreates[0].doc;
-        assert.deepEqual(tenantDoc.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+        assert.deepEqual(tenantDoc.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
 
         assert.equal(log.customers.length, 1);
         const c = log.customers[0].doc;
@@ -192,22 +192,22 @@ describe('PlatformTenantService.createWithAdmin with a type', () => {
     assert.equal(log.customers.length, 1);
   });
 
-  it('a hybrid tenant executes services: no organization client is created', async () => {
+  it('a hybrid tenant without managesCustomers gets the organization client (mantenimiento propio)', async () => {
     const input = clientInput();
     input.type = 'hybrid';
     await PlatformTenantService.createWithAdmin(input);
-    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
-    assert.equal(log.customers.length, 0);
+    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
+    assert.equal(log.customers.length, 1, "mantenimiento propio (managesCustomers off by default): the organization customer is created");
   });
 
-  it('provider (no type): unchanged, no customer, default capabilities', async () => {
+  it('provider (no type): default capabilities, managesCustomers off, so the organization customer is created', async () => {
     const input = clientInput();
     delete input.type;
     await PlatformTenantService.createWithAdmin(input);
-    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
-    assert.equal(log.customers.length, 0);
-    assert.equal(log.sedes.length, 0);
-    assert.equal('organizationCustomerId' in log.tenantCreates[0].doc && log.tenantCreates[0].doc.organizationCustomerId != null, false);
+    assert.deepEqual(log.tenantCreates[0].doc.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
+    assert.equal(log.customers.length, 1, "mantenimiento propio: the organization customer is created");
+    assert.equal(log.sedes.length, 1);
+    assert.ok(log.tenantCreates[0].doc.organizationCustomerId, 'the tenant references its organization customer');
   });
 
   it('missing organization data is 400 and NOTHING is created (no tenant, admin, role or customer)', async () => {
@@ -288,24 +288,24 @@ describe('PlatformTenantService.updateCapabilities', () => {
 
   it('applies a preset', async () => {
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { type: 'hybrid' }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
     assert.equal(out.type, 'hybrid');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
     assert.equal(log.customers.length, 0, 'keeping executesServices needs no organization client');
   });
 
   it('merges partial flags over the stored ones', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
   });
 
   it('turns the QR module on without touching the other flags, the type or the organization client', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { usesQrs: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
     assert.equal(out.type, 'provider', 'usesQrs takes no part in the derived type');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: false, usesQrs: true, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
     assert.equal(log.customers.length, 0);
   });
 
@@ -318,9 +318,9 @@ describe('PlatformTenantService.updateCapabilities', () => {
   it('turns the quick load on together with "Servicios de terceros", audit-ready before/after, type hybrid', async () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
     const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: true, scheduleQuickLoad: true }, 'actor1');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
     assert.equal(out.type, 'hybrid');
-    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(tenantUpdates[0].update.$set.capabilities, { executesServices: true, registersExternal: true, usesQrs: false, scheduleQuickLoad: true, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
   });
 
   it('turning the quick load on without the module is 400 and nothing is written', async () => {
@@ -337,8 +337,8 @@ describe('PlatformTenantService.updateCapabilities', () => {
     tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: true, scheduleQuickLoad: true } });
     await assert.rejects(() => PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false }, 'a'), (err) => err.code === 'INVALID_CAPABILITIES');
     assert.equal(tenantUpdates.length, 0);
-    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false }, 'a');
-    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { registersExternal: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false }, 'a');
+    assert.deepEqual(out.capabilities, { executesServices: true, registersExternal: false, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: true });
   });
 
   it('a preset keeps the quick load as it was', async () => {
@@ -377,7 +377,7 @@ describe('PlatformTenantService.updateCapabilities', () => {
     assert.equal(out.organizationCustomerCreated, true);
     assert.equal(String(out.organizationCustomerId), String(c._id));
     assert.equal(String(tenantUpdates[0].update.$set.organizationCustomerId), String(c._id));
-    assert.deepEqual(out.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(out.capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
     assert.equal(out.type, 'client');
   });
 
@@ -465,5 +465,88 @@ describe('PlatformTenantService.updateCapabilities', () => {
     await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { type: 'client' }, 'a');
     assert.equal(log.softDeletes.length, 0);
     assert.equal(log.hardDeletes, 0);
+  });
+});
+
+describe('PlatformTenantService.updateCapabilities - managesCustomers (mantenimiento propio)', () => {
+  let tenant;
+  let tenantUpdates;
+  let customers;
+  let orgLookup;
+
+  beforeEach(() => {
+    tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } }); // legacy: reads ON
+    tenantUpdates = [];
+    customers = [];
+    orgLookup = {};
+    Tenant.findById = () => chain(tenant);
+    Tenant.findByIdAndUpdate = (id, update) => {
+      tenantUpdates.push({ id, update });
+      tenant = { ...tenant, ...update.$set };
+      return chain(tenant);
+    };
+    Customer.find = () => chain(customers);
+    Customer.findOne = (filter) => chain(orgLookup[String(filter._id)] ?? null);
+    User.findOne = () => chain({ firstName: 'Ana', lastName: 'Perez' });
+  });
+
+  it('turning it off on a tenant with no client creates the organization customer and keeps executesServices', async () => {
+    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { managesCustomers: false }, 'a');
+    assert.equal(out.capabilities.executesServices, true);
+    assert.equal(out.capabilities.managesCustomers, false);
+    assert.equal(out.type, 'provider');
+    assert.equal(out.organizationCustomerCreated, true);
+    assert.equal(log.customers.length, 1);
+    assert.equal(log.sedes.length, 1);
+    assert.equal(log.servicios.length, 1);
+    assert.equal(String(tenantUpdates[0].update.$set.organizationCustomerId), String(log.customers[0].doc._id));
+    assert.equal(tenantUpdates[0].update.$set.capabilities.managesCustomers, false);
+  });
+
+  it('is idempotent: an already valid organization customer is kept, never duplicated', async () => {
+    orgLookup[C1] = { _id: C1 };
+    tenant = completeTenant({ organizationCustomerId: C1, capabilities: { executesServices: true, registersExternal: false, managesCustomers: false } });
+    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { usesQrs: true }, 'a');
+    assert.equal(log.customers.length, 0);
+    assert.equal(out.organizationCustomerCreated, false);
+    assert.equal(String(out.organizationCustomerId), C1);
+    assert.equal(out.capabilities.managesCustomers, false, 'unrelated edits keep the flag');
+  });
+
+  it('exactly one existing customer is referenced; several need a choice (409) that can be sent', async () => {
+    customers = [{ _id: C1, Razonsocial: 'A' }];
+    const one = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { managesCustomers: false }, 'a');
+    assert.equal(String(one.organizationCustomerId), C1);
+    assert.equal(log.customers.length, 0);
+
+    tenant = completeTenant({ capabilities: { executesServices: true, registersExternal: false } });
+    customers = [{ _id: C1, Razonsocial: 'A' }, { _id: C2, Razonsocial: 'B' }];
+    await assert.rejects(() => PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { managesCustomers: false }, 'a'), (err) => err.code === 'ORGANIZATION_CUSTOMER_REQUIRED');
+    orgLookup[C2] = { _id: C2 };
+    const chosen = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { managesCustomers: false, organizationCustomerId: C2 }, 'a');
+    assert.equal(String(chosen.organizationCustomerId), C2);
+  });
+
+  it('turning it on again keeps the organization customer reference untouched', async () => {
+    tenant = completeTenant({ organizationCustomerId: C1, capabilities: { executesServices: true, registersExternal: false, managesCustomers: false } });
+    const out = await PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { managesCustomers: true }, 'a');
+    assert.equal(out.capabilities.managesCustomers, true);
+    assert.equal('organizationCustomerId' in tenantUpdates[0].update.$set, false);
+    assert.equal(log.customers.length, 0);
+  });
+
+  it('managesCustomers without executesServices is 400 INVALID_CAPABILITIES and nothing is written', async () => {
+    await assert.rejects(
+      () => PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { executesServices: false, registersExternal: true, managesCustomers: true }, 'a'),
+      (err) => err.statusCode === 400 && err.code === 'INVALID_CAPABILITIES',
+    );
+    assert.equal(tenantUpdates.length, 0);
+  });
+
+  it('organizationCustomerId is rejected while the tenant manages customers', async () => {
+    await assert.rejects(
+      () => PlatformTenantService.updateCapabilities(TENANT_ID_MONGO, { usesQrs: true, organizationCustomerId: C1 }, 'a'),
+      (err) => err.code === 'ORGANIZATION_CUSTOMER_NOT_APPLICABLE',
+    );
   });
 });

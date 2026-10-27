@@ -56,7 +56,10 @@ export class CustomerController {
         hasFile: !!req.file,
       });
       // req.file contiene el nuevo logo si se proporcionó
-      const data = await customerService.update(req.params.id, req.body, req.tenantId, req.file);
+      const data = await customerService.update(
+        req.params.id, req.body, req.tenantId, req.file, req.tenant?.capabilities,
+        { organizationCustomerId: req.tenant?.organizationCustomerId },
+      );
       res.json(successResponse(data, 'Customer actualizado exitosamente'));
     } catch (err) { next(err); }
   }

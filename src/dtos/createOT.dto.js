@@ -33,7 +33,9 @@ const tipoServicioSchema = Joi.string().trim().custom((value, helpers) => {
 
 export const createOTDto = Joi.object({
   Consecutivo: Joi.string().trim().optional().label('Consecutivo'),
-  ClienteId: Joi.string().hex().length(24).required().label('ClienteId'),
+  // Optional: required by the service unless the tenant is in "mantenimiento propio" (managesCustomers=false),
+  // where the server fills it with the organization customer.
+  ClienteId: Joi.string().hex().length(24).optional().label('ClienteId'),
   EstadoOt: Joi.string().trim().optional().label('EstadoOt'),
   FechaCreacion: Joi.date().iso().optional().label('FechaCreacion'),
   TipoServicio: tipoServicioSchema.required().label('TipoServicio'),

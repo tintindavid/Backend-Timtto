@@ -8,6 +8,8 @@ export const updateUserDto = Joi.object({
   password: Joi.string().min(8).optional(),
   role: Joi.string().valid('admin', 'technician', 'user').optional(),
   roleId: Joi.string().hex().length(24).optional().allow(null),
+  // Organizational area (requisiciones): null removes it. Validated against the tenant's active areas by the service.
+  areaId: Joi.string().hex().length(24).optional().allow(null),
   phone: Joi.string().allow('').optional(),
   city: Joi.string().allow('').optional(),
   registroInvima: Joi.string().allow('').optional(),

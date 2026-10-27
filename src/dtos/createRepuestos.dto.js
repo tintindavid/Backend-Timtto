@@ -26,4 +26,7 @@ export const createRepuestosDto = Joi.object({
   ResponsableSolicitud: Joi.string().hex().length(24).required().label('ResponsableSolicitud'),
   FrecuenciaDeCambio: Joi.number().optional().label('FrecuenciaDeCambio'),
   Fotos: Joi.array().items(Joi.string()).optional().label('Fotos'),
+  // Owned by the Requisiciones module (E2): never writable through the Repuestos API.
+  requisicion: Joi.forbidden(),
+  stockDescontadoPor: Joi.forbidden(),
 });

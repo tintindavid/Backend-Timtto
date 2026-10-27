@@ -4,7 +4,7 @@ import { successResponse } from '../utils/apiResponse.util.js';
 export class OTController {
   async create(req, res, next) {
     try {
-      const data = await oTService.create(req.body, req.tenantId, req.user);
+      const data = await oTService.create(req.body, req.tenantId, req.user, req.tenant);
       res.status(201).json(successResponse(data, 'OT creado exitosamente', 201));
     } catch (err) { next(err); }
   }
@@ -50,7 +50,7 @@ export class OTController {
 
   async update(req, res, next) {
     try {
-      const data = await oTService.update(req.params.id, req.body, req.tenantId, req.user);
+      const data = await oTService.update(req.params.id, req.body, req.tenantId, req.user, req.tenant);
       res.json(successResponse(data, 'OT actualizado exitosamente'));
     } catch (err) { next(err); }
   }

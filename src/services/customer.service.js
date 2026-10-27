@@ -17,8 +17,53 @@ const CUSTOMER_LIST_KINDS = [...CUSTOMER_KINDS, 'all'];
 const BRANCH_REQUIRED_FIELDS = ['TelContacto', 'UserContacto', 'Departamento'];
 const BRANCH_FIELD_LABELS = { TelContacto: 'teléfono de contacto', UserContacto: 'persona de contacto', Departamento: 'departamento' };
 
+// kind=customer writes need the capability managesCustomers (which itself requires executesServices).
+// Reads stay open so existing data remains visible. The system-managed organization customer
+// (Tenant.organizationCustomerId) can still be edited, never created or deleted by the tenant.
 const CUSTOMER_KIND_DENIED_MESSAGE =
-  'Tu organización no ejecuta servicios, por lo que no puede crear ni eliminar clientes. Los proveedores sí están permitidos.';
+  'Tu organización no gestiona clientes, por lo que no puede crear, editar ni eliminar clientes. Los proveedores sí están permitidos.';
+
+// Business fields a PUT/PATCH may change (the rest of the schema is system-managed). The routes accept
+// multipart/form-data, so there is no Joi body validation: this whitelist is the validation.
+export const CUSTOMER_UPDATABLE_FIELDS = Object.freeze([
+  'Razonsocial', 'Ciudad', 'Departamento', 'Email', 'Nit', 'Direccion', 'Logo', 'TelContacto', 'UserContacto', 'correousados',
+]);
+// Never writable through update: a request carrying one of them is rejected (400) instead of being ignored,
+// so an attempt like {isDeleted:true} on the organization customer is visible and writes nothing.
+const CUSTOMER_PROTECTED_FIELDS = ['isDeleted', 'deletedAt', 'tenantId', '_id', 'id', 'createdAt', 'updatedAt', '__v'];
+
+/**
+ * Returns a NEW object with only the updatable business fields. `kind` is immutable and silently dropped
+ * (long-standing contract). Protected / unknown keys and non-scalar values are 400 VALIDATION_ERROR.
+ */
+export function sanitizeCustomerUpdate(data) {
+  const input = data && typeof data === 'object' ? data : {};
+  const clean = {};
+  const rejected = [];
+  for (const [key, value] of Object.entries(input)) {
+    if (key === 'kind') continue;
+    if (CUSTOMER_PROTECTED_FIELDS.includes(key) || !CUSTOMER_UPDATABLE_FIELDS.includes(key)) {
+      rejected.push(key);
+      continue;
+    }
+    const scalar = value === null || ['string', 'number', 'boolean'].includes(typeof value);
+    const stringList = key === 'correousados' && Array.isArray(value) && value.every((v) => typeof v === 'string');
+    if (!scalar && !stringList) {
+      rejected.push(key);
+      continue;
+    }
+    clean[key] = value;
+  }
+  if (rejected.length) {
+    throw new ApiError(
+      400,
+      `Campos no permitidos o inválidos al actualizar el tercero: ${rejected.join(', ')}`,
+      'VALIDATION_ERROR',
+      { fields: rejected },
+    );
+  }
+  return clean;
+}
 
 export class CustomerService {
   /**
@@ -26,7 +71,7 @@ export class CustomerService {
    * @param {object} data - Datos del customer
    * @param {string} tenantId - ID del tenant
    * @param {object} logoFile - Archivo del logo (opcional) { buffer, originalname, mimetype }
-   * @param {object} [capabilities] - req.tenant.capabilities; a kind=customer needs executesServices
+   * @param {object} [capabilities] - req.tenant.capabilities; a kind=customer needs managesCustomers
    *   (providers are always allowed). Omitted = defaults (provider tenant).
    * @returns {Promise<object>} Customer creado
    */
@@ -45,7 +90,7 @@ export class CustomerService {
 
       if (kind === 'customer') {
         // Capability ceiling (tenant-capabilities-hybrid-mode): before any upload or insert.
-        assertCapability(capabilities, 'executesServices', CUSTOMER_KIND_DENIED_MESSAGE);
+        assertCapability(capabilities, 'managesCustomers', CUSTOMER_KIND_DENIED_MESSAGE);
 
         // Validate the data of the default branch BEFORE inserting so a failure never leaves an
         // orphan customer (the Sede insert would otherwise fail after the Customer was stored).
@@ -199,20 +244,31 @@ export class CustomerService {
    * @param {object} data - Datos a actualizar
    * @param {string} tenantId - ID del tenant
    * @param {object} logoFile - Archivo del logo nuevo (opcional) { buffer, originalname, mimetype }
+   * @param {object} [capabilities] - req.tenant.capabilities; editing a kind=customer needs managesCustomers,
+   *   except the organization customer. Omitted = no gating.
+   * @param {object} [options] - { organizationCustomerId } (req.tenant.organizationCustomerId)
    * @returns {Promise<object>} Customer actualizado
    */
-  async update(id, data, tenantId, logoFile = null) {
+  async update(id, data, tenantId, logoFile = null, capabilities = undefined, options = {}) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
 
-      // kind is immutable: the PUT/PATCH routes have no Joi validation, so drop it here.
-      delete data.kind;
+      // Whitelist the body (the routes have no Joi validation): protected/unknown keys such as isDeleted,
+      // tenantId or kind can never reach the $set. Rejected before any read or upload.
+      data = sanitizeCustomerUpdate(data);
 
       // Obtener customer actual para verificar si tiene logo previo
       const currentCustomer = await Customer.findOne(applyTenantFilter({ _id: id }, t));
       if (!currentCustomer) {
         throw new ApiError(404, 'Customer no encontrado', 'NOT_FOUND', { id });
+      }
+
+      // Capability ceiling by the STORED kind; the organization customer is system-managed and stays editable.
+      const isOrganizationCustomer = options?.organizationCustomerId
+        && String(options.organizationCustomerId) === String(currentCustomer._id);
+      if (currentCustomer.kind !== 'provider' && !isOrganizationCustomer) {
+        assertCapability(capabilities, 'managesCustomers', CUSTOMER_KIND_DENIED_MESSAGE);
       }
 
       // Si se proporciona un nuevo logo
@@ -256,7 +312,7 @@ export class CustomerService {
    * @param {string} id - ID del customer
    * @param {string} tenantId - ID del tenant
    * @param {object} [capabilities] - req.tenant.capabilities; deleting a kind=customer needs
-   *   executesServices (providers are always allowed). Omitted = defaults (provider tenant).
+   *   managesCustomers (providers are always allowed). Omitted = no gating.
    */
   async delete(id, tenantId, capabilities = undefined) {
     try {
@@ -270,7 +326,7 @@ export class CustomerService {
 
       // Capability ceiling by the STORED kind (legacy documents without kind are customers).
       if (customer.kind !== 'provider') {
-        assertCapability(capabilities, 'executesServices', CUSTOMER_KIND_DENIED_MESSAGE);
+        assertCapability(capabilities, 'managesCustomers', CUSTOMER_KIND_DENIED_MESSAGE);
       }
 
       // Soft delete del customer
