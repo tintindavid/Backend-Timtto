@@ -37,3 +37,30 @@ export function authorize(permission) {
     return next();
   };
 }
+
+/**
+ * Like `authorize`, but passes when the caller holds ANY of the given permissions. Used where a screen of one
+ * module must read a catalogue of another one (e.g. an approver reading the area budget summary).
+ *
+ * @param {...string} permissions
+ */
+export function authorizeAny(...permissions) {
+  return (req, _res, next) => {
+    const user = req.user;
+    if (!user) {
+      return next(new ApiError(401, 'No autenticado', 'NOT_AUTHENTICATED'));
+    }
+
+    if (user.role === 'superadmin') return next();
+
+    const held = Array.isArray(user.permissions) ? user.permissions : [];
+    if (!permissions.some((p) => held.includes(p))) {
+      logger.warn(
+        `[RBAC] DENIED tenantId=${user.tenantId} userId=${user.userId} permissions=${permissions.join('|')}`,
+      );
+      return next(new ApiError(403, 'Permisos insuficientes', 'FORBIDDEN'));
+    }
+
+    return next();
+  };
+}

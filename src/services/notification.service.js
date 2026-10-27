@@ -8,6 +8,8 @@ import { socketBridge } from '../socket/index.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { requireTenant } from '../utils/tenant.util.js';
 import { logger } from '../config/logger.config.js';
+import { env } from '../config/env.js';
+import { emailService } from './external/email.service.js';
 
 // In-process rate limit (design.md D10): max 100 emits/minute per tenant.
 // Single Railway dyno today, so in-memory is sufficient — would move to
@@ -130,8 +132,12 @@ export class NotificationService {
 
         for (const channel of activeChannels) {
           if (channel === 'email') {
-            // TODO fase 2: Resend — channel is declared on the schema/rule
-            // but not delivered yet (design.md Non-Goals).
+            // Fully isolated: a provider/lookup failure never affects the
+            // in-app channel, the business operation or other recipients.
+            await this._deliverEmail({
+              tenantId, event, userId, title: notifTitle, body: notifBody, data: notifData,
+              attachments: options.emailAttachments,
+            });
             continue;
           }
           if (channel !== 'inapp') continue;
@@ -166,6 +172,43 @@ export class NotificationService {
     }
 
     return { dispatched: dispatchedCount, recipients: Array.from(recipientIds) };
+  }
+
+  /**
+   * Email channel delivery for a single recipient. Never throws; errors are
+   * captured and logged. Honors NOTIFICATIONS_ENABLED.
+   */
+  async _deliverEmail({ tenantId, event, userId, title, body, data, attachments }) {
+    try {
+      if (!env.NOTIFICATIONS_ENABLED) return { sent: false, skipped: true };
+
+      const user = await User.findOne({ _id: userId, tenantId, isDeleted: false }, 'email firstName fullName').lean();
+      if (!user || !user.email) return { sent: false, skipped: true };
+
+      const rawLink = data && typeof data === 'object' ? data.link : '';
+      const base = String(env.PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const link = rawLink ? (/^https?:\/\//i.test(rawLink) ? rawLink : `${base}${rawLink}`) : '';
+
+      const result = await emailService.sendNotificationEmail({
+        to: user.email,
+        subject: title,
+        recipientName: user.firstName || user.fullName || '',
+        body,
+        link,
+        attachments,
+      });
+      if (result && result.sent === false && !result.skipped) {
+        logger.error('notificationService.emit: email delivery failed', {
+          tenantId, event, userId, err: result.error,
+        });
+      }
+      return result;
+    } catch (err) {
+      logger.error('notificationService.emit: email delivery threw', {
+        tenantId, event, userId, err: String(err),
+      });
+      return { sent: false, error: String(err) };
+    }
   }
 
   // =====================================================================

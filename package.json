@@ -14,7 +14,8 @@
     "seed:notification-sheet-signed": "node scripts/seed-notification-rule-sheet-signed.js",
     "migrate:ot-legacy-responsable-to-programaciones": "node scripts/migrate-ot-legacy-responsable-to-programaciones.js",
     "seed:notification-rule-ot-responsible-assigned": "node scripts/seed-notification-rule-ot-responsible-assigned.js",
-    "seed:notification-rule-ot-note-added": "node scripts/seed-notification-rule-ot-note-added.js",
+    "seed:notification-rules-requisiciones": "node scripts/seed-notification-rules-requisiciones.js",
+    "seed:notification-rule-ot-note-added":"node scripts/seed-notification-rule-ot-note-added.js",
     "db:backfill-serie-normalized": "node src/scripts/backfill-serie-normalized.js",
     "db:backfill-estado-operativo-history": "node src/scripts/2026-08-22-backfill-estado-operativo-history.js",
     "db:backfill-notification-rules": "node src/scripts/2026-08-24-backfill-notification-rules.js",
@@ -78,5 +79,8 @@
     "socket.io-client": "^4.8.3",
     "ts-node-dev": "^2.0.0",
     "typescript": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23"
   }
 }

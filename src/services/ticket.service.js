@@ -9,6 +9,7 @@ import { EquipoItem } from '../models/equipoitem.model.js';
 import { User } from '../models/user.model.js';
 
 import { ApiError } from '../utils/apiError.util.js';
+import { applyOwnCustomerOnCreate } from '../utils/ownCustomerScope.util.js';
 import { assertCustomerKind } from '../utils/assertCustomerKind.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -398,7 +399,7 @@ export class TicketService {
    * rollback on mismatch. Then create the OT and one Report per ticket and
    * link reportId back on each ticket.
    */
-  async createWorkOrder({ ticketIds, responsableId }, tenantId, panelUser) {
+  async createWorkOrder({ ticketIds, responsableId }, tenantId, panelUser, tenantCtx = undefined) {
     requireTenant(tenantId);
     if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
       throw new ApiError(400, 'ticketIds requerido', 'INVALID_PARAMS');
@@ -422,6 +423,10 @@ export class TicketService {
     if (distinctClienteIds.size !== 1) {
       throw new ApiError(400, 'Todos los tickets deben pertenecer al mismo cliente', 'MULTI_CLIENT_BATCH');
     }
+
+    // "Mantenimiento propio": a scoped tenant only works with its organization customer. Runs before the
+    // claim so a rejection leaves the tickets untouched.
+    const scopedCliente = applyOwnCustomerOnCreate(tenantCtx, { ClienteId: tickets[0].ClienteId });
 
     for (const t of tickets) {
       if (t.status !== TICKET_STATUS.PENDIENTE || t.workOrderId) {
@@ -508,7 +513,7 @@ export class TicketService {
     const otConsec = formatConsecutivo('OT', otSeq, 6);
     const otNorden = `N${String(otSeq).padStart(6, '0')}`;
 
-    const clienteId = tickets[0].ClienteId;
+    const clienteId = scopedCliente.ClienteId;
 
     let otDoc;
     let createdReports = [];

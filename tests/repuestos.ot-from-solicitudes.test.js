@@ -47,7 +47,7 @@ function commonStubs({ repuestos, equipoIds }) {
   stub(OT, 'create', async () => ({ _id: 'ot-created', Consecutivo: 'OT000001', reportes: [], save: async () => {} }));
   stub(Report, 'create', async () => ({ _id: 'rep-created' }));
   stub(Report, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
-  stub(EquipoItem, 'findById', (id) => makePopulateLean({ _id: id, ItemId: { Nombre: `Equipo ${id}` }, Marca: 'M', Serie: 'S' }));
+  stub(EquipoItem, 'findOne', (f) => makePopulateLean({ _id: f._id, ItemId: { Nombre: `Equipo ${f._id}` }, Marca: 'M', Serie: 'S' }));
   let seq = 0;
   stub(Counter, 'findOneAndUpdate', () => ({ lean: async () => ({ seq: ++seq }) }));
   stub(RepuestoTrazabilidad, 'create', async () => ({ _id: 'traz' }));

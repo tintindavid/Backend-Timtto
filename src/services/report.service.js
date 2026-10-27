@@ -5,6 +5,7 @@ import { OT } from '../models/ot.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
+import { applyOwnCustomerOnCreate, assertOwnCustomerOnUpdate } from '../utils/ownCustomerScope.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { isValidActivityOrigin } from '../utils/activityOrigin.util.js';
@@ -65,11 +66,12 @@ function assertNotExternalReport(report) {
 }
 
 export class ReportService {
-  async create(data, tenantId) {
+  async create(data, tenantId, tenantCtx = undefined) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+      applyOwnCustomerOnCreate(tenantCtx, data, 'ClienteId');
       await assertCustomerKind(data.ClienteId, t);
       const entity = await Report.create(data);
       logger.info('Report creado: ' + entity._id);
@@ -254,7 +256,7 @@ export class ReportService {
     }
   }
 
-  async update(id, data, tenantId, panelUser = null) {
+  async update(id, data, tenantId, panelUser = null, tenantCtx = undefined) {
     try {
       // Sub-doc origin invariant (report-actividades-extra, spec: "Report
       // sub-document integrity for activities"). The DTO's Joi .custom()
@@ -278,6 +280,7 @@ export class ReportService {
       const previous = await Report.findById(id).lean();
       assertNotExternalReport(previous);
       // A provider can never become the client of a report (terceros-customers-providers).
+      assertOwnCustomerOnUpdate(tenantCtx, data.ClienteId, previous?.ClienteId, 'ClienteId');
       if (data.ClienteId) {
         await assertCustomerKindIfChanged(data.ClienteId, previous?.ClienteId, tenantId || previous?.tenantId);
       }

@@ -32,6 +32,9 @@ const userSchema = new Schema(
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
     fileFirma: { type: String, trim: true },
+    // Optional organizational area (requisiciones-e1-base-aprobacion). Only assignable through users:update
+    // (area must exist and be active); it grants no authority by itself.
+    areaId: { type: Schema.Types.ObjectId, ref: 'Area', default: undefined },
     // Set to true when the user must rotate their password on next login.
     // Activated by E1 onboarding (temp passwords) and E2 SuperAdmin reset.
     mustChangePassword: { type: Boolean, default: false },

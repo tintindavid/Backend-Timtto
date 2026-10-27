@@ -43,7 +43,7 @@ export class UserController {
   async update(req, res, next) {
     try { 
       const body = { ...req.body, tenantId: req.tenantId };
-      const data = await userService.update(req.params.id, body);
+      const data = await userService.update(req.params.id, body, req.user?.userId);
       res.json(successResponse(data, 'Usuario actualizado exitosamente'));
     } catch (error) {
       next(error);

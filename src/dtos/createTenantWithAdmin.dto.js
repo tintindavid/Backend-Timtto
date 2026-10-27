@@ -13,6 +13,8 @@ const capabilitiesSchema = Joi.object({
   scheduleQuickLoad: Joi.boolean(),
   usesInventoryBasic: Joi.boolean(),
   usesInventoryAdvanced: Joi.boolean(),
+  usesRequisiciones: Joi.boolean(),
+  managesCustomers: Joi.boolean(),
 })
   .unknown(false)
   .min(1);
@@ -88,10 +90,13 @@ export const createTenantWithAdminSchema = Joi.object({
         capabilities: value.capabilities ?? value.tenant?.capabilities,
       });
     } catch (err) {
-      return helpers.error('capabilities.noneEnabled');
+      // Surface the real reason (none enabled / managesCustomers requires executesServices / ...), not a generic one.
+      return helpers.error('capabilities.invalid', { reason: err?.message || 'Capacidades inválidas' });
     }
 
-    if (!caps.executesServices) {
+    // The organization customer is needed when the tenant does not execute services AND when it executes
+    // them without managing customers ("mantenimiento propio"): every OT/report uses that customer.
+    if (!caps.executesServices || !caps.managesCustomers) {
       const missing = ORGANIZATION_REQUIRED_FIELDS.filter((f) => {
         const v = value.tenant?.[f];
         return v === undefined || v === null || String(v).trim() === '';
@@ -102,7 +107,7 @@ export const createTenantWithAdminSchema = Joi.object({
   })
   .messages({
     'capabilities.ambiguous': 'Envía solo uno entre type y capabilities',
-    'capabilities.noneEnabled': 'Al menos una capacidad debe estar habilitada',
+    'capabilities.invalid': '{{#reason}}',
     'capabilities.missingTenantData':
-      'Una organización que no ejecuta servicios requiere los datos del tenant: {{#fields}}',
+      'Los datos de la organización son obligatorios a menos que se habilite "Gestiona clientes". Faltan: {{#fields}}',
   });

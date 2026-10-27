@@ -106,7 +106,7 @@ describe('POST /equipos/:equipoId/reportes-externos', () => {
     await post(valid());
     assert.equal(created[0].tenantId, 'hosp');
     assert.equal(created[0].equipoId, EQ);
-    assert.deepEqual(created[0].capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(created[0].capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
     const { status } = await post({ ...valid(), tenantId: 'other' });
     assert.equal(status, 400);
   });
@@ -172,6 +172,6 @@ describe('DELETE /equipos/:equipoId/reportes-externos/:id', () => {
     assert.equal(removed[0].tenantId, 'hosp');
     assert.equal(removed[0].equipoId, EQ);
     assert.equal(removed[0].id, '507f1f77bcf86cd799439099');
-    assert.deepEqual(removed[0].capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false });
+    assert.deepEqual(removed[0].capabilities, { executesServices: false, registersExternal: true, usesQrs: false, scheduleQuickLoad: false, usesInventoryBasic: false, usesInventoryAdvanced: false, usesRequisiciones: false, managesCustomers: false });
   });
 });

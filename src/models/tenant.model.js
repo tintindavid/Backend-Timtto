@@ -45,6 +45,12 @@ const TenantSchema = new Schema(
       // Premium module "Stock" (inventario-stock): basic catalogue and advanced movements (needs basic).
       usesInventoryBasic: { type: Boolean, default: false },
       usesInventoryAdvanced: { type: Boolean, default: false },
+      // Premium module "Requisiciones" (requisiciones-e1-base-aprobacion): independent of every other flag.
+      usesRequisiciones: { type: Boolean, default: false },
+      // Premium capability "Gestiona clientes" (requisiciones-e1-base-aprobacion): needs executesServices.
+      // NO schema default on purpose: a stored object without the key is a legacy tenant and is read as
+      // executesServices (normalizeCapabilities); new tenants always store the explicit value.
+      managesCustomers: { type: Boolean },
     },
     // The single client of a tenant that does not execute services ("Mi información").
     organizationCustomerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },

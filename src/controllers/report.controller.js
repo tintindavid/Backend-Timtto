@@ -4,7 +4,7 @@ import { successResponse } from '../utils/apiResponse.util.js';
 export class ReportController {
   async create(req, res, next) {
     try {
-      const data = await reportService.create(req.body, req.tenantId);
+      const data = await reportService.create(req.body, req.tenantId, req.tenant);
       res.status(201).json(successResponse(data, 'Report creado exitosamente', 201));
     } catch (err) { next(err); }
   }
@@ -66,7 +66,7 @@ export class ReportController {
 
   async update(req, res, next) {
     try {
-      const data = await reportService.update(req.params.id, req.body, req.tenantId, req.user);
+      const data = await reportService.update(req.params.id, req.body, req.tenantId, req.user, req.tenant);
       res.json(successResponse(data, 'Report actualizado exitosamente'));
     } catch (err) { next(err); }
   }

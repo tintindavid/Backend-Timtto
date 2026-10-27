@@ -12,6 +12,7 @@ import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assert
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
+import { applyOwnCustomerOnCreate } from '../utils/ownCustomerScope.util.js';
 import { nameShort } from '../utils/nameShort.util.js';
 import { notificationService } from './notification.service.js';
 import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
@@ -214,7 +215,7 @@ export class RepuestosService {
     }
   }
 
-  async createOtFromSolicitudes(data, tenantId, actor) {
+  async createOtFromSolicitudes(data, tenantId, actor, tenantCtx = undefined) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
@@ -277,12 +278,19 @@ export class RepuestosService {
         if (resolved) clienteIdsResolved.add(resolved);
       }
       if (clienteIdsResolved.size === 0) {
+        // Scoped tenant ("mantenimiento propio"): a request without client resolves to the organization customer.
+        const filled = applyOwnCustomerOnCreate(tenantCtx, {});
+        if (filled.ClienteId) clienteIdsResolved.add(String(filled.ClienteId));
+      }
+      if (clienteIdsResolved.size === 0) {
         throw new ApiError(400, 'No fue posible inferir el cliente de los repuestos seleccionados', 'VALIDATION_ERROR');
       }
       if (clienteIdsResolved.size > 1) {
         throw new ApiError(400, 'Los repuestos seleccionados pertenecen a clientes diferentes. Selecciona solo repuestos del mismo cliente.', 'MULTIPLE_CLIENTS', { clienteIds: Array.from(clienteIdsResolved) });
       }
       const clienteId = Array.from(clienteIdsResolved)[0];
+      // Scoped tenant: the resolved client must be the organization customer (403 CLIENTE_NO_PERMITIDO otherwise).
+      applyOwnCustomerOnCreate(tenantCtx, { ClienteId: clienteId });
 
       // ── Programación (analog to ot.service.setProgramacion first entry)
       const fechaInicio = new Date(data.fechaInicio);
@@ -334,7 +342,7 @@ export class RepuestosService {
       // Create one report per unique equipment so OT execution is split by asset.
       const reportIds = [];
       for (const equipoId of equipoIds) {
-        const eq = await EquipoItem.findById(equipoId)
+        const eq = await EquipoItem.findOne(applyTenantFilter({ _id: equipoId }, t))
           .populate('ItemId', 'Nombre')
           .populate('SedeId', 'nombreSede')
           .populate('Servicio', 'nombre')

@@ -60,7 +60,7 @@ export class TicketController {
 
   async createWorkOrder(req, res, next) {
     try {
-      const data = await ticketService.createWorkOrder(req.body, req.tenantId, req.user);
+      const data = await ticketService.createWorkOrder(req.body, req.tenantId, req.user, req.tenant);
       res.status(201).json(successResponse(data, 'OT creada desde tickets exitosamente', 201));
     } catch (err) { next(err); }
   }

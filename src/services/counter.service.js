@@ -5,6 +5,12 @@ import {
   TICKET_CONSECUTIVO_PAD,
   TICKET_COUNTER_KEY,
 } from '../constants/ticket.constants.js';
+import {
+  REQUISICION_CONSECUTIVO_PREFIX,
+  REQUISICION_CONSECUTIVO_PAD,
+  REQUISICION_COUNTER_KEY,
+} from '../constants/requisicion.constants.js';
+import { getYearInBogota } from '../utils/requisicionPeriod.util.js';
 import { requireTenant } from '../utils/tenant.util.js';
 
 /**
@@ -53,6 +59,23 @@ export async function getNextTicketConsecutivos(tenantId, count, year) {
     out.push(await getNextTicketConsecutivo(tenantId, year));
   }
   return out;
+}
+
+/**
+ * Allocate and format the next requisition consecutivo (REQ-{YYYY}-{NNNN}) for the tenant. The year is the
+ * calendar year in America/Bogota (a requisition created at 23:30 on Dec 31 local time belongs to that year even
+ * though it is already Jan 1 in UTC); the counter key embeds it, so numbering restarts each year.
+ *
+ * @param {string} tenantId
+ * @param {number|Date} [yearOrDate] a four-digit year, or a Date resolved to its Bogota year (default: now)
+ * @returns {Promise<{ consecutivo: string, year: number, seq: number }>}
+ */
+export async function getNextRequisicionConsecutivo(tenantId, yearOrDate = new Date()) {
+  requireTenant(tenantId);
+  const year = yearOrDate instanceof Date ? getYearInBogota(yearOrDate) : (Number(yearOrDate) || getYearInBogota());
+  const seq = await getNextSequence(tenantId, REQUISICION_COUNTER_KEY(year));
+  const consecutivo = `${REQUISICION_CONSECUTIVO_PREFIX}-${year}-${String(seq).padStart(REQUISICION_CONSECUTIVO_PAD, '0')}`;
+  return { consecutivo, year, seq };
 }
 
 // Re-exported for convenience (other modules can keep importing from here).

@@ -6,6 +6,7 @@ import { User } from '../models/user.model.js';
 import { Tenant } from '../models/tenant.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { assertCustomerKind, assertCustomerKindIfChanged } from '../utils/assertCustomerKind.util.js';
+import { applyOwnCustomerOnCreate, assertOwnCustomerOnUpdate } from '../utils/ownCustomerScope.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { getNextSequence, formatConsecutivo } from '../utils/sequence.util.js';
@@ -24,11 +25,14 @@ import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util
 import { assertUserCanWork } from '../utils/otResponsibility.util.js';
 export class SheetWorkService {
 
-  async create(data, tenantId, user) {
+  async create(data, tenantId, user, tenantCtx = undefined) {
     try {
       const t = tenantId || data.tenantId;
       requireTenant(t);
       data.tenantId = t;
+
+      // "Mantenimiento propio": the worksheet belongs to the organization customer.
+      applyOwnCustomerOnCreate(tenantCtx, data, 'clienteId');
 
       // clienteId is optional; when supplied it must be a client, not a provider.
       await assertCustomerKind(data.clienteId, t);
@@ -248,7 +252,7 @@ export class SheetWorkService {
     }
   }
 
-  async update(id, data, tenantId, user) {
+  async update(id, data, tenantId, user, tenantCtx = undefined) {
     try {
       // Responsibility guard (design D3/D7) — load the existing sheet
       // (tenant-scoped) to find its parent OT before applying the update.
@@ -257,6 +261,7 @@ export class SheetWorkService {
         ? await SheetWork.findOne(applyTenantFilter({ _id: id }, t)).lean()
         : await SheetWork.findById(id).lean();
       if (!existing) throw new ApiError(404, 'SheetWork no encontrado', 'NOT_FOUND', { id });
+      assertOwnCustomerOnUpdate(tenantCtx, data?.clienteId, existing.clienteId, 'clienteId');
       if (data?.clienteId && t) await assertCustomerKindIfChanged(data.clienteId, existing.clienteId, t);
       if (existing.otId) {
         const parentOt = await OT.findOne(applyTenantFilter({ _id: existing.otId }, t || existing.tenantId)).lean();

@@ -10,8 +10,49 @@ import { renderTemplate } from '../../utils/renderTemplate.util.js';
  * Never logs html, text, nor the full error object.
  * Only logs sanitised metadata: { to, templateName }.
  */
-async function _send({ to, subject, html, text, templateName }) {
+const DEFAULT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Configurable max size (bytes) per attachment — EMAIL_ATTACHMENT_MAX_BYTES, default 5 MB. */
+function getAttachmentMaxBytes() {
+  const raw = Number(process.env.EMAIL_ATTACHMENT_MAX_BYTES);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_ATTACHMENT_MAX_BYTES;
+}
+
+/**
+ * Validates and maps optional attachments to the Resend payload shape.
+ * @param {Array<{filename: string, contentType?: string, content: Buffer|string}>} [attachments]
+ *   `content` is a Buffer or a base64 string.
+ * @returns {{ ok: true, payload?: object[] } | { ok: false, error: string }}
+ */
+function _prepareAttachments(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return { ok: true };
+  const max = getAttachmentMaxBytes();
+  const payload = [];
+  for (const att of attachments) {
+    if (!att || !att.filename || att.content == null) {
+      return { ok: false, error: 'Adjunto inválido: filename y content son requeridos' };
+    }
+    const buf = Buffer.isBuffer(att.content) ? att.content : Buffer.from(String(att.content), 'base64');
+    if (buf.length > max) {
+      return { ok: false, error: `Adjunto "${att.filename}" excede el límite de ${max} bytes` };
+    }
+    payload.push({
+      filename: att.filename,
+      content: buf.toString('base64'),
+      ...(att.contentType ? { content_type: att.contentType } : {}),
+    });
+  }
+  return { ok: true, payload };
+}
+
+async function _send({ to, subject, html, text, templateName, attachments }) {
   try {
+    const prepared = _prepareAttachments(attachments);
+    if (!prepared.ok) {
+      logger.error('email-service: attachment rejected', { to, templateName, error: prepared.error });
+      return { sent: false, error: prepared.error };
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -24,6 +65,7 @@ async function _send({ to, subject, html, text, templateName }) {
         subject,
         html,
         text,
+        ...(prepared.payload ? { attachments: prepared.payload } : {}),
       }),
     });
 
@@ -313,7 +355,37 @@ async function sendClientPortalLinkEmail({ to, clienteName, portalUrl, requester
   });
 }
 
-// Startup diagnostic — visible en logs de producción al arrancar el servidor
+/**
+ * Generic notification email used by notificationService (channel `email`).
+ * Renders `notification.hbs` / `notification.txt.hbs`. Never throws.
+ *
+ * @param {object} params
+ * @param {string} params.to
+ * @param {string} params.subject
+ * @param {string} [params.recipientName]
+ * @param {string} [params.body]
+ * @param {string} [params.link] absolute URL
+ * @param {Array<{filename:string,contentType?:string,content:Buffer|string}>} [params.attachments]
+ */
+async function sendNotificationEmail({ to, subject, recipientName, body, link, attachments }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'notification' });
+    return { sent: false, skipped: true };
+  }
+  try {
+    const vars = { title: subject, recipientName: recipientName || '', body: body || '', link: link || '' };
+    const [html, text] = await Promise.all([
+      renderTemplate('notification.hbs', vars),
+      renderTemplate('notification.txt.hbs', vars),
+    ]);
+    return await _send({ to, subject, html, text, templateName: 'notification', attachments });
+  } catch (err) {
+    logger.error('email-service: notification render failed', { to, error: err.message });
+    return { sent: false, error: err.message };
+  }
+}
+
+// Startup diagnostic— visible en logs de producción al arrancar el servidor
 (() => {
   if (!env.NOTIFICATIONS_ENABLED) {
     logger.warn('email-service: DESHABILITADO — NOTIFICATIONS_ENABLED no es "true". Los emails NO se enviarán.');
@@ -338,4 +410,5 @@ export const emailService = {
   sendSheetSignedRequesterEmail,
   sendClientPortalLinkEmail,
   sendSheetShareDownloadEmail,
+  sendNotificationEmail,
 };

@@ -23,4 +23,12 @@
  * `ot.service.js#setProgramacion` (design D10).
  */
 export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed', 'ot.responsible.assigned',
-  'ot.note.added'];
+  'ot.note.added',
+  // requisiciones-e1-base-aprobacion — see services/notifications/requisicionPayload.util.js
+  'requisicion.submitted',
+  'requisicion.approval.requested',
+  'requisicion.level.approved',
+  'requisicion.approved',
+  'requisicion.rejected',
+  'requisicion.withdrawn',
+  'requisicion.cancelled'];
