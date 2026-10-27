@@ -1,6 +1,6 @@
 {
   "name": "timttoapp",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "type": "module",
   "private": true,
   "main": "dist/server.js",
@@ -15,7 +15,7 @@
     "migrate:ot-legacy-responsable-to-programaciones": "node scripts/migrate-ot-legacy-responsable-to-programaciones.js",
     "seed:notification-rule-ot-responsible-assigned": "node scripts/seed-notification-rule-ot-responsible-assigned.js",
     "seed:notification-rules-requisiciones": "node scripts/seed-notification-rules-requisiciones.js",
-    "seed:notification-rule-ot-note-added":"node scripts/seed-notification-rule-ot-note-added.js",
+    "seed:notification-rule-ot-note-added": "node scripts/seed-notification-rule-ot-note-added.js",
     "db:backfill-serie-normalized": "node src/scripts/backfill-serie-normalized.js",
     "db:backfill-estado-operativo-history": "node src/scripts/2026-08-22-backfill-estado-operativo-history.js",
     "db:backfill-notification-rules": "node src/scripts/2026-08-24-backfill-notification-rules.js",

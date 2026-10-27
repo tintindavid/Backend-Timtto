@@ -1,3 +1,10 @@
+# [2.26.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.25.0...v2.26.0) (2026-10-27)
+
+
+### Features
+
+* **requisiciones:** add premium requisitions module base with tiered approval (E1) ([#45](https://github.com/tintindavid/Backend-Timtto/issues/45)) ([1ed099f](https://github.com/tintindavid/Backend-Timtto/commit/1ed099f24901d94ab91b1c1acb33a6019bd9945e))
+
 # [2.25.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.24.0...v2.25.0) (2026-10-22)
 
 
