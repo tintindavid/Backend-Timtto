@@ -176,14 +176,19 @@ export class RepuestosService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, tenantId) {
     try {
-      const current = await Repuestos.findById(id).lean();
+      requireTenant(tenantId);
+      // Never let the body move a document across tenants.
+      const { tenantId: _ignored, ...safeData } = data || {};
+      data = safeData;
+      const current = await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+      if (!current) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       if (data.ClienteId && current?.tenantId) await assertCustomerKindIfChanged(data.ClienteId, current.ClienteId, current.tenantId);
       if (data.InventarioItemId && current?.tenantId && String(data.InventarioItemId) !== String(current.InventarioItemId || '')) {
         await assertInventarioItem(data.InventarioItemId, current.tenantId);
       }
-      const e = await Repuestos.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+      const e = await Repuestos.findOneAndUpdate(applyTenantFilter({ _id: id }, tenantId), { $set: data }, { new: true, runValidators: true });
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       if (data.EstadoSolicitud && current?.EstadoSolicitud !== data.EstadoSolicitud) {
         await this.createStatusTrace({
@@ -203,9 +208,10 @@ export class RepuestosService {
     }
   }
 
-  async delete(id) {
+  async delete(id, tenantId) {
     try {
-      const e = await Repuestos.findByIdAndUpdate(id, { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
+      requireTenant(tenantId);
+      const e = await Repuestos.findOneAndUpdate(applyTenantFilter({ _id: id }, tenantId), { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       logger.info('Repuestos eliminado (soft): ' + id);
     } catch (err) {
