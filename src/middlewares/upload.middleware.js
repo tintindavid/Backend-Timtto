@@ -116,6 +116,25 @@ const hvDocumentoUpload = multer({
 export const uploadHvDocumento = hvDocumentoUpload.single('archivo');
 
 /**
+ * Multer instance for requisition reception evidences (E2): JPEG/PNG/WebP images and PDF, max 5 files of 5 MiB.
+ * Field name: `evidencias`. The magic bytes are verified later in the Firebase service.
+ */
+export const REQUISICION_EVIDENCIA_MIME = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+export const REQUISICION_EVIDENCIA_MAX_FILES = 5;
+export const REQUISICION_EVIDENCIA_MAX_BYTES = 5 * 1024 * 1024;
+
+const requisicionEvidenciaUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (REQUISICION_EVIDENCIA_MIME.includes(file.mimetype)) return cb(null, true);
+    return cb(new ApiError(400, 'Tipo de archivo no permitido. Usa imágenes JPG, PNG, WebP o PDF.', 'INVALID_FILE_TYPE'), false);
+  },
+  limits: { fileSize: REQUISICION_EVIDENCIA_MAX_BYTES, files: REQUISICION_EVIDENCIA_MAX_FILES },
+});
+
+export const uploadRequisicionEvidencias = requisicionEvidenciaUpload.array('evidencias', REQUISICION_EVIDENCIA_MAX_FILES);
+
+/**
  * Middleware para manejar errores de multer
  */
 export const handleMulterError = (err, req, res, next) => {
@@ -123,6 +142,9 @@ export const handleMulterError = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       const maxMb = req?.route?.path?.includes('documentos') ? 10 : 5;
       return next(new ApiError(400, `El archivo es demasiado grande. Máximo ${maxMb}MB.`, 'FILE_TOO_LARGE'));
+    }
+    if (err.code === 'LIMIT_FILE_COUNT' && req?.route?.path?.includes('recepciones')) {
+      return next(new ApiError(400, `Una recepción admite máximo ${REQUISICION_EVIDENCIA_MAX_FILES} evidencias`, 'EVIDENCE_LIMIT_EXCEEDED'));
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
       return next(new ApiError(400, `A report can have at most ${MAX_EVIDENCES} evidences`, 'EVIDENCE_LIMIT_EXCEEDED'));

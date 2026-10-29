@@ -7,6 +7,8 @@ import {
   DEFAULT_CURRENCY,
   LINEA_ESTADO,
   LINEA_ESTADO_VALUES,
+  CONFIRMACION_RESULTADO_VALUES,
+  RECEPCIONES_SOFT_CAP,
   NIVEL_ESTADO,
   NIVEL_ESTADO_VALUES,
   REQUISICION_ESTADO,
@@ -101,6 +103,8 @@ const LineaSchema = new Schema({
   cantidadPendiente: { type: Number, default: 0, min: 0 },
   cantidadComprada: { type: Number, default: 0, min: 0 },
   cantidadRecibida: { type: Number, default: 0, min: 0 },
+  // E2: quantity the requester confirmed as received (written only through the confirmation write).
+  cantidadConfirmada: { type: Number, default: 0, min: 0 },
   inventarioItemId: { type: Schema.Types.ObjectId, ref: 'InventarioRepuesto', default: null },
   // Snapshot of the stock item when the line was saved; it does not change if the item changes later.
   snapshot: {
@@ -112,7 +116,55 @@ const LineaSchema = new Schema({
   precioEstimado: { type: Number, required: true, min: 0, default: 0 },
   moneda: { type: String, trim: true, uppercase: true, default: DEFAULT_CURRENCY },
   origenSolicitudRepuestoId: { type: Schema.Types.ObjectId, ref: 'Repuestos', default: null },
+  // Snapshot of the solicitud's responsible (ResponsableSolicitud) taken when the line was created from it. Only the
+  // internal creation path writes it (never a public DTO); the delivery confirmation checks against THIS value.
+  responsableId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   estadoLinea: { type: String, enum: LINEA_ESTADO_VALUES, default: LINEA_ESTADO.PENDIENTE },
+  // E2: closing a line short / cancelling it (reason is mandatory, written by the reception epic).
+  cierre: {
+    motivo: { type: String, trim: true, maxlength: 2000 },
+    por: { type: Schema.Types.ObjectId, ref: 'User' },
+    fecha: { type: Date },
+  },
+}, { _id: false });
+
+// --- Reception sub-schemas (E2) -------------------------------------------------------------------------------
+
+const EvidenciaSchema = new Schema({
+  nombre: { type: String, trim: true, maxlength: 300 },
+  url: { type: String, trim: true, maxlength: 2000 },
+  tipo: { type: String, trim: true, maxlength: 100 },
+}, { _id: false });
+
+const ConfirmacionSchema = new Schema({
+  por: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  fecha: { type: Date, default: Date.now },
+  resultado: { type: String, enum: CONFIRMACION_RESULTADO_VALUES, required: true },
+  cantidad: { type: Number, min: 0 },
+  // True when a manage-all user confirmed bypassing the separation of duties / responsibility checks (audit marker).
+  porManageAll: { type: Boolean },
+  observacion: { type: String, trim: true, maxlength: 2000 },
+}, { _id: false });
+
+const RecepcionItemSchema = new Schema({
+  lineaId: { type: Schema.Types.ObjectId, required: true },
+  cantidadRecibida: { type: Number, required: true, min: [0, 'cantidadRecibida debe ser mayor que cero'], validate: { validator: (v) => v > 0, message: 'cantidadRecibida debe ser mayor que cero' } },
+  // Written ONCE per item by the requester (single guarded $set, see findForbiddenRequisicionUpdate).
+  confirmacion: { type: ConfirmacionSchema, default: undefined },
+}, { _id: false });
+
+const RecepcionSchema = new Schema({
+  recepcionId: { type: Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
+  fecha: { type: Date, default: Date.now },
+  recibidaPor: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  documento: { type: String, trim: true, maxlength: 200 },
+  observacion: { type: String, trim: true, maxlength: 2000 },
+  evidencias: { type: [EvidenciaSchema], default: [] },
+  items: {
+    type: [RecepcionItemSchema],
+    default: [],
+    validate: { validator: (v) => Array.isArray(v) && v.length >= 1, message: 'La recepción debe tener al menos un ítem' },
+  },
 }, { _id: false });
 
 const NivelSchema = new Schema({
@@ -176,6 +228,14 @@ const RequisicionSchema = new Schema({
   canceladaPor: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   canceladaMotivo: { type: String, trim: true, maxlength: 2000 },
   timeline: { type: [TimelineEventSchema], default: [] },
+  // E2: receptions, append-only like the timeline (the only other write is the one-time confirmation of an item).
+  recepciones: {
+    type: [RecepcionSchema],
+    default: [],
+    validate: { validator: (v) => Array.isArray(v) && v.length <= RECEPCIONES_SOFT_CAP, message: `Máximo ${RECEPCIONES_SOFT_CAP} recepciones por requisición` },
+  },
+  // Internal: set when the solicitud sync failed after a committed transition; the reconcile script finds and clears it.
+  solicitudesSyncPendiente: { type: Boolean, default: undefined },
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },
 }, {
@@ -210,9 +270,14 @@ RequisicionSchema.pre('validate', function (next) {
 
 const isTimelinePath = (path) => typeof path === 'string' && (path === 'timeline' || path.startsWith('timeline.') || path.startsWith('timeline['));
 const isTipoPath = (path) => typeof path === 'string' && (path === 'tipoRequisicionId' || path.startsWith('tipoRequisicionId.'));
+const isRecepPath = (path) => typeof path === 'string' && (path === 'recepciones' || path.startsWith('recepciones.') || path.startsWith('recepciones['));
 
 function timelineError(detail) {
   return new ApiError(409, `La línea de tiempo de la requisición es inmutable (solo se agregan eventos): ${detail}`, 'TIMELINE_INMUTABLE');
+}
+
+function recepcionesError(detail) {
+  return new ApiError(409, `Las recepciones de la requisición son inmutables (solo se agregan y cada ítem se confirma una vez): ${detail}`, 'RECEPCIONES_INMUTABLES');
 }
 
 /** A legal append: `{ $each: [events] }` alone, or one plain event object. Modifiers ($position, $slice, $sort) are not. */
@@ -223,31 +288,100 @@ function isPlainAppend(value) {
   return !keys.some((k) => k.startsWith('$'));
 }
 
+const isBsonOrDate = (v) => v instanceof Date || (v !== null && typeof v === 'object' && v._bsontype !== undefined);
+/** Equality filter value (string, number, ObjectId, Date): never an operator object such as `{ $exists: true }`. */
+const isScalarFilterValue = (v) => v !== null && v !== undefined && (typeof v !== 'object' || isBsonOrDate(v));
+
+/** A legal reception append: plain append whose items carry NO confirmation (it is written later, once, by the requester). */
+function isPlainRecepcionAppend(value) {
+  if (!isPlainAppend(value)) return false;
+  const list = Object.keys(value).includes('$each') ? value.$each : [value];
+  return list.every((r) => r !== null && typeof r === 'object' && !Array.isArray(r)
+    && (r.items === undefined || (Array.isArray(r.items) && r.items.every((it) => it !== null && typeof it === 'object' && it.confirmacion === undefined))));
+}
+
+const CONFIRM_PATH_RE = /^recepciones\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.items\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.confirmacion$/;
+const CONFIRMACION_KEYS = ['por', 'fecha', 'resultado', 'cantidad', 'observacion', 'porManageAll'];
+
+/** Array filters whose every key addresses the identifier `id` (`id` or `id.field`). */
+function filtersOf(arrayFilters, id) {
+  return (Array.isArray(arrayFilters) ? arrayFilters : []).filter((f) => f !== null && typeof f === 'object' && !Array.isArray(f)
+    && Object.keys(f).length > 0 && Object.keys(f).every((k) => k === id || k.startsWith(`${id}.`)));
+}
+
 /**
- * Inspects an update document. Returns an error (ApiError) when it would alter the timeline in any way other than
- * appending, change `tipoRequisicionId`, or is a pipeline update; null otherwise.
+ * The ONE legal write inside `recepciones` besides appending: `$set` of
+ * `recepciones.$[rec].items.$[itm].confirmacion` with a plain confirmation object, where the array filters pin ONE
+ * reception by `recepcionId`, ONE item by `lineaId`, and only an item WITHOUT a confirmation (`{ $exists: false }`),
+ * so a confirmation can never be overwritten.
+ */
+function isGuardedConfirmSet(path, value, options) {
+  const m = CONFIRM_PATH_RE.exec(path);
+  if (!m) return false;
+  const [, recId, itmId] = m;
+  if (recId === itmId) return false;
+  if (value === null || typeof value !== 'object' || Array.isArray(value) || isBsonOrDate(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 0 || keys.some((k) => !CONFIRMACION_KEYS.includes(k))) return false;
+  if (!value.por || !CONFIRMACION_RESULTADO_VALUES.includes(value.resultado)) return false;
+  const arrayFilters = options && options.arrayFilters;
+  const recFilters = filtersOf(arrayFilters, recId);
+  const itmFilters = filtersOf(arrayFilters, itmId);
+  if (recFilters.length !== 1 || itmFilters.length !== 1) return false;
+  if (!isScalarFilterValue(recFilters[0][`${recId}.recepcionId`])) return false;
+  const itm = itmFilters[0];
+  if (!isScalarFilterValue(itm[`${itmId}.lineaId`])) return false;
+  const guard = itm[`${itmId}.confirmacion`];
+  return guard !== null && typeof guard === 'object' && Object.keys(guard).length === 1 && guard.$exists === false;
+}
+
+/**
+ * Inspects an update document. Returns an error (ApiError) when it would alter the timeline or the receptions in any
+ * way other than the legal writes (append events / append receptions / one guarded item confirmation), change
+ * `tipoRequisicionId`, or is a pipeline update; null otherwise. `options` carries the `arrayFilters` of the write.
  * Exported for tests and for services that build raw updates.
  */
-export function findForbiddenRequisicionUpdate(update) {
+export function findForbiddenRequisicionUpdate(update, options = {}) {
   if (update === null || update === undefined) return null;
   if (Array.isArray(update)) return timelineError('no se permiten actualizaciones con pipeline');
   if (typeof update !== 'object') return null;
+
+  let confirmations = 0;
+  const checkRecepSet = (path, arg) => {
+    if (!isGuardedConfirmSet(path, arg, options)) return recepcionesError(`asignación sobre "${path}"`);
+    confirmations += 1;
+    return confirmations > 1 ? recepcionesError('más de una confirmación en la misma escritura') : null;
+  };
 
   for (const [key, value] of Object.entries(update)) {
     if (!key.startsWith('$')) {
       // Mongoose treats top-level paths as an implicit $set.
       if (isTimelinePath(key)) return timelineError(`asignación directa de "${key}"`);
       if (isTipoPath(key)) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
+      if (isRecepPath(key)) {
+        const err = checkRecepSet(key, value);
+        if (err) return err;
+      }
       continue;
     }
     if (value === null || typeof value !== 'object') continue;
     for (const [path, arg] of Object.entries(value)) {
       if (key === '$rename') {
         if (isTimelinePath(path) || isTimelinePath(String(arg))) return timelineError('$rename');
+        if (isRecepPath(path) || isRecepPath(String(arg))) return recepcionesError('$rename');
         if (isTipoPath(path) || isTipoPath(String(arg))) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
         continue;
       }
       if (isTipoPath(path)) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
+      if (isRecepPath(path)) {
+        if (key === '$push' && path === 'recepciones' && isPlainRecepcionAppend(arg)) continue;
+        if (key === '$set') {
+          const err = checkRecepSet(path, arg);
+          if (err) return err;
+          continue;
+        }
+        return recepcionesError(`${key} sobre "${path}"`);
+      }
       if (!isTimelinePath(path)) continue;
       if (key === '$push' && path === 'timeline' && isPlainAppend(arg)) continue;
       return timelineError(`${key} sobre "${path}"`);
@@ -259,7 +393,7 @@ export function findForbiddenRequisicionUpdate(update) {
 function guardUpdate(next) {
   const options = this.getOptions ? this.getOptions() : {};
   if (options && options.overwrite) return next(timelineError('reemplazo de documento'));
-  const err = findForbiddenRequisicionUpdate(this.getUpdate());
+  const err = findForbiddenRequisicionUpdate(this.getUpdate(), options);
   return next(err || undefined);
 }
 
@@ -286,7 +420,7 @@ RequisicionSchema.pre('bulkWrite', function (next, ops) {
     if (op.replaceOne || op.deleteOne || op.deleteMany) return next(timelineError('operación de reemplazo o borrado en bulkWrite'));
     for (const kind of ['updateOne', 'updateMany']) {
       if (op[kind]) {
-        const err = findForbiddenRequisicionUpdate(op[kind].update);
+        const err = findForbiddenRequisicionUpdate(op[kind].update, { arrayFilters: op[kind].arrayFilters });
         if (err) return next(err);
       }
     }
@@ -297,6 +431,7 @@ RequisicionSchema.pre('bulkWrite', function (next, ops) {
 RequisicionSchema.pre('save', function (next) {
   if (!this.isNew) {
     if (this.modifiedPaths().some((p) => isTimelinePath(p))) return next(timelineError('save() con timeline modificado'));
+    if (this.modifiedPaths().some((p) => isRecepPath(p))) return next(recepcionesError('save() con recepciones modificadas'));
     if (this.isModified('tipoRequisicionId')) return next(new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE'));
   }
   return next();
@@ -309,38 +444,64 @@ RequisicionSchema.pre('save', function (next) {
  * `$set`/`$unset`/`$inc` of the transition. `filter` MUST carry `tenantId` (and, for transitions, the expected
  * `estado`); a null result means the condition did not hold (the caller decides 404 vs 409).
  *
+ * E2 reception writes travel in the SAME write (still one conditional findOneAndUpdate):
+ *  - `pushRecepciones`: a reception (or array) appended to `recepciones`; the filter also requires room under the cap
+ *    (`RECEPCIONES_SOFT_CAP`), so a null result may also mean "cap reached";
+ *  - `confirmarItem: { recepcionId, lineaId, confirmacion }`: the write-once confirmation of ONE reception item. The
+ *    filter requires that item to exist WITHOUT a confirmation and the array filters pin it, so a second
+ *    confirmation (or a racing one) yields a null result instead of overwriting.
+ * `extra.set` may address lines through `extra.arrayFilters` (e.g. `lineas.$[lin].estadoLinea`).
+ *
  * @param {object} filter   e.g. { _id, tenantId, estado: 'Borrador' }
  * @param {object|object[]} events  entries built with `buildTimelineEvent`
- * @param {{ set?: object, unset?: object, inc?: object, arrayFilters?: object[], session?: any }} [extra]
+ * @param {{ set?: object, unset?: object, inc?: object, arrayFilters?: object[], session?: any, pushRecepciones?: object|object[],
+ *           confirmarItem?: { recepcionId: any, lineaId: any, confirmacion: object } }} [extra]
  */
 RequisicionSchema.statics.appendEvent = function appendEvent(filter, events, extra = {}) {
   if (!filter || !filter.tenantId) throw new Error('appendEvent requires tenantId in the filter');
   const list = (Array.isArray(events) ? events : [events]).filter(Boolean);
   if (list.length === 0) throw new Error('appendEvent requires at least one event');
+  const plan = buildPlan(filter, list, extra);
   if (extra.inc && extra.inc.version) {
     // Legacy documents without `version` count as 1: seed it so `$inc` moves 1 -> 2 (a bare `$inc` on a missing field
     // would give 1 and a stale decision would still pass). Idempotent; only touches documents that match the guards.
     // `timestamps: false`: the seed must not bump `updatedAt`, which some callers use as an optimistic guard.
     const seedOptions = { timestamps: false, ...(extra.session ? { session: extra.session } : {}) };
-    return this.updateOne({ $and: [filter, { version: { $exists: false } }] }, { $set: { version: 1 } }, seedOptions)
-      .then(() => this.findOneAndUpdate(filter, buildUpdate(list, extra), buildOptions(extra)));
+    return this.updateOne({ $and: [plan.filter, { version: { $exists: false } }] }, { $set: { version: 1 } }, seedOptions)
+      .then(() => this.findOneAndUpdate(plan.filter, plan.update, plan.options));
   }
-  return this.findOneAndUpdate(filter, buildUpdate(list, extra), buildOptions(extra));
+  return this.findOneAndUpdate(plan.filter, plan.update, plan.options);
 };
 
-function buildUpdate(list, extra) {
+const toOid = (v) => (v instanceof mongoose.Types.ObjectId ? v : new mongoose.Types.ObjectId(String(v)));
+
+function buildPlan(baseFilter, list, extra) {
+  const and = [];
+  const set = { ...(extra.set || {}) };
+  const arrayFilters = [...(extra.arrayFilters || [])];
   const update = { $push: { timeline: { $each: list } } };
-  if (extra.set) update.$set = extra.set;
+
+  if (extra.pushRecepciones) {
+    const recepciones = Array.isArray(extra.pushRecepciones) ? extra.pushRecepciones : [extra.pushRecepciones];
+    update.$push.recepciones = { $each: recepciones };
+    and.push({ [`recepciones.${RECEPCIONES_SOFT_CAP - recepciones.length}`]: { $exists: false } });
+  }
+  if (extra.confirmarItem) {
+    const { recepcionId, lineaId, confirmacion } = extra.confirmarItem;
+    const rid = toOid(recepcionId);
+    const lid = toOid(lineaId);
+    set['recepciones.$[rec].items.$[itm].confirmacion'] = confirmacion;
+    arrayFilters.push({ 'rec.recepcionId': rid }, { 'itm.lineaId': lid, 'itm.confirmacion': { $exists: false } });
+    and.push({ recepciones: { $elemMatch: { recepcionId: rid, items: { $elemMatch: { lineaId: lid, confirmacion: { $exists: false } } } } } });
+  }
+
+  if (Object.keys(set).length > 0) update.$set = set;
   if (extra.unset) update.$unset = extra.unset;
   if (extra.inc) update.$inc = extra.inc;
-  return update;
-}
-
-function buildOptions(extra) {
   const options = { new: true, runValidators: true };
-  if (extra.arrayFilters) options.arrayFilters = extra.arrayFilters;
+  if (arrayFilters.length > 0) options.arrayFilters = arrayFilters;
   if (extra.session) options.session = extra.session;
-  return options;
+  return { filter: and.length > 0 ? { $and: [baseFilter, ...and] } : baseFilter, update, options };
 }
 
 RequisicionSchema.statics.computeMontoEstimado = computeMontoEstimado;

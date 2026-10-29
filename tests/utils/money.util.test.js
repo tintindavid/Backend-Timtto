@@ -121,7 +121,7 @@ describe('getNextRequisicionConsecutivo', () => {
 });
 
 describe('requisicion.constants transition table', () => {
-  it('matches the E1 state machine', () => {
+  it('matches the state machine (E1 + E2 reception)', () => {
     const T = REQUISICION_TRANSICIONES;
     const E = REQUISICION_ESTADO;
     assert.deepEqual([...T[E.BORRADOR]].sort(), [E.CANCELADA, E.ENVIADA].sort());
@@ -129,6 +129,10 @@ describe('requisicion.constants transition table', () => {
     assert.deepEqual([...T[E.EN_APROBACION]].sort(), [E.APROBADA, E.BORRADOR, E.CANCELADA, E.RECHAZADA].sort());
     assert.deepEqual([...T[E.RECHAZADA]].sort(), [E.BORRADOR, E.CANCELADA].sort());
     assert.deepEqual(T[E.CANCELADA], []);
-    assert.deepEqual(REQUISICION_ESTADOS_TERMINALES, [E.CANCELADA]);
+    // E2: reception states.
+    assert.deepEqual([...T[E.APROBADA]].sort(), [E.CANCELADA, E.CERRADA, E.EN_RECEPCION].sort());
+    assert.deepEqual([...T[E.EN_RECEPCION]].sort(), [E.CANCELADA, E.CERRADA].sort());
+    assert.deepEqual(T[E.CERRADA], []);
+    assert.deepEqual([...REQUISICION_ESTADOS_TERMINALES].sort(), [E.CANCELADA, E.CERRADA].sort());
   });
 });

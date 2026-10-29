@@ -207,6 +207,8 @@ export const PERMISSIONS = {
   REQUISICIONES_CANCEL: 'requisiciones:cancel',
   // Supervisor override: edit/delete/send/withdraw/reopen ANY draft and reassign approvers of a pending level.
   REQUISICIONES_MANAGE_ALL: 'requisiciones:manage-all',
+  // E2: register receptions, close lines short and cancel lines (confirming a delivery needs no role permission).
+  REQUISICIONES_RECEIVE: 'requisiciones:receive',
 
   // Areas (organizational structure of the requisitions module)
   AREAS_READ: 'areas:read',

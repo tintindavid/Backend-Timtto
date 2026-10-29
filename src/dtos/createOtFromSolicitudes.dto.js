@@ -14,5 +14,12 @@ export const createOtFromSolicitudesDto = Joi.object({
   fechaFin: Joi.date().iso().min(Joi.ref('fechaInicio')).required().label('fechaFin'),
   nota: Joi.string().trim().allow('').max(2000).optional().label('nota'),
   OtPrioridad: Joi.string().valid('Baja', 'Media', 'Alta', 'Urgente').optional().label('OtPrioridad'),
+  // Requisiciones module: a requisiciones:manage-all user may skip the requisition with a reason (403 otherwise).
+  omitirRequisicion: Joi.boolean().optional().label('omitirRequisicion'),
+  motivoOmision: Joi.when('omitirRequisicion', {
+    is: true,
+    then: Joi.string().trim().min(3).max(500).required(),
+    otherwise: Joi.string().trim().min(3).max(500).optional(),
+  }).label('motivoOmision'),
   tenantId: Joi.string().optional(),
 });

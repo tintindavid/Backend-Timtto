@@ -14,7 +14,13 @@ import {
   aprobarRequisicionDto,
   rechazarRequisicionDto,
   reasignarAprobadoresDto,
+  registrarRecepcionDto,
+  confirmarEntregaDto,
+  cerrarLineaDto,
+  recepcionParamsDto,
+  lineaParamsDto,
 } from '../dtos/requisicion.dto.js';
+import { uploadRequisicionEvidencias, handleMulterError } from '../middlewares/upload.middleware.js';
 import { objectIdParamDto } from '../dtos/objectIdParam.dto.js';
 
 const router = Router();
@@ -37,5 +43,11 @@ router.post('/:id/aprobacion/aprobar', authorize(PERMISSIONS.REQUISICIONES_APPRO
 router.post('/:id/aprobacion/rechazar', authorize(PERMISSIONS.REQUISICIONES_APPROVE), validate(objectIdParamDto, 'params'), validate(rechazarRequisicionDto, 'body'), requisicionController.rechazar);
 // Supervisor override: replace the approvers of a pending level (requires requisiciones:manage-all).
 router.post('/:id/aprobacion/reasignar', authorize(PERMISSIONS.REQUISICIONES_MANAGE_ALL), validate(objectIdParamDto, 'params'), validate(reasignarAprobadoresDto, 'body'), requisicionController.reasignar);
+
+// E2 reception. Register / close a line: requisiciones:receive or manage-all. Confirm: NO role permission (the
+// service lets only the responsible of each solicitud, or manage-all, confirm; the capability gate still applies).
+router.post('/:id/recepciones', authorizeAny(PERMISSIONS.REQUISICIONES_RECEIVE, PERMISSIONS.REQUISICIONES_MANAGE_ALL), validate(objectIdParamDto, 'params'), uploadRequisicionEvidencias, handleMulterError, validate(registrarRecepcionDto, 'body'), requisicionController.registrarRecepcion);
+router.post('/:id/recepciones/:recepcionId/confirmar', validate(recepcionParamsDto, 'params'), validate(confirmarEntregaDto, 'body'), requisicionController.confirmarEntrega);
+router.post('/:id/lineas/:lineaId/cerrar', authorizeAny(PERMISSIONS.REQUISICIONES_RECEIVE, PERMISSIONS.REQUISICIONES_MANAGE_ALL), validate(lineaParamsDto, 'params'), validate(cerrarLineaDto, 'body'), requisicionController.cerrarLinea);
 
 export default router;

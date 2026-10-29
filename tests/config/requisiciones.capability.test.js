@@ -110,7 +110,7 @@ describe('route map for the Requisiciones module (scenario: Cobertura de rutas)'
 
 describe('Requisiciones permission catalog', () => {
   const EXPECTED = {
-    requisiciones: ['read', 'create', 'update', 'delete', 'send', 'approve', 'cancel', 'manage-all'],
+    requisiciones: ['read', 'create', 'update', 'delete', 'send', 'approve', 'cancel', 'manage-all', 'receive'],
     areas: ['read', 'create', 'update', 'delete'],
     'approval-rules': ['read', 'create', 'update', 'delete'],
     budgets: ['read', 'create', 'update', 'delete'],

@@ -36,13 +36,16 @@ describe('route table', () => {
     assert.deepEqual(got, [
       'DELETE /:id', 'GET /', 'GET /:id', 'PATCH /:id', 'PATCH /:id/estado', 'POST /',
       'POST /:id/aprobacion/aprobar', 'POST /:id/aprobacion/reasignar', 'POST /:id/aprobacion/rechazar', 'POST /:id/cancelar', 'POST /:id/enviar',
+      // E2 (reception)
+      'POST /:id/recepciones', 'POST /:id/recepciones/:recepcionId/confirmar', 'POST /:id/lineas/:lineaId/cerrar',
     ].sort());
     for (const r of routes) assert.ok(r.route.stack.length >= 3, `${r.method} ${r.path}`);
   });
 
   it('permissions: each guard denies a user with only an unrelated permission', () => {
     const user = { userId: 'u', tenantId: 'acme', role: 'user', permissions: [PERMISSIONS.AREAS_READ] };
-    for (const r of routes) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
+    // E2: confirming a delivery has no role permission by design (the service checks the responsible / manage-all).
+    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar'))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
     const approve = routes.find((r) => r.path === '/:id/aprobacion/aprobar');
     assert.equal(run(approve.route.stack[0].handle, { user: { ...user, permissions: [PERMISSIONS.REQUISICIONES_APPROVE] } }), undefined);
     const create = routes.find((r) => r.method === 'post' && r.path === '/');
@@ -171,10 +174,16 @@ describe('non-regression with the module off (4.7)', () => {
     const doc = new Repuestos({ tenantId: 'acme', requisicion: req, stockDescontadoPor: 'requisicion' });
     assert.equal('requisicion' in doc.toJSON(), false);
   });
-  it('legacy services do not reference the requisitions module', () => {
-    for (const f of ['repuestos.service.js', 'ot.service.js', 'repuestotrazabilidad.service.js']) {
-      const src = readFileSync(new URL(`../../src/services/${f}`, import.meta.url), 'utf8');
-      assert.equal(/requisicion/i.test(src), false, f);
+  it('legacy services do not reference the requisitions module (E2: Repuestos/OT only use the gated link, never the requisition services)', () => {
+    const trace = readFileSync(new URL('../../src/services/repuestotrazabilidad.service.js', import.meta.url), 'utf8');
+    assert.equal(/requisicion/i.test(trace), false, 'repuestotrazabilidad.service.js');
+    // E2 (requisiciones-e2-solicitudes-recepcion) legitimately reads the link fields in these two, always behind the
+    // usesRequisiciones capability, but they never import the requisition services or models.
+    for (const f of ['repuestos.service.js', 'ot.service.js']) {
+      const src = readFileSync(new URL(`../../src/services/${f}`, import.meta.url), 'utf8')
+        // adversarial A6: the lazy self-heal helper of the link (healStaleLinks) is the one allowed import in repuestos.service
+        .replace("import { healStaleLinks } from './requisicionSolicitudSync.service.js';", '');
+      assert.equal(/import[^;]*requisicion(\.service|Transition|Approval|Notify|SolicitudSync)|models\/requisicion\.model/i.test(src), false, f);
     }
   });
 });
