@@ -224,7 +224,7 @@ describe('transition table (every invalid pair is a 409 without mutation)', () =
       rechazar: (id) => rejectV(id, actor(s.jefe), { observacion: 'no' }),
       cancelar: (id) => requisicionService.cancelar(T, id, actor(s.creator), { motivo: 'x' }),
     };
-    const valid = { enviar: ['Borrador'], retirar: ['En_Aprobacion', 'Rechazada'], aprobar: ['En_Aprobacion'], rechazar: ['En_Aprobacion'], cancelar: ['Borrador', 'Enviada', 'En_Aprobacion', 'Aprobada', 'Rechazada'] };
+    const valid = { enviar: ['Borrador'], retirar: ['En_Aprobacion', 'Rechazada'], aprobar: ['En_Aprobacion'], rechazar: ['En_Aprobacion'], cancelar: ['Borrador', 'Enviada', 'En_Aprobacion', 'Aprobada', 'En_Recepcion', 'Rechazada'] };
     for (const [name, fn] of Object.entries(ops)) {
       for (const estado of REQUISICION_ESTADO_VALUES.filter((e) => !valid[name].includes(e))) {
         const d = w.seedRequisicion({ estado, creadaPor: s.creator._id, solicitanteId: s.creator._id });

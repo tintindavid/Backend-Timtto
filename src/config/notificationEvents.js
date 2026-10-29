@@ -31,4 +31,10 @@ export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed', 'ot.responsib
   'requisicion.approved',
   'requisicion.rejected',
   'requisicion.withdrawn',
-  'requisicion.cancelled'];
+  'requisicion.cancelled',
+  // requisiciones-e2-solicitudes-recepcion — reception, delivery confirmation and closure
+  'requisicion.delivery.registered',
+  'requisicion.delivery.confirmed',
+  'requisicion.delivery.disputed',
+  'requisicion.line.closed',
+  'requisicion.closed'];

@@ -64,7 +64,7 @@ describe('assertCustomerKind call sites', () => {
     delete EquipoItem.create; delete EquipoItem.findOne; delete EquipoItem.findById;
     delete EquipoItem.findOneAndUpdate; delete EquipoItem.findByIdAndUpdate;
     delete OT.create; delete Report.create; delete SheetWork.create;
-    delete Repuestos.create; delete Repuestos.findById; delete Repuestos.findByIdAndUpdate;
+    delete Repuestos.create; delete Repuestos.findById; delete Repuestos.findByIdAndUpdate; delete Repuestos.findOne; delete Repuestos.findOneAndUpdate;
     delete Sedes.findOne; delete Servicios.findOne;
   });
 
@@ -126,9 +126,9 @@ describe('assertCustomerKind call sites', () => {
 
   it('repuestos.update when ClienteId is part of the payload', async () => {
     stubCustomers();
-    Repuestos.findById = () => ({ lean: () => Promise.resolve({ _id: 'r1', tenantId: TENANT_A }) });
-    Repuestos.findByIdAndUpdate = async () => { throw SENTINEL; };
-    await assert.rejects(() => repuestosService.update('r1', { ClienteId: PROVIDER_ID }), isProvider);
+    Repuestos.findOne = () => ({ lean: () => Promise.resolve({ _id: 'r1', tenantId: TENANT_A }) });
+    Repuestos.findOneAndUpdate = async () => { throw SENTINEL; };
+    await assert.rejects(() => repuestosService.update('r1', { ClienteId: PROVIDER_ID }, TENANT_A), isProvider);
   });
 
   it('serviceQr.create rejects a provider and keeps 404 for a foreign customer', async () => {

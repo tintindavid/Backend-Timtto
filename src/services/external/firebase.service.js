@@ -21,6 +21,8 @@ const MIME_TO_EXT_ACT_EXT = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
 };
 const MAX_ACT_EXT_SIZE = 10 * 1024 * 1024;
+const REQUISICION_EVIDENCIA_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const REQUISICION_EVIDENCIA_MAX_SIZE = 5 * 1024 * 1024;
 
 /**
  * Servicio para gestionar archivos en Firebase Storage
@@ -470,6 +472,42 @@ export class FirebaseStorageService {
       if (error instanceof ApiError) throw error;
       logger.error('Error subiendo documento de HV equipo:', error);
       throw new ApiError(500, 'Error subiendo documento a storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
+   * Uploads a reception evidence of a requisition (image or PDF, max 5 MB). Validates MIME, size and magic bytes
+   * BEFORE uploading (same pattern as the HV documents).
+   * Path: tenants/<tenantId>/requisiciones/<requisicionId>/recepciones/<timestamp>-<safe name>
+   * @returns {Promise<{ nombre: string, url: string, tipo: string, storagePath: string }>}
+   */
+  async uploadRequisicionEvidencia(fileBuffer, originalName, mimetype, { tenantId, requisicionId }) {
+    if (!REQUISICION_EVIDENCIA_MIME.includes(mimetype)) {
+      throw new ApiError(400, 'Tipo de archivo no permitido. Usa imágenes JPG, PNG, WebP o PDF.', 'INVALID_FILE_TYPE');
+    }
+    if (fileBuffer.length > REQUISICION_EVIDENCIA_MAX_SIZE) {
+      throw new ApiError(400, 'El archivo es demasiado grande. Máximo 5MB.', 'FILE_TOO_LARGE');
+    }
+    const detected = await fileTypeFromBuffer(fileBuffer);
+    if (!detected || detected.mime !== mimetype) {
+      throw new ApiError(400, 'El contenido del archivo no coincide con su extensión declarada.', 'FILE_CONTENT_MISMATCH');
+    }
+    try {
+      const deps = this.storageDeps;
+      const storage = deps.getFirebaseStorage();
+      const safe = String(originalName || 'evidencia').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
+      const storagePath = `tenants/${tenantId}/requisiciones/${requisicionId}/recepciones/${Date.now()}-${uuidv4().slice(0, 8)}-${safe}`;
+      const storageRef = deps.ref(storage, storagePath);
+      await deps.uploadBytes(storageRef, fileBuffer, {
+        contentType: mimetype,
+        customMetadata: { originalName: String(originalName || ''), uploadedAt: new Date().toISOString() },
+      });
+      const url = await deps.getDownloadURL(storageRef);
+      return { nombre: String(originalName || safe).slice(0, 300), url, tipo: mimetype, storagePath };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error subiendo evidencia de recepción de requisición:', error);
+      throw new ApiError(500, 'Error subiendo la evidencia a storage', 'UPLOAD_ERROR');
     }
   }
 

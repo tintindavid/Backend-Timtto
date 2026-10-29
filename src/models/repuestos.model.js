@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { REPUESTO_DISPONIBILIDAD_VALUES } from '../constants/requisicion.constants.js';
 
 const { Schema, model } = mongoose;
 
@@ -34,10 +35,10 @@ const RepuestosSchema = new Schema({
       type: new Schema({
         requisicionId: { type: Schema.Types.ObjectId, ref: 'Requisicion' },
         lineaId: { type: Schema.Types.ObjectId },
-        disponibilidad: {
-          type: String,
-          enum: ['En_Requisicion', 'En_Aprobacion', 'En_Compra', 'En_Camino', 'Disponible', 'Cancelada'],
-        },
+        // E2: denormalized summary of the link (written only by requisicionSolicitudSync / the conversion service).
+        consecutivo: { type: String, trim: true },
+        disponibilidad: { type: String, enum: REPUESTO_DISPONIBILIDAD_VALUES },
+        cantidadConfirmada: { type: Number, min: 0 },
       }, { _id: false }),
       default: undefined,
     },
@@ -54,6 +55,8 @@ const RepuestosSchema = new Schema({
 RepuestosSchema.index({ tenantId: 1, isDeleted: 1 });
 RepuestosSchema.index({ tenantId: 1, createdAt: -1 });
 RepuestosSchema.index({ tenantId: 1, EstadoSolicitud: 1, ClienteId: 1 });
+// E2: solicitudes linked to a requisition (sync service, eligibility checks).
+RepuestosSchema.index({ tenantId: 1, 'requisicion.requisicionId': 1 });
 
 // Exclude sensitive fields
 RepuestosSchema.set('toJSON', {

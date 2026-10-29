@@ -173,7 +173,7 @@ describe('requisicion events and payloads', () => {
     for (const e of Object.keys(REQUISICION_PAYLOAD_BUILDERS)) {
       assert.ok(NOTIFICATION_EVENTS.includes(e), e);
     }
-    assert.equal(Object.keys(REQUISICION_PAYLOAD_BUILDERS).length, 7);
+    assert.equal(Object.keys(REQUISICION_PAYLOAD_BUILDERS).length, 12);
   });
 
   it('payload deep-links to /requisiciones/:id', () => {

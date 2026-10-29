@@ -68,6 +68,8 @@ export const CAPABILITY_ROUTE_MAP = Object.freeze([
   // Endpoints of "common" mounts that still create work orders and reports (found by the security audit).
   { prefix: '/api/v1/tickets/work-order', capability: 'executesServices' },
   { prefix: '/api/v1/repuestos/ot-from-solicitudes', capability: 'executesServices' },
+  // NOTE: `POST /api/v1/repuestos/requisicion` (requisiciones-e2) is NOT mapped on purpose: it lives under the common
+  // `/repuestos` mount, so the usesRequisiciones capability is checked in repuestoRequisicionService (403 CAPABILITY_DISABLED).
   // Premium module "Servicios de terceros" (registersExternal): external activities and external services,
   // reads included (modulos-premium-por-tenant).
   { prefix: '/api/v1/cronogramas/actividades-externas', capability: 'registersExternal', blockReads: true },

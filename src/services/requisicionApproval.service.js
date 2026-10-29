@@ -10,6 +10,7 @@ import { findDistinctAssignment } from '../utils/approverAssignment.util.js';
 import { eligibleIdsForRule, usersWithApprove, assertLevelsFeasible } from './requisicionEligibility.service.js';
 import { atomicWrite, transition } from './requisicionTransition.service.js';
 import { notifyRequisicion, currentPendingLevel } from './requisicionNotify.service.js';
+import { syncRequisicionSolicitudesSafe } from './requisicionSolicitudSync.service.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import {
   APROBADOR_TIPO,
@@ -233,6 +234,7 @@ export class RequisicionApprovalService {
         ],
         set: { 'aprobacion.niveles': decided, 'aprobacion.nivelActual': null, aprobadaAt: now },
       });
+      await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
       notifyRequisicion(tenantId, 'requisicion.approved', updated, ctx);
     }
     logger.info('Requisicion nivel aprobado: ' + doc._id);
@@ -279,6 +281,7 @@ export class RequisicionApprovalService {
       ],
       set: { 'aprobacion.niveles': decided, 'aprobacion.nivelActual': null, rechazadaAt: now },
     });
+    await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
     notifyRequisicion(tenantId, 'requisicion.rejected', updated, { actorId: actor.userId, actorName: actor.name, nivel, reason: observacion });
     logger.info('Requisicion rechazada: ' + doc._id);
     return toPublicPopulated(updated);

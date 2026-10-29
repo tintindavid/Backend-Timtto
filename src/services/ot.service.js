@@ -294,7 +294,10 @@ export class OTService {
 
         // Stock is only validated and discounted by tenants with the advanced inventory level
         // (inventario-stock); basic tenants complete the OT without touching stock.
-        const needsStock = repuestos.some((r) => r.InventarioItemId && Number(r.CantidadInstalacion || 0) > 0);
+        // A repuesto whose stock was already discounted by the Requisiciones module (confirmed delivery) is never
+        // discounted again here: it is only marked Instalado in pass 2.
+        const alreadyDiscounted = (r) => r.stockDescontadoPor === 'requisicion';
+        const needsStock = repuestos.some((r) => r.InventarioItemId && !alreadyDiscounted(r) && Number(r.CantidadInstalacion || 0) > 0);
         const discountsStock = needsStock && (await isModuleEnabled(t, 'usesInventoryAdvanced'));
 
         // Pass 1: discount stock for every repuesto BEFORE marking anything Instalado. Inside a transaction a
@@ -306,7 +309,7 @@ export class OTService {
           try {
             for (const repuesto of repuestos) {
               const qty = Number(repuesto.CantidadInstalacion || 0);
-              if (!repuesto.InventarioItemId || qty <= 0) continue;
+              if (!repuesto.InventarioItemId || qty <= 0 || alreadyDiscounted(repuesto)) continue;
               // Atomic decrement with stock guard + kardex row; fails the (txn or plain) op if stock is insufficient.
               await inventarioMovimientoService.create(
                 t,
