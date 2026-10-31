@@ -1,3 +1,10 @@
+## [2.26.2](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.1...v2.26.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **repuestos:** scope update and delete by tenant (cross-tenant IDOR) ([#48](https://github.com/tintindavid/Backend-Timtto/issues/48)) ([401a64b](https://github.com/tintindavid/Backend-Timtto/commit/401a64b2fac601927f68009578d90d6f5f6e80ea))
+
 ## [2.26.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.0...v2.26.1) (2026-10-31)
 
 
