@@ -1,3 +1,10 @@
+## [2.26.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.0...v2.26.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **requisiciones:** limit permission backfill to admin and system roles ([#46](https://github.com/tintindavid/Backend-Timtto/issues/46)) ([bf43dc2](https://github.com/tintindavid/Backend-Timtto/commit/bf43dc222e95cbce69588b199b9e4ad61e72e426))
+
 # [2.26.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.25.0...v2.26.0) (2026-10-27)
 
 
