@@ -53,15 +53,15 @@ describe('Repuestos InventarioItemId validation', () => {
     stubCatalog([{ _id: ITEM, tenantId: 'tenant-b' }]);
     let updated = 0;
     const current = { tenantId: 'tenant-a', InventarioItemId: '507f1f77bcf86cd799439030' };
-    stub(Repuestos, 'findById', () => ({ lean: async () => current }));
-    stub(Repuestos, 'findByIdAndUpdate', async () => { updated += 1; return { _id: 'r', tenantId: 'tenant-a' }; });
+    stub(Repuestos, 'findOne', () => ({ lean: async () => current }));
+    stub(Repuestos, 'findOneAndUpdate', async () => { updated += 1; return { _id: 'r', tenantId: 'tenant-a' }; });
     await assert.rejects(
-      () => repuestosService.update('r', { InventarioItemId: ITEM }),
+      () => repuestosService.update('r', { InventarioItemId: ITEM }, 'tenant-a'),
       (e) => e.code === 'INVENTARIO_ITEM_NOT_FOUND',
     );
     assert.equal(updated, 0);
     // unchanged item id: no lookup, update goes through even if the item was later deleted
-    await repuestosService.update('r', { InventarioItemId: current.InventarioItemId });
+    await repuestosService.update('r', { InventarioItemId: current.InventarioItemId }, 'tenant-a');
     assert.equal(updated, 1);
   });
 });

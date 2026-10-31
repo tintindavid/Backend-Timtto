@@ -9,6 +9,7 @@ import { updateRepuestosDto } from '../dtos/updateRepuestos.dto.js';
 import { queryRepuestosDto } from '../dtos/queryRepuestos.dto.js';
 import { paramsRepuestosByReportDto } from '../dtos/paramsRepuestosByReport.dto.js';
 import { paramsRepuestosByEquipoDto } from '../dtos/paramsRepuestosByEquipo.dto.js';
+import { paramsRepuestosIdDto } from '../dtos/paramsRepuestosId.dto.js';
 import { createOtFromSolicitudesDto } from '../dtos/createOtFromSolicitudes.dto.js';
 
 const router = Router();
@@ -20,9 +21,9 @@ router.get('/', authorize(PERMISSIONS.REPUESTOS_READ), validate(queryRepuestosDt
 router.get('/equipo/:equipoId/all', authorize(PERMISSIONS.REPUESTOS_READ), validate(paramsRepuestosByEquipoDto, 'params'), validate(queryRepuestosDto, 'query'), repuestosController.listByEquipoAll);
 router.get('/equipo/:equipoId', authorize(PERMISSIONS.REPUESTOS_READ), validate(paramsRepuestosByEquipoDto, 'params'), validate(queryRepuestosDto, 'query'), repuestosController.listByEquipo);
 router.get('/reporte/:reportId', authorize(PERMISSIONS.REPUESTOS_READ), validate(paramsRepuestosByReportDto, 'params'), validate(queryRepuestosDto, 'query'), repuestosController.listByReport);
-router.get('/:id', authorize(PERMISSIONS.REPUESTOS_READ), repuestosController.getById);
-router.put('/:id', authorize(PERMISSIONS.REPUESTOS_UPDATE), validate(updateRepuestosDto, 'body'), repuestosController.update);
-router.patch('/:id', authorize(PERMISSIONS.REPUESTOS_UPDATE), validate(updateRepuestosDto, 'body'), repuestosController.update);
-router.delete('/:id', authorize(PERMISSIONS.REPUESTOS_DELETE), repuestosController.delete);
+router.get('/:id', authorize(PERMISSIONS.REPUESTOS_READ), validate(paramsRepuestosIdDto, 'params'), repuestosController.getById);
+router.put('/:id', authorize(PERMISSIONS.REPUESTOS_UPDATE), validate(paramsRepuestosIdDto, 'params'), validate(updateRepuestosDto, 'body'), repuestosController.update);
+router.patch('/:id', authorize(PERMISSIONS.REPUESTOS_UPDATE), validate(paramsRepuestosIdDto, 'params'), validate(updateRepuestosDto, 'body'), repuestosController.update);
+router.delete('/:id', authorize(PERMISSIONS.REPUESTOS_DELETE), validate(paramsRepuestosIdDto, 'params'), repuestosController.delete);
 
 export default router;
