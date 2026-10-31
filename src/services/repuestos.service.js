@@ -269,6 +269,9 @@ export class RepuestosService {
   async update(id, data, tenantId = undefined, capabilities = undefined) {
     requireTenant(tenantId); // fail closed: never run an unscoped filter
     try {
+      // Never let the body move a document across tenants.
+      const { tenantId: _ignored, ...safeData } = data || {};
+      data = safeData;
       // Tenant-scoped: a foreign id is indistinguishable from a missing one (404).
       const current = await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
       if (!current) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });

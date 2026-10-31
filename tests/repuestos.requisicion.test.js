@@ -713,9 +713,9 @@ describe('POST /repuestos/requisicion: route guards and controller', () => {
 
 describe('/repuestos/:id routes: ObjectId param validation (security L11)', () => {
   it('get, put, patch and delete reject a malformed id with 400 before reaching the service', async () => {
-    const { paramsRepuestosByIdDto } = await import('../src/dtos/paramsRepuestosById.dto.js');
-    assert.ok(paramsRepuestosByIdDto.validate({ id: 'not-an-id' }).error);
-    assert.equal(paramsRepuestosByIdDto.validate({ id: OID }).error, undefined);
+    const { paramsRepuestosIdDto } = await import('../src/dtos/paramsRepuestosId.dto.js');
+    assert.ok(paramsRepuestosIdDto.validate({ id: 'not-an-id' }).error);
+    assert.equal(paramsRepuestosIdDto.validate({ id: OID }).error, undefined);
     for (const [method, controllerFn] of [['get', repuestosController.getById], ['put', repuestosController.update], ['patch', repuestosController.update], ['delete', repuestosController.delete]]) {
       const route = router.stack.find((l) => l.route && l.route.path === '/:id' && l.route.methods[method]).route;
       const handlers = route.stack.map((l) => l.handle);
