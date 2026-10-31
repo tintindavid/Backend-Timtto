@@ -1,3 +1,10 @@
+# [2.27.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.2...v2.27.0) (2026-10-31)
+
+
+### Features
+
+* **requisiciones:** connect spare-part requests with requisitions and reception (E2) ([#47](https://github.com/tintindavid/Backend-Timtto/issues/47)) ([6192c35](https://github.com/tintindavid/Backend-Timtto/commit/6192c35a1cc1df0f497adb5fbc074ca379453f78))
+
 ## [2.26.2](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.1...v2.26.2) (2026-10-31)
 
 
