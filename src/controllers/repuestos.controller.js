@@ -1,4 +1,6 @@
 import { repuestosService } from '../services/repuestos.service.js';
+import { repuestoRequisicionService } from '../services/repuestoRequisicion.service.js';
+import { PERMISSIONS } from '../constants/permissions.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 
 export class RepuestosController {
@@ -12,14 +14,14 @@ export class RepuestosController {
   async list(req, res, next) {
     try {
       const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await repuestosService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const result = await repuestosService.list(filters, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(result.data, 'Repuestoss recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
 
   async getById(req, res, next) {
     try {
-      const data = await repuestosService.getById(req.params.id, req.tenantId);
+      const data = await repuestosService.getById(req.params.id, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(data, 'Repuestos recuperado exitosamente'));
     } catch (err) { next(err); }
   }
@@ -32,7 +34,7 @@ export class RepuestosController {
         const { estado } = req.query;
         // Si no se especifica estado, excluir 'Instalado' y 'Rechazado' por defecto
         const estadoFilter = estado ? (Array.isArray(estado) ? estado : [estado]) : ['Instalado', 'Rechazado'];
-        const result = await repuestosService.listByEquipo(equipoId, estadoFilter, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+        const result = await repuestosService.listByEquipo(equipoId, estadoFilter, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(result.data, 'Repuestos por equipo recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
@@ -41,7 +43,7 @@ export class RepuestosController {
     try {
       const { equipoId } = req.params;
       const { page, limit, sortBy, order } = req.query;
-      const result = await repuestosService.listByEquipo(equipoId, null, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const result = await repuestosService.listByEquipo(equipoId, null, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(result.data, 'Repuestos por equipo recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
@@ -50,14 +52,14 @@ export class RepuestosController {
     try {
       const { reportId } = req.params;
       const { page, limit, sortBy, order } = req.query;
-      const result = await repuestosService.listByReport(reportId, { page, limit, sortBy, order, search: req.query.search }, req.tenantId);
+      const result = await repuestosService.listByReport(reportId, { page, limit, sortBy, order, search: req.query.search }, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(result.data, 'Repuestos por reporte recuperados exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
 
   async update(req, res, next) {
     try {
-      const data = await repuestosService.update(req.params.id, req.body, req.tenantId);
+      const data = await repuestosService.update(req.params.id, req.body, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(data, 'Repuestos actualizado exitosamente'));
     } catch (err) { next(err); }
   }
@@ -69,9 +71,24 @@ export class RepuestosController {
     } catch (err) { next(err); }
   }
 
+  // Requisiciones module: creates a requisition from spare-part requests (capability checked in the service).
+  async createRequisicion(req, res, next) {
+    try {
+      const canManageAll = req.user?.role === 'superadmin'
+        || (Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.REQUISICIONES_MANAGE_ALL));
+      const actor = {
+        userId: req.user?.userId,
+        name: req.user?.fullName || req.user?.userName || req.user?.email,
+        canManageAll,
+      };
+      const data = await repuestoRequisicionService.createFromSolicitudes(req.tenantId, actor, req.body, req.tenant?.capabilities);
+      res.status(201).json(successResponse(data, 'Requisición creada desde solicitudes de repuestos', 201));
+    } catch (err) { next(err); }
+  }
+
   async delete(req, res, next) {
     try {
-      await repuestosService.delete(req.params.id, req.tenantId);
+      await repuestosService.delete(req.params.id, req.tenantId, req.tenant?.capabilities);
       res.json(successResponse(null, 'Repuestos eliminado exitosamente'));
     } catch (err) { next(err); }
   }

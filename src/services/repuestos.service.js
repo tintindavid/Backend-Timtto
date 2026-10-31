@@ -16,6 +16,11 @@ import { applyOwnCustomerOnCreate } from '../utils/ownCustomerScope.util.js';
 import { nameShort } from '../utils/nameShort.util.js';
 import { notificationService } from './notification.service.js';
 import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
+import { isCapabilityOn } from '../utils/tenantModules.util.js';
+import { presentRepuesto, presentRepuestos, requisicionEstadoFilter } from '../utils/repuestoRequisicion.util.js';
+import { healStaleLinks } from './requisicionSolicitudSync.service.js';
+import { PERMISSIONS } from '../constants/permissions.js';
+import { REPUESTO_DISPONIBILIDAD } from '../constants/requisicion.constants.js';
 
 // The linked inventory item must belong to the tenant and not be soft-deleted (the model hook hides deleted
 // docs); otherwise OT completion would later fail on the stock discount.
@@ -24,6 +29,77 @@ async function assertInventarioItem(itemId, tenantId) {
   if (!item) {
     throw new ApiError(400, 'El ítem de inventario no existe para este tenant', 'INVENTARIO_ITEM_NOT_FOUND', { InventarioItemId: String(itemId) });
   }
+}
+
+// --- Requisiciones module (requisiciones-e2-solicitudes-recepcion) -----------------------------------------------
+// Everything below is conditioned on the tenant having `usesRequisiciones` AND the solicitud being linked; without the
+// module the behaviour of this service is exactly the previous one.
+
+const canManageAllOf = (actor) => actor?.role === 'superadmin'
+  || (Array.isArray(actor?.permissions) && actor.permissions.includes(PERMISSIONS.REQUISICIONES_MANAGE_ALL));
+
+function lockedError(current) {
+  const r = current.requisicion || {};
+  return new ApiError(409, 'La solicitud está en una requisición y aún no está disponible', 'SOLICITUD_EN_REQUISICION', {
+    requisicionId: r.requisicionId ? String(r.requisicionId) : null,
+    consecutivo: r.consecutivo ?? null,
+    disponibilidad: r.disponibilidad ?? null,
+  });
+}
+
+/** True when the solicitud is linked to a requisition and not yet Disponible. */
+const isLinkedAndPending = (row) => Boolean(row?.requisicion?.requisicionId)
+  && row.requisicion.disponibilidad !== REPUESTO_DISPONIBILIDAD.DISPONIBLE;
+
+/** Would `data` change a field that a linked, not available solicitud must keep? */
+const blank = (v) => v === undefined || v === null || v === '';
+function differs(next, prev) {
+  if (blank(next) && blank(prev)) return false;
+  if (blank(next) || blank(prev)) return true;
+  const a = Number(next);
+  const b = Number(prev);
+  if (typeof next !== 'object' && typeof prev !== 'object' && Number.isFinite(a) && Number.isFinite(b)) return a !== b;
+  return String(next).trim() !== String(prev).trim();
+}
+
+function dateDiffers(next, prev) {
+  if (blank(next) && blank(prev)) return false;
+  if (blank(next) || blank(prev)) return true;
+  const a = new Date(next).getTime();
+  const b = new Date(prev).getTime();
+  return Number.isNaN(a) || Number.isNaN(b) ? String(next) !== String(prev) : a !== b;
+}
+
+/**
+ * 3.5: once the requisition discounted the stock (marker `stockDescontadoPor = 'requisicion'`) the OT completion skips the
+ * whole discount, so installing MORE than what was confirmed would under-discount stock: refuse it.
+ */
+function assertInstallWithinConfirmed(current, data) {
+  if (current.stockDescontadoPor !== 'requisicion' || data.CantidadInstalacion === undefined || blank(data.CantidadInstalacion)) return;
+  const confirmed = Number(current.requisicion?.cantidadConfirmada) || 0;
+  if (Number(data.CantidadInstalacion) > confirmed) {
+    throw new ApiError(409, `No puedes instalar más de lo confirmado en la requisición (${confirmed}): el stock de esa entrega ya fue descontado.`, 'CANTIDAD_EXCEDE_CONFIRMADA', {
+      cantidadConfirmada: confirmed, cantidadInstalacion: Number(data.CantidadInstalacion),
+    });
+  }
+}
+
+function touchesLockedFields(current, data) {
+  // ANY status change is locked (Rechazado / arbitrary values included): the requisition decides the lifecycle.
+  if (data.EstadoSolicitud !== undefined && data.EstadoSolicitud !== current.EstadoSolicitud) return true;
+  for (const f of ['CantidadInstalacion', 'OrdenId', 'EquipoId', 'PrecioRepuesto']) {
+    if (data[f] !== undefined && differs(data[f], current[f])) return true;
+  }
+  // 3.5: the item, the reports, the installer and the installation date are part of the same locked bundle.
+  for (const f of ['InventarioItemId', 'ReporteSolicitudId', 'ReporteInstalacionId', 'ResponsableInstalacion']) {
+    if (data[f] !== undefined && differs(data[f], current[f])) return true;
+  }
+  if (data.FechaInstalacion !== undefined && dateDiffers(data.FechaInstalacion, current.FechaInstalacion)) return true;
+  if (data.nombre !== undefined && String(data.nombre).trim() !== String(current.nombre ?? '').trim()) return true;
+  if (data.Cantidad !== undefined && String(data.Cantidad).trim() !== String(current.Cantidad ?? '').trim()) return true;
+  // The responsible is the one who confirms the delivery (requisition-reception): it cannot be reassigned meanwhile.
+  if (data.ResponsableSolicitud !== undefined && String(data.ResponsableSolicitud) !== String(current.ResponsableSolicitud ?? '')) return true;
+  return false;
 }
 
 export class RepuestosService {
@@ -59,12 +135,15 @@ export class RepuestosService {
     }
   }
 
-  async list(filters = {}, pagination = {}, tenantId) {
+  async list(filters = {}, pagination = {}, tenantId, capabilities = undefined) {
     try {
+      const moduleOn = await isCapabilityOn(tenantId, 'usesRequisiciones', capabilities);
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
-      const { estado, clienteId, ...restFilters } = filters;
+      const { estado, clienteId, requisicionEstado, ...restFilters } = filters;
       const queryFilters = { ...restFilters, isDeleted: false };
+      // The requisition filter only exists with the module on; otherwise it is ignored (the field never appears).
+      if (moduleOn) Object.assign(queryFilters, requisicionEstadoFilter(requisicionEstado));
       if (estado) queryFilters.EstadoSolicitud = estado;
       if (clienteId) queryFilters.ClienteId = clienteId;
       const query = applyTenantFilter(queryFilters, tenantId);
@@ -85,8 +164,9 @@ export class RepuestosService {
           .lean(),
         Repuestos.countDocuments(query),
       ]);
+      if (moduleOn) await healStaleLinks(tenantId, data);
       return {
-        data,
+        data: presentRepuestos(data, moduleOn),
         pagination: {
           page, limit, total, pages: Math.ceil(total / limit), hasNext: page < Math.ceil(total / limit), hasPrev: page > 1
         }
@@ -97,11 +177,17 @@ export class RepuestosService {
     }
   }
 
-  async getById(id, tenantId) {
+  async getById(id, tenantId, capabilities = undefined) {
     try {
       const e = await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId));
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
-      return e;
+      // Only a linked solicitud needs the module lookup; an unlinked one is returned as before.
+      if (!e.requisicion?.requisicionId) return e;
+      const moduleOn = await isCapabilityOn(tenantId || e.tenantId, 'usesRequisiciones', capabilities);
+      if (moduleOn && (await healStaleLinks(e.tenantId, [e.toObject ? e.toObject() : { ...e }])).length > 0) {
+        return presentRepuesto(await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId)), moduleOn);
+      }
+      return presentRepuesto(e, moduleOn);
     } catch (err) {
       if (err instanceof ApiError) throw err;
       logger.error('Error obteniendo repuestos:', err);
@@ -109,8 +195,9 @@ export class RepuestosService {
     }
   }
 
-  async listByEquipo(equipoId, estado, pagination = {}, tenantId) {
+  async listByEquipo(equipoId, estado, pagination = {}, tenantId, capabilities = undefined) {
     try {
+      const moduleOn = await isCapabilityOn(tenantId, 'usesRequisiciones', capabilities);
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
       const baseFilter = { EquipoId: equipoId, isDeleted: false };
@@ -133,8 +220,9 @@ export class RepuestosService {
         .sort(sort).skip(skip).limit(limit).lean(),
         Repuestos.countDocuments(query),
       ]);
+      if (moduleOn) await healStaleLinks(tenantId, data);
       return {
-        data,
+        data: presentRepuestos(data, moduleOn),
         pagination: { page, limit, total, pages: Math.ceil(total / limit), hasNext: page < Math.ceil(total / limit), hasPrev: page > 1 }
       };
     } catch (err) {
@@ -143,8 +231,9 @@ export class RepuestosService {
     }
   }
 
-  async listByReport(reportId, pagination = {}, tenantId) {
+  async listByReport(reportId, pagination = {}, tenantId, capabilities = undefined) {
     try {
+      const moduleOn = await isCapabilityOn(tenantId, 'usesRequisiciones', capabilities);
       const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
       const baseFilter = { isDeleted: false, $or: [ { ReporteInstalacionId: reportId }, { ReporteSolicitudId: reportId } ] };
@@ -166,8 +255,9 @@ export class RepuestosService {
           .sort(sort).skip(skip).limit(limit).lean(),
         Repuestos.countDocuments(query),
       ]);
+      if (moduleOn) await healStaleLinks(tenantId, data);
       return {
-        data,
+        data: presentRepuestos(data, moduleOn),
         pagination: { page, limit, total, pages: Math.ceil(total / limit), hasNext: page < Math.ceil(total / limit), hasPrev: page > 1 }
       };
     } catch (err) {
@@ -176,14 +266,24 @@ export class RepuestosService {
     }
   }
 
-  async update(id, data, tenantId) {
+  async update(id, data, tenantId = undefined, capabilities = undefined) {
+    requireTenant(tenantId); // fail closed: never run an unscoped filter
     try {
-      requireTenant(tenantId);
       // Never let the body move a document across tenants.
       const { tenantId: _ignored, ...safeData } = data || {};
       data = safeData;
+      // Tenant-scoped: a foreign id is indistinguishable from a missing one (404).
       const current = await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
       if (!current) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
+      // Requisiciones lock: only a LINKED solicitud that is not Disponible, and only with the module on.
+      let moduleOn = false;
+      if (current?.requisicion?.requisicionId) {
+        moduleOn = await isCapabilityOn(current.tenantId, 'usesRequisiciones', capabilities);
+        // A link to a missing / deleted / cancelled / rejected requisition is stale: release it instead of locking.
+        if (moduleOn) await healStaleLinks(current.tenantId, [current]);
+        if (moduleOn && isLinkedAndPending(current) && touchesLockedFields(current, data)) throw lockedError(current);
+        if (moduleOn) assertInstallWithinConfirmed(current, data);
+      }
       if (data.ClienteId && current?.tenantId) await assertCustomerKindIfChanged(data.ClienteId, current.ClienteId, current.tenantId);
       if (data.InventarioItemId && current?.tenantId && String(data.InventarioItemId) !== String(current.InventarioItemId || '')) {
         await assertInventarioItem(data.InventarioItemId, current.tenantId);
@@ -200,7 +300,7 @@ export class RepuestosService {
         });
       }
       logger.info('Repuestos actualizado: ' + id);
-      return e;
+      return e.requisicion?.requisicionId ? presentRepuesto(e, moduleOn) : e;
     } catch (err) {
       if (err instanceof ApiError) throw err;
       logger.error('Error actualizando repuestos:', err);
@@ -208,9 +308,15 @@ export class RepuestosService {
     }
   }
 
-  async delete(id, tenantId) {
+  async delete(id, tenantId = undefined, capabilities = undefined) {
+    requireTenant(tenantId); // fail closed: never run an unscoped filter
     try {
-      requireTenant(tenantId);
+      const current = await Repuestos.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+      if (!current) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
+      if (current?.requisicion?.requisicionId && (await isCapabilityOn(current.tenantId, 'usesRequisiciones', capabilities))) {
+        await healStaleLinks(current.tenantId, [current]);
+        if (isLinkedAndPending(current)) throw lockedError(current);
+      }
       const e = await Repuestos.findOneAndUpdate(applyTenantFilter({ _id: id }, tenantId), { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
       if (!e) throw new ApiError(404, 'Repuestos no encontrado', 'NOT_FOUND', { id });
       logger.info('Repuestos eliminado (soft): ' + id);
@@ -260,6 +366,36 @@ export class RepuestosService {
       const invalidEstado = repuestos.find((r) => (r.EstadoSolicitud || 'Solicitado') !== 'Solicitado');
       if (invalidEstado) {
         throw new ApiError(400, 'Solo se pueden procesar repuestos en estado Solicitado', 'INVALID_STATE');
+      }
+
+      // Requisiciones gate (module on only): the OT takes Disponible solicitudes, unless a manage-all user skips the
+      // requisition on purpose; the reason is kept in the trace of every solicitud.
+      let omissionNote = '';
+      if (await isCapabilityOn(t, 'usesRequisiciones', tenantCtx?.capabilities)) {
+        await healStaleLinks(t, repuestos); // stale links (cancelled / rejected / missing requisition) are released first
+        const idsOf = (rows) => rows.map((r) => String(r._id));
+        if (data.omitirRequisicion === true) {
+          if (!canManageAllOf(actor)) {
+            throw new ApiError(403, 'Omitir la requisición requiere el permiso requisiciones:manage-all', 'FORBIDDEN');
+          }
+          const motivo = typeof data.motivoOmision === 'string' ? data.motivoOmision.trim() : '';
+          if (!motivo) throw new ApiError(400, 'El motivo es obligatorio para omitir la requisición', 'MOTIVO_REQUERIDO');
+          // Omitting is only valid for solicitudes WITHOUT a requisition: a linked one would be bought AND discounted by the OT.
+          const linkedPending = repuestos.filter((r) => isLinkedAndPending(r));
+          if (linkedPending.length) {
+            throw new ApiError(409, 'Una o más solicitudes están en una requisición; cierra o cancela su línea antes de omitirla', 'SOLICITUD_EN_REQUISICION', { ids: idsOf(linkedPending) });
+          }
+          omissionNote = `. Requisición omitida por ${actor?.userId || 'sistema'}: ${motivo}`;
+        } else {
+          const pending = repuestos.filter((r) => isLinkedAndPending(r));
+          if (pending.length) {
+            throw new ApiError(409, 'Una o más solicitudes aún no están disponibles en su requisición', 'SOLICITUD_NO_DISPONIBLE', { ids: idsOf(pending) });
+          }
+          const unlinked = repuestos.filter((r) => !r.requisicion?.requisicionId);
+          if (unlinked.length) {
+            throw new ApiError(409, 'Una o más solicitudes requieren una requisición antes de crear la OT', 'REQUIERE_REQUISICION', { ids: idsOf(unlinked) });
+          }
+        }
       }
 
       const equipoIds = [...new Set(repuestos.map((r) => String(r.EquipoId)).filter(Boolean))];
@@ -385,7 +521,7 @@ export class RepuestosService {
 
       // Bulk state transition keeps the selected set consistent before trace writes.
       await Repuestos.updateMany(
-        applyTenantFilter({ _id: { $in: repuestoIds } }, t),
+        applyTenantFilter({ _id: { $in: repuestoIds }, EstadoSolicitud: { $in: ['Solicitado', null] } }, t),
         {
           $set: {
             OrdenId: ot._id,
@@ -400,7 +536,7 @@ export class RepuestosService {
           solicitudRepuestoId: repuesto._id,
           estadoAnterior: repuesto.EstadoSolicitud || 'Solicitado',
           estadoNuevo: 'En Proceso',
-          comentarios: `Automatic: created in OT ${String(ot._id)}`,
+          comentarios: `Automatic: created in OT ${String(ot._id)}${omissionNote}`,
           tenantId: t,
         });
       }

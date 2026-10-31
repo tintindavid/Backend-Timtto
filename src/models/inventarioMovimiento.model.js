@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const { Schema, model } = mongoose;
 
 export const MOVIMIENTO_TIPOS = Object.freeze(['entrada', 'salida', 'ajuste']);
-export const MOVIMIENTO_REFERENCIA_TIPOS = Object.freeze(['manual', 'OT', 'reporte']);
+export const MOVIMIENTO_REFERENCIA_TIPOS = Object.freeze(['manual', 'OT', 'reporte', 'requisicion']);
 
 /**
  * Stock movement (kardex) of an inventory item (change: inventario-stock). Advanced level only.

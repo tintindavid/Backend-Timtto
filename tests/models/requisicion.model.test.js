@@ -86,8 +86,8 @@ describe('Requisicion: defaults and derived amount', () => {
     await new Requisicion(base({ lineas: Array.from({ length: 100 }, () => linea()) })).validate();
   });
 
-  it('rejects states and events outside the E1 enums', async () => {
-    await assert.rejects(() => new Requisicion(base({ estado: 'Cerrada' })).validate());
+  it('rejects states and events outside the enums', async () => {
+    await assert.rejects(() => new Requisicion(base({ estado: 'Archivada' })).validate());
     assert.throws(() => buildTimelineEvent({ tipo: 'NO_EXISTE' }), { code: 'TIMELINE_EVENT_UNKNOWN' });
   });
 });

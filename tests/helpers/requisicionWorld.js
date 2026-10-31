@@ -46,7 +46,9 @@ function condMatch(actual, cond) {
   if (cond && typeof cond === 'object' && !(cond instanceof Date) && !cond._bsontype && Object.keys(cond).some((k) => k.startsWith('$'))) {
     const arr = Array.isArray(actual) ? actual : [actual];
     for (const [op, arg] of Object.entries(cond)) {
-      if (op === '$in' && !arg.some((x) => arr.some((a) => eq(a, x)))) return false;
+      if (op === '$elemMatch' && !arr.some((a) => a && typeof a === 'object' && matchDeep(a, arg))) return false;
+      if (op === '$exists' && (actual !== undefined) !== Boolean(arg)) return false;
+      if (op === '$in' && !arg.some((x) => (x === null ? arr.some((a) => a === null || a === undefined) : arr.some((a) => eq(a, x))))) return false;
       if (op === '$ne' && arr.some((a) => eq(a, arg))) return false;
       if (op === '$gte' && !(new Date(actual) >= arg)) return false;
       if (op === '$lte' && !(new Date(actual) <= arg)) return false;
@@ -78,6 +80,27 @@ function setPath(doc, path, value) {
   cur[keys[keys.length - 1]] = value;
 }
 
+/** Dotted $set with positional identifiers ($[id]) resolved through arrayFilters, like MongoDB. */
+function setWithFilters(doc, path, value, arrayFilters = []) {
+  const keys = path.split('.');
+  const walk = (cur, i) => {
+    const k = keys[i];
+    const m = /^\$\[(\w+)\]$/.exec(k);
+    if (i === keys.length - 1) { cur[k] = value; return; }
+    if (m) {
+      for (const el of cur) {
+        const mine = arrayFilters.filter((f) => Object.keys(f)[0].startsWith(m[1] + '.'));
+        const ok = mine.every((f) => Object.entries(f).every(([fk, fv]) => condMatch(getPath(el, fk.slice(m[1].length + 1)), fv)));
+        if (ok) walk(el, i + 1);
+      }
+      return;
+    }
+    if (cur[k] === undefined || cur[k] === null) cur[k] = {};
+    walk(cur[k], i + 1);
+  };
+  walk(doc, 0);
+}
+
 function query(getResult) {
   const q = {
     select: () => q, sort: () => q, skip: () => q, limit: () => q, lean: () => q,
@@ -106,7 +129,7 @@ export function createWorld({ tenantId = 'acme', failEmit = false } = {}) {
 
   // --- tenant currency, counter ---------------------------------------------------------------------------
   const savedTenant = Tenant.findOne;
-  Tenant.findOne = () => ({ lean: async () => ({ settings: { currency: 'COP' } }) });
+  Tenant.findOne = () => ({ lean: async () => ({ settings: { currency: 'COP' }, capabilities: { usesRequisiciones: true } }) });
   restores.push(() => { Tenant.findOne = savedTenant; });
 
   const savedCounter = Counter.findOneAndUpdate;
@@ -153,18 +176,30 @@ export function createWorld({ tenantId = 'acme', failEmit = false } = {}) {
     if (!filter || !filter.tenantId) throw new Error('appendEvent requires tenantId');
     const list = Array.isArray(events) ? events : [events];
     const update = { $push: { timeline: { $each: list } } };
-    if (extra.set) update.$set = extra.set;
+    const set = { ...(extra.set || {}) };
+    const afs = [...(extra.arrayFilters || [])];
+    const pushed = extra.pushRecepciones ? (Array.isArray(extra.pushRecepciones) ? extra.pushRecepciones : [extra.pushRecepciones]) : [];
+    if (pushed.length) update.$push.recepciones = { $each: pushed };
+    const extraFilter = [];
+    if (extra.confirmarItem) {
+      const { recepcionId, lineaId, confirmacion } = extra.confirmarItem;
+      set['recepciones.$[rec].items.$[itm].confirmacion'] = confirmacion;
+      afs.push({ 'rec.recepcionId': recepcionId }, { 'itm.lineaId': lineaId, 'itm.confirmacion': { $exists: false } });
+      extraFilter.push({ recepciones: { $elemMatch: { recepcionId, items: { $elemMatch: { lineaId, confirmacion: { $exists: false } } } } } });
+    }
+    if (Object.keys(set).length) update.$set = set;
     if (extra.unset) update.$unset = extra.unset;
     if (extra.inc) update.$inc = extra.inc;
-    const forbidden = findForbiddenRequisicionUpdate(update);
+    const forbidden = findForbiddenRequisicionUpdate(update, { arrayFilters: afs });
     if (forbidden) throw forbidden;
     return query(() => {
-      const hit = rows.filter(visible).find((d) => matchDeep(d, filter));
+      const hit = rows.filter(visible).find((d) => matchDeep(d, filter) && extraFilter.every((f) => matchDeep(d, f)));
       if (!hit) return null;
       world.writes.count += 1;
-      for (const [p, v] of Object.entries(extra.set || {})) setPath(hit, p, clone(v));
+      for (const [p, v] of Object.entries(set)) setWithFilters(hit, p, clone(v), afs);
       for (const p of Object.keys(extra.unset || {})) setPath(hit, p, undefined);
       for (const [p, v] of Object.entries(extra.inc || {})) setPath(hit, p, (getPath(hit, p) || 0) + v);
+      if (pushed.length) hit.recepciones = [...(hit.recepciones || []), ...pushed.map(clone)];
       hit.timeline = [...(hit.timeline || []), ...list.map(clone)];
       hit.updatedAt = tick();
       return clone(hit);

@@ -28,9 +28,9 @@ export function isTransitionAllowed(from, to) {
  * @returns {Promise<object>} the updated document
  * @throws {ApiError} 404 REQUISICION_NOT_FOUND | 409 CONFLICTO_CONCURRENTE | 409 TRANSICION_INVALIDA
  */
-export async function atomicWrite(tenantId, id, { expectedEstado, extraFilter = {}, events, set, unset, inc, session }) {
+export async function atomicWrite(tenantId, id, { expectedEstado, extraFilter = {}, events, set, unset, inc, session, arrayFilters }) {
   const filter = { _id: id, tenantId, estado: expectedEstado, ...extraFilter };
-  const updated = await Requisicion.appendEvent(filter, events, { set, unset, inc, session });
+  const updated = await Requisicion.appendEvent(filter, events, { set, unset, inc, session, arrayFilters });
   if (updated) return updated;
 
   const current = await Requisicion.findOne({ _id: id, tenantId }).select('estado').lean();
@@ -54,7 +54,7 @@ export async function atomicWrite(tenantId, id, { expectedEstado, extraFilter = 
  * @param {string} id
  * @param {{ from: string, via?: string[], to: string, events: object|object[], set?: object, unset?: object, extraFilter?: object, inc?: object, session?: any }} opts
  */
-export async function transition(tenantId, id, { from, via = [], to, events, set = {}, unset, inc, extraFilter, session }) {
+export async function transition(tenantId, id, { from, via = [], to, events, set = {}, unset, inc, extraFilter, session, arrayFilters }) {
   const chain = [from, ...via, to];
   for (let i = 0; i < chain.length - 1; i += 1) {
     if (!isTransitionAllowed(chain[i], chain[i + 1])) {
@@ -72,5 +72,6 @@ export async function transition(tenantId, id, { from, via = [], to, events, set
     unset,
     inc,
     session,
+    arrayFilters,
   });
 }

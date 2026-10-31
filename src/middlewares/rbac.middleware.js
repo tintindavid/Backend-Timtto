@@ -39,6 +39,18 @@ export function authorize(permission) {
 }
 
 /**
+ * Requires `permission` only when `predicate(req)` is true (e.g. `requisiciones:send` only when the body asks to send).
+ * Same superadmin bypass and denial as `authorize`.
+ *
+ * @param {(req: import('express').Request) => boolean} predicate
+ * @param {string} permission
+ */
+export function authorizeWhen(predicate, permission) {
+  const check = authorize(permission);
+  return (req, res, next) => (predicate(req) ? check(req, res, next) : next());
+}
+
+/**
  * Like `authorize`, but passes when the caller holds ANY of the given permissions. Used where a screen of one
  * module must read a catalogue of another one (e.g. an approver reading the area budget summary).
  *

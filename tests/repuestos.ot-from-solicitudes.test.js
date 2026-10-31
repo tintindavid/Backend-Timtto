@@ -9,6 +9,7 @@ import { Counter } from '../src/models/counter.model.js';
 import { RepuestoTrazabilidad } from '../src/models/repuestotrazabilidad.model.js';
 import { User } from '../src/models/user.model.js';
 import { Customer } from '../src/models/customer.model.js';
+import { Tenant } from '../src/models/tenant.model.js';
 import { notificationService } from '../src/services/notification.service.js';
 
 function makePopulateLean(data) {
@@ -56,6 +57,8 @@ function commonStubs({ repuestos, equipoIds }) {
   }));
   stub(Customer, 'findById', () => ({ select: () => ({ lean: async () => ({ Razonsocial: 'Cliente X' }) }) }));
   stub(notificationService, 'emit', async () => ({ dispatched: 0, recipients: [] }));
+  // Requisiciones module off for the tenant (E2 reads the capability; no requisition checks run).
+  stub(Tenant, 'findOne', () => ({ lean: async () => ({ capabilities: { usesRequisiciones: false } }) }));
 }
 
 describe('repuestosService.createOtFromSolicitudes', () => {

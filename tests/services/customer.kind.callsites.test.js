@@ -64,7 +64,7 @@ describe('assertCustomerKind call sites', () => {
     delete EquipoItem.create; delete EquipoItem.findOne; delete EquipoItem.findById;
     delete EquipoItem.findOneAndUpdate; delete EquipoItem.findByIdAndUpdate;
     delete OT.create; delete Report.create; delete SheetWork.create;
-    delete Repuestos.create; delete Repuestos.findById; delete Repuestos.findByIdAndUpdate;
+    delete Repuestos.create; delete Repuestos.findById; delete Repuestos.findByIdAndUpdate; delete Repuestos.findOne; delete Repuestos.findOneAndUpdate;
     delete Sedes.findOne; delete Servicios.findOne;
   });
 

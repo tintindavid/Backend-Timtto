@@ -53,7 +53,7 @@ describe('Repuestos InventarioItemId validation', () => {
     stubCatalog([{ _id: ITEM, tenantId: 'tenant-b' }]);
     let updated = 0;
     const current = { tenantId: 'tenant-a', InventarioItemId: '507f1f77bcf86cd799439030' };
-    stub(Repuestos, 'findOne', () => ({ lean: async () => current }));
+    stub(Repuestos, 'findOne', (f) => ({ lean: async () => (f.tenantId && f.tenantId !== current.tenantId ? null : current) }));
     stub(Repuestos, 'findOneAndUpdate', async () => { updated += 1; return { _id: 'r', tenantId: 'tenant-a' }; });
     await assert.rejects(
       () => repuestosService.update('r', { InventarioItemId: ITEM }, 'tenant-a'),

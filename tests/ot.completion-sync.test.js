@@ -98,6 +98,48 @@ describe('oTService.update completion sync', () => {
     assert.equal(invDirectWrites, 0, 'stock only changes through the movements service');
   });
 
+  // requisiciones-e2: the stock of a confirmed delivery was already discounted by the Requisiciones module.
+  const repuesto = (id, over = {}) => ({
+    _id: id, InventarioItemId: `inv-${id}`, CantidadInstalacion: 2, EstadoSolicitud: 'En Proceso', save: async () => { repuestoSaved += 1; }, ...over,
+  });
+
+  it('no double discount: a repuesto with stockDescontadoPor=requisicion is marked Instalado but never discounted again', async () => {
+    tenantCapabilities = { usesInventoryBasic: true, usesInventoryAdvanced: true };
+    const marked = repuesto('r1', { stockDescontadoPor: 'requisicion' });
+    Repuestos.find = () => ({ session: async () => [marked] });
+    const result = await oTService.update('ot1', { EstadoOt: 'Completado' }, 'tenant-a', { userId: 'u1' });
+    assert.equal(result.EstadoOt, 'Completado');
+    assert.equal(movementCalls.length, 0, 'no kardex movement');
+    assert.equal(repuestoSaved, 1, 'still marked Instalado');
+    assert.equal(marked.EstadoSolicitud, 'Instalado');
+    assert.equal(trazCount, 1, 'and traced');
+    assert.equal(invDirectWrites, 0);
+  });
+
+  it('no double discount: in a mixed OT only the repuestos NOT discounted by the requisition are discounted', async () => {
+    tenantCapabilities = { usesInventoryBasic: true, usesInventoryAdvanced: true };
+    Repuestos.find = () => ({
+      session: async () => [
+        repuesto('r1', { stockDescontadoPor: 'requisicion' }),
+        repuesto('r2'),
+        repuesto('r3', { stockDescontadoPor: undefined, CantidadInstalacion: 5 }),
+      ],
+    });
+    await oTService.update('ot1', { EstadoOt: 'Completado' }, 'tenant-a', { userId: 'u1' });
+    assert.deepEqual(movementCalls.map(([, data]) => [data.itemId, data.cantidad]), [['inv-r2', 2], ['inv-r3', 5]]);
+    assert.equal(repuestoSaved, 3, 'all three are marked Instalado');
+    assert.equal(trazCount, 3);
+  });
+
+  it('no double discount: an OT whose only repuesto was already discounted does not even need stock (insufficient stock cannot fail it)', async () => {
+    tenantCapabilities = { usesInventoryBasic: true, usesInventoryAdvanced: true };
+    movementError = new ApiError(400, 'Stock insuficiente', 'INSUFFICIENT_STOCK');
+    Repuestos.find = () => ({ session: async () => [repuesto('r1', { stockDescontadoPor: 'requisicion' })] });
+    const result = await oTService.update('ot1', { EstadoOt: 'Completado' }, 'tenant-a', { userId: 'u1' });
+    assert.equal(result.EstadoOt, 'Completado');
+    assert.equal(movementCalls.length, 0);
+  });
+
   it('basic tenant: the OT completes without validating or touching stock', async () => {
     tenantCapabilities = { usesInventoryBasic: true };
     const result = await oTService.update('ot1', { EstadoOt: 'Completado' }, 'tenant-a', { userId: 'u1' });

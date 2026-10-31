@@ -12,15 +12,17 @@
  * @property {string} [actorName]    display name of who triggered the transition
  * @property {number} [nivel]        approval level (level events only)
  * @property {string} [reason]       rejection/withdraw/cancel reason
+ * @property {string} [descripcion]  line / spare-part description (E2 delivery events)
+ * @property {string} [link]         overrides the deep link (E2: the "available" notice points at /repuestos/solicitados)
  */
 
-function base({ requisicionId, consecutivo, nivel }) {
+function base({ requisicionId, consecutivo, nivel, link: linkOverride }) {
   const id = requisicionId != null ? String(requisicionId) : null;
   return {
     requisicionId: id,
     consecutivo: consecutivo || '',
     ...(nivel != null ? { nivel } : {}),
-    link: id ? `/requisiciones/${id}` : '/requisiciones',
+    link: linkOverride || (id ? `/requisiciones/${id}` : '/requisiciones'),
   };
 }
 
@@ -70,6 +72,37 @@ export function buildRequisicionCancelledPayload(p) {
   return build(p, `${label(p)} cancelada`, withReason(`${actor(p)} canceló la requisición.`, p));
 }
 
+// --- E2: reception, delivery confirmation and closure ----------------------------------------------------------
+
+function item(p) {
+  return p.descripcion ? ` (${String(p.descripcion).slice(0, 120)})` : '';
+}
+
+export function buildRequisicionDeliveryRegisteredPayload(p) {
+  return build(p, `${label(p)}: entrega registrada`, `${actor(p)} registró la recepción de materiales${item(p)}. Confirma que lo recibiste.`);
+}
+
+export function buildRequisicionDeliveryConfirmedPayload(p) {
+  const name = p.descripcion ? `: ${String(p.descripcion).slice(0, 120)}` : '';
+  return build(
+    { ...p, link: p.link || '/repuestos/solicitados' },
+    `Repuesto disponible${name}`,
+    `${label(p)}: la entrega fue confirmada. Ya puedes instalarlo / crear la OT.`,
+  );
+}
+
+export function buildRequisicionDeliveryDisputedPayload(p) {
+  return build(p, `${label(p)}: entrega en disputa`, withReason(`${actor(p)} reportó que la entrega no llegó o llegó incompleta${item(p)}.`, p));
+}
+
+export function buildRequisicionLineClosedPayload(p) {
+  return build(p, `${label(p)}: línea cerrada`, withReason(`${actor(p)} cerró la línea${item(p)}.`, p));
+}
+
+export function buildRequisicionClosedPayload(p) {
+  return build(p, `${label(p)} cerrada`, 'La requisición fue cerrada: todas las entregas quedaron confirmadas o canceladas.');
+}
+
 /** event name -> builder, for generic callers. */
 export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.submitted': buildRequisicionSubmittedPayload,
@@ -79,4 +112,9 @@ export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.rejected': buildRequisicionRejectedPayload,
   'requisicion.withdrawn': buildRequisicionWithdrawnPayload,
   'requisicion.cancelled': buildRequisicionCancelledPayload,
+  'requisicion.delivery.registered': buildRequisicionDeliveryRegisteredPayload,
+  'requisicion.delivery.confirmed': buildRequisicionDeliveryConfirmedPayload,
+  'requisicion.delivery.disputed': buildRequisicionDeliveryDisputedPayload,
+  'requisicion.line.closed': buildRequisicionLineClosedPayload,
+  'requisicion.closed': buildRequisicionClosedPayload,
 };

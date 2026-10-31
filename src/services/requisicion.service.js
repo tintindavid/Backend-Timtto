@@ -3,6 +3,7 @@ import { Requisicion, buildTimelineEvent, computeMontoEstimado } from '../models
 import '../models/area.model.js';
 import '../models/tipoRequisicion.model.js';
 import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
+import { Repuestos } from '../models/repuestos.model.js';
 import { Role } from '../models/role.model.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -20,6 +21,8 @@ import { tipoRequisicionService } from './tipoRequisicion.service.js';
 import { requisicionApprovalService } from './requisicionApproval.service.js';
 import { atomicWrite, transition } from './requisicionTransition.service.js';
 import { notifyRequisicion, currentPendingLevel } from './requisicionNotify.service.js';
+import { syncRequisicionSolicitudesSafe, healStaleLinks } from './requisicionSolicitudSync.service.js';
+import { lineGuard } from './requisicionRecepcion.service.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import {
   LINEA_ESTADO,
@@ -48,7 +51,7 @@ export class RequisicionService {
    *  - a stock line fills description/unit/price from the item and keeps a SNAPSHOT that does not change later;
    *  - when updating, lines are matched by `lineaId` (the existing line wins its snapshot / fulfilment fields).
    */
-  async buildLineas(tenantId, payload, { capabilities, moneda, existing = [] } = {}) {
+  async buildLineas(tenantId, payload, { capabilities, moneda, existing = [], allowOrigen = false } = {}) {
     if (!Array.isArray(payload) || payload.length === 0) {
       throw new ApiError(400, 'La requisición debe tener al menos una línea', 'SIN_LINEAS');
     }
@@ -58,7 +61,13 @@ export class RequisicionService {
     const byId = new Map(existing.map((l) => [sid(l.lineaId), plainObj(l)]));
     const itemIds = payload.map((l) => l.inventarioItemId).filter(Boolean).map(sid);
     if (itemIds.length > 0) assertCapability(capabilities, 'usesInventoryBasic', STOCK_MESSAGE);
-    if (new Set(itemIds).size !== itemIds.length) {
+    // A stock item appears once among MANUAL lines; lines that come from spare-part requests (they carry the origin)
+    // may share it: each keeps its inventarioItemId so the stock movement and the marker apply per line.
+    const fromSolicitud = (l) => Boolean((allowOrigen && l.origenSolicitudRepuestoId)
+      || (l.lineaId && byId.get(sid(l.lineaId))?.origenSolicitudRepuestoId));
+    const manualItems = payload.filter((l) => l.inventarioItemId && !fromSolicitud(l)).map((l) => sid(l.inventarioItemId));
+    const originItems = payload.filter((l) => l.inventarioItemId && fromSolicitud(l)).map((l) => sid(l.inventarioItemId));
+    if (new Set(manualItems).size !== manualItems.length || manualItems.some((i) => originItems.includes(i))) {
       throw new ApiError(409, 'Un ítem de stock solo puede aparecer en una línea', 'LINEA_DUPLICADA');
     }
     const items = itemIds.length > 0
@@ -99,6 +108,11 @@ export class RequisicionService {
       };
       if (snapshot) out.snapshot = snapshot; else delete out.snapshot;
       if (!prev) out.lineaId = new mongoose.Types.ObjectId();
+      // INTERNAL path only (conversion from spare-part requests): the public DTO never lets a client set the origin.
+      if (allowOrigen && l.origenSolicitudRepuestoId) {
+        out.origenSolicitudRepuestoId = l.origenSolicitudRepuestoId;
+        if (l.responsableId) out.responsableId = l.responsableId;
+      }
       // Untouched fulfilment fields are zero in Borrador; a changed requested quantity restarts the pending one.
       out.cantidadPendiente = out.cantidadSolicitada - (out.cantidadSurtida || 0);
       return out;
@@ -116,7 +130,7 @@ export class RequisicionService {
    * Creates a requisition in Borrador. The consecutivo is allocated AFTER every validation (gaps are accepted), the
    * currency is forced to the tenant's, `montoEstimado` is derived and `solicitanteId` defaults to the creator.
    */
-  async create(tenantId, userId, data, capabilities) {
+  async create(tenantId, userId, data, capabilities, options = {}) {
     requireTenant(tenantId);
     const { tenantId: _t, ...clean } = data;
     await tipoRequisicionService.assertTipoActivo(tenantId, clean.tipoRequisicionId);
@@ -124,12 +138,13 @@ export class RequisicionService {
     const solicitanteId = clean.solicitanteId || userId;
     if (sid(solicitanteId) !== sid(userId)) await this._assertSolicitante(tenantId, solicitanteId);
     const moneda = await getTenantCurrency(tenantId);
-    const lineas = await this.buildLineas(tenantId, clean.lineas, { capabilities, moneda });
+    const lineas = await this.buildLineas(tenantId, clean.lineas, { capabilities, moneda, allowOrigen: Boolean(options.allowOrigen) });
 
     const { consecutivo } = await getNextRequisicionConsecutivo(tenantId);
     const now = new Date();
     try {
       const created = await Requisicion.create({
+        ...(options.id ? { _id: options.id } : {}),
         tenantId,
         consecutivo,
         titulo: clean.titulo,
@@ -199,10 +214,53 @@ export class RequisicionService {
   }
 
   /**
+   * `vista=por-confirmar`: requisitions with a reception item still unconfirmed that the user must confirm: the
+   * responsible of the line's origin solicitud, else the requisition requester (free lines). `manage-all` sees every
+   * unconfirmed item; anybody else never sees the receptions he registered himself (separation of duties).
+   */
+  async _porConfirmarFilter(tenantId, userId, manageAll) {
+    const me = new mongoose.Types.ObjectId(String(userId));
+    const unconfirmed = { $eq: [{ $type: '$$i.confirmacion' }, 'missing'] };
+    let itemCond = unconfirmed;
+    let recCond = { $gt: [{ $size: { $filter: { input: { $ifNull: ['$$r.items', []] }, as: 'i', cond: itemCond } } }, 0] };
+    if (!manageAll) {
+      const mine = await Repuestos.find({ tenantId, ResponsableSolicitud: userId, 'requisicion.requisicionId': { $exists: true } }).select('_id').lean();
+      const mineIds = mine.map((s) => new mongoose.Types.ObjectId(String(s._id)));
+      const responsible = {
+        $gt: [{
+          $size: {
+            $filter: {
+              input: { $ifNull: ['$lineas', []] },
+              as: 'l',
+              cond: {
+                $and: [
+                  { $eq: ['$$l.lineaId', '$$i.lineaId'] },
+                  { $or: [
+                    { $and: [{ $eq: [{ $ifNull: ['$$l.origenSolicitudRepuestoId', null] }, null] }, { $eq: ['$solicitanteId', me] }] },
+                    { $in: ['$$l.origenSolicitudRepuestoId', mineIds] },
+                  ] },
+                ],
+              },
+            },
+          },
+        }, 0],
+      };
+      itemCond = { $and: [unconfirmed, responsible] };
+      recCond = {
+        $and: [
+          { $ne: ['$$r.recibidaPor', me] },
+          { $gt: [{ $size: { $filter: { input: { $ifNull: ['$$r.items', []] }, as: 'i', cond: itemCond } } }, 0] },
+        ],
+      };
+    }
+    return { $expr: { $gt: [{ $size: { $filter: { input: { $ifNull: ['$recepciones', []] }, as: 'r', cond: recCond } } }, 0] } };
+  }
+
+  /**
    * Server-side paginated list (`sortBy` whitelisted, default newest first). `vista=mias` (creator or requester) and `vista=por-aprobar` (current
    * level of the caller) narrow it down; `search` is an escaped literal over consecutivo/titulo.
    */
-  async list(tenantId, userId, filters = {}, pagination = {}) {
+  async list(tenantId, userId, filters = {}, pagination = {}, access = {}) {
     requireTenant(tenantId);
     const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc' } = pagination;
     const sortField = REQUISICION_SORT_FIELDS.includes(sortBy) ? sortBy : 'createdAt';
@@ -227,6 +285,16 @@ export class RequisicionService {
       and.push(...await this._porAprobarFilter(tenantId, userId));
       // An explicit estado filter cannot widen the inbox beyond En_Aprobacion.
       if (filters.estado && filters.estado !== REQUISICION_ESTADO.EN_APROBACION) query.estado = '__none__';
+    } else if (filters.vista === 'por-recibir') {
+      // Approved / in reception with at least one line still to receive; only for who can receive.
+      if (!access.canReceive && !access.canManageAll) query.estado = '__none__';
+      else {
+        and.push({ estado: { $in: [REQUISICION_ESTADO.APROBADA, REQUISICION_ESTADO.EN_RECEPCION] } });
+        and.push({ lineas: { $elemMatch: { estadoLinea: { $in: [LINEA_ESTADO.PENDIENTE, LINEA_ESTADO.RECIBIDA_PARCIAL, LINEA_ESTADO.EN_DISPUTA] } } } });
+      }
+    } else if (filters.vista === 'por-confirmar') {
+      and.push({ estado: REQUISICION_ESTADO.EN_RECEPCION });
+      and.push(await this._porConfirmarFilter(tenantId, userId, Boolean(access.canManageAll)));
     }
     if (and.length > 0) query.$and = and;
 
@@ -327,6 +395,10 @@ export class RequisicionService {
       }
       throw err;
     });
+    // Lines removed from the draft release the spare-part requests they came from.
+    if (clean.lineas !== undefined && (doc.lineas || []).some((l) => l.origenSolicitudRepuestoId)) {
+      await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: userId, checkOrphans: true });
+    }
     logger.info('Requisicion actualizada: ' + id);
     return toPublicPopulated(updated);
   }
@@ -342,7 +414,7 @@ export class RequisicionService {
       throw new ApiError(409, 'Solo se puede eliminar una requisición en Borrador', 'ESTADO_NO_EDITABLE', { estadoActual: doc.estado });
     }
     this._assertOwner(doc, actor);
-    await atomicWrite(tenantId, id, {
+    const removed = await atomicWrite(tenantId, id, {
       expectedEstado: REQUISICION_ESTADO.BORRADOR,
       events: [buildTimelineEvent({
         tipo: REQUISICION_EVENTO.ELIMINADA,
@@ -357,6 +429,10 @@ export class RequisicionService {
       }
       throw err;
     });
+    // A deleted draft releases every spare-part request it held.
+    if ((doc.lineas || []).some((l) => l.origenSolicitudRepuestoId)) {
+      await syncRequisicionSolicitudesSafe(tenantId, removed, { actorId: actor.userId, checkOrphans: true });
+    }
     logger.info('Requisicion eliminada (soft): ' + id);
   }
 
@@ -375,6 +451,18 @@ export class RequisicionService {
     if (activas.length === 0) throw new ApiError(400, 'La requisición debe tener al menos una línea', 'SIN_LINEAS');
     const justificacion = (data.justificacion || doc.justificacion || '').trim();
     if (!justificacion) throw new ApiError(400, 'La justificación es obligatoria para enviar', 'JUSTIFICACION_REQUERIDA');
+    // A line whose solicitud is held by ANOTHER requisition cannot be sent (the buy would be duplicated).
+    const { removed: notSendable } = await this._revalidateOrigins(tenantId, doc);
+    const held = notSendable.filter((r) => r.requisicionId);
+    if (held.length > 0) {
+      throw new ApiError(409, 'Una o más solicitudes de la requisición ya pertenecen a otra requisición', 'SOLICITUD_YA_VINCULADA', { ids: held.map((r) => r.repuestoId), lineas: held });
+    }
+    // 3.2: an origin line whose solicitud is gone or no longer Solicitado (already installed / in process) cannot be sent either
+    // (consistent with reabrir, which drops such lines): the goods would be bought and moved twice.
+    const gone = notSendable.filter((r) => !r.requisicionId);
+    if (gone.length > 0) {
+      throw new ApiError(409, 'Una o más solicitudes de la requisición ya no están disponibles para requisición (ya no existen o no están en estado Solicitado). Retira esas líneas para enviar.', 'SOLICITUD_NO_ELEGIBLE', { ids: gone.map((r) => r.repuestoId), lineas: gone });
+    }
 
     const niveles = await requisicionApprovalService.resolveLevels(tenantId, doc);
     const now = new Date();
@@ -410,6 +498,7 @@ export class RequisicionService {
       },
       inc: { version: 1 },
     });
+    await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
     const ctx = { actorId: actor.userId, actorName: actor.name };
     notifyRequisicion(tenantId, 'requisicion.submitted', updated, ctx);
     notifyRequisicion(tenantId, 'requisicion.approval.requested', updated, { ...ctx, nivel: first, approverLevel: first });
@@ -441,6 +530,7 @@ export class RequisicionService {
       set: { 'aprobacion.niveles': niveles, 'aprobacion.nivelActual': null },
       inc: { version: 1 },
     });
+    await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
     notifyRequisicion(tenantId, 'requisicion.withdrawn', updated, {
       actorId: actor.userId, actorName: actor.name, reason: observacion, approverLevel: pendiente,
     });
@@ -453,20 +543,65 @@ export class RequisicionService {
     const doc = await this._findOr404(tenantId, id);
     this._assertEstado(doc, REQUISICION_ESTADO.RECHAZADA);
     this._assertOwner(doc, actor);
+    // The rejection released the requests; while it was rejected another requisition may have taken some of them.
+    const { removed } = await this._revalidateOrigins(tenantId, doc);
+    const removedIds = new Set(removed.map((r) => r.lineaId));
+    const kept = (doc.lineas || []).filter((l) => !removedIds.has(sid(l.lineaId))).map(plainObj);
+    if (kept.filter((l) => l.estadoLinea !== LINEA_ESTADO.CANCELADA).length === 0) {
+      throw new ApiError(409, 'Ninguna línea de la requisición sigue vigente: sus solicitudes ya pertenecen a otra requisición o no están disponibles. Puedes cancelarla.', 'SIN_LINEAS_VIGENTES', { lineas: removed });
+    }
+    const note = removed.length
+      ? `Líneas retiradas al reabrir (solicitud no disponible): ${removed.map((r) => r.descripcion).join('; ')}`
+      : '';
+    const observacion = [data.observacion, note].filter(Boolean).join(' | ').slice(0, 2000) || undefined;
     const updated = await transition(tenantId, id, {
       from: REQUISICION_ESTADO.RECHAZADA,
       to: REQUISICION_ESTADO.BORRADOR,
+      extraFilter: removed.length && doc.updatedAt ? { updatedAt: doc.updatedAt } : {},
       events: [buildTimelineEvent({
         tipo: REQUISICION_EVENTO.REABIERTA,
         actorId: actor.userId,
         estadoAnterior: REQUISICION_ESTADO.RECHAZADA,
         estadoNuevo: REQUISICION_ESTADO.BORRADOR,
-        observacion: data.observacion,
+        observacion,
+        ...(removed.length ? { datos: { lineasRetiradas: removed } } : {}),
       })],
-      set: {},
+      set: removed.length ? { lineas: kept, montoEstimado: computeMontoEstimado(kept) } : {},
       inc: { version: 1 },
     });
-    return toPublicPopulated(updated);
+    // Reopening re-claims the requests that are still free.
+    await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
+    const pub = await toPublicPopulated(updated);
+    return removed.length ? { ...pub, advertencias: removed } : pub;
+  }
+
+  /**
+   * Origin lines whose solicitud can no longer be part of THIS requisition: gone, linked to another (alive) requisition
+   * or not in Solicitado. Stale links are released first (lazy self-heal).
+   * @returns {Promise<{ removed: { lineaId: string, repuestoId: string, descripcion: string, motivo: string, requisicionId?: string }[] }>}
+   */
+  async _revalidateOrigins(tenantId, doc) {
+    const origin = (doc.lineas || []).filter((l) => l.origenSolicitudRepuestoId);
+    if (origin.length === 0) return { removed: [] };
+    const sols = await Repuestos.find({ tenantId, _id: { $in: origin.map((l) => sid(l.origenSolicitudRepuestoId)) } }).lean();
+    await healStaleLinks(tenantId, sols);
+    const byId = new Map(sols.map((s) => [sid(s._id), s]));
+    const removed = [];
+    for (const l of origin) {
+      const s = byId.get(sid(l.origenSolicitudRepuestoId));
+      const heldBy = s?.requisicion?.requisicionId ? sid(s.requisicion.requisicionId) : '';
+      let motivo = null;
+      if (!s) motivo = 'la solicitud ya no existe';
+      else if (heldBy && heldBy !== sid(doc._id)) motivo = `la solicitud ya pertenece a la requisición ${s.requisicion.consecutivo || heldBy}`;
+      else if (!heldBy && (s.EstadoSolicitud || 'Solicitado') !== 'Solicitado') motivo = 'la solicitud ya no está en estado Solicitado';
+      if (motivo) {
+        removed.push({
+          lineaId: sid(l.lineaId), repuestoId: sid(l.origenSolicitudRepuestoId), descripcion: l.descripcion, motivo,
+          ...(heldBy && heldBy !== sid(doc._id) ? { requisicionId: heldBy } : {}),
+        });
+      }
+    }
+    return { removed };
   }
 
   /** PATCH /:id/estado {estado:'Borrador'}: retire (from En_Aprobacion) or reopen (from Rechazada). */
@@ -501,21 +636,70 @@ export class RequisicionService {
         set['aprobacion.niveles'] = requisicionApprovalService.cancelPendingLevels(doc.aprobacion?.niveles || []);
         set['aprobacion.nivelActual'] = null;
       }
+      // Goods already confirmed are never lost: those lines are closed short (Confirmada) in the same write; lines with
+      // nothing confirmed are released by the sync as before.
+      const toClose = (doc.lineas || []).filter((l) => Number(l.cantidadConfirmada) > 0
+        && ![LINEA_ESTADO.CONFIRMADA, LINEA_ESTADO.CANCELADA].includes(l.estadoLinea || LINEA_ESTADO.PENDIENTE)).map(plainObj);
+      // 3.4(a): a line closed short is priced by what was confirmed (the rest will never be bought); lines released with
+      // nothing confirmed keep their estimated price. 3.4(c): units received but never confirmed are NOT lost silently.
+      const closedIds = new Set(toClose.map((l) => sid(l.lineaId)));
+      set.montoEstimado = computeMontoEstimado((doc.lineas || []).map((l) => {
+        const o = plainObj(l);
+        return closedIds.has(sid(o.lineaId)) ? { ...o, cantidadSolicitada: Number(o.cantidadConfirmada) } : o;
+      }));
+      const recibidasSinConfirmar = [];
+      for (const l of doc.lineas || []) {
+        const cantidad = (doc.recepciones || []).reduce((acc, rec) => acc + (rec.items || [])
+          .filter((i) => sid(i.lineaId) === sid(l.lineaId) && !i.confirmacion)
+          .reduce((a, i) => a + (Number(i.cantidadRecibida) || 0), 0), 0);
+        if (cantidad > 0) recibidasSinConfirmar.push({ lineaId: sid(l.lineaId), descripcion: l.descripcion, cantidad });
+      }
+      const arrayFilters = [];
+      const guards = [];
+      const closeEvents = toClose.map((l, i) => {
+        set[`lineas.$[c${i}].estadoLinea`] = LINEA_ESTADO.CONFIRMADA;
+        set[`lineas.$[c${i}].cierre`] = { motivo, por: actor.userId, fecha: now };
+        arrayFilters.push({ [`c${i}.lineaId`]: new mongoose.Types.ObjectId(sid(l.lineaId)) });
+        guards.push(lineGuard(l));
+        return buildTimelineEvent({
+          tipo: REQUISICION_EVENTO.LINEA_CERRADA,
+          actorId: actor.userId,
+          estadoAnterior: from,
+          estadoNuevo: from,
+          observacion: motivo,
+          datos: { lineaId: sid(l.lineaId), descripcion: l.descripcion, cantidadSolicitada: l.cantidadSolicitada, cantidadConfirmada: Number(l.cantidadConfirmada), porCancelacion: true },
+          fecha: now,
+        });
+      });
       try {
         const updated = await transition(tenantId, id, {
           from,
           to: REQUISICION_ESTADO.CANCELADA,
-          extraFilter: enAprobacion ? { 'aprobacion.nivelActual': doc.aprobacion?.nivelActual ?? null } : {},
-          events: [buildTimelineEvent({
+          extraFilter: {
+            ...(enAprobacion ? { 'aprobacion.nivelActual': doc.aprobacion?.nivelActual ?? null } : {}),
+            ...(guards.length ? { $and: guards } : {}),
+          },
+          arrayFilters,
+          events: [...closeEvents, buildTimelineEvent({
             tipo: REQUISICION_EVENTO.CANCELADA,
             actorId: actor.userId,
             estadoAnterior: from,
             estadoNuevo: REQUISICION_ESTADO.CANCELADA,
             observacion: motivo,
+            ...(recibidasSinConfirmar.length ? { datos: { recibidasSinConfirmar } } : {}),
             fecha: now,
           })],
           set,
         });
+        await syncRequisicionSolicitudesSafe(tenantId, updated, { actorId: actor.userId });
+        // 3.4(b): the responsible of each solicitud that became Disponible through the cancel is told ("Ya puedes instalarlo").
+        for (const l of toClose) {
+          if (l.origenSolicitudRepuestoId) {
+            notifyRequisicion(tenantId, 'requisicion.delivery.confirmed', updated, {
+              actorId: actor.userId, actorName: actor.name, lineaIds: [sid(l.lineaId)], descripcion: l.descripcion,
+            });
+          }
+        }
         notifyRequisicion(tenantId, 'requisicion.cancelled', updated, {
           actorId: actor.userId, actorName: actor.name, reason: motivo, approverLevel: pendiente,
         });

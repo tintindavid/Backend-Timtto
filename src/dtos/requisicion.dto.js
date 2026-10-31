@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import {
+  CONFIRMACION_RESULTADO_VALUES,
   REQUISICION_ESTADO,
   REQUISICION_ESTADO_VALUES,
   REQUISICION_MAX_LINEAS,
@@ -92,7 +93,7 @@ export const reasignarAprobadoresDto = Joi.object({
   observacion: Joi.string().trim().min(1).max(2000).optional().label('observacion'),
 }).unknown(false);
 
-export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar']);
+export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar', 'por-recibir', 'por-confirmar']);
 
 export const queryRequisicionDto = Joi.object({
   page: Joi.number().integer().min(1).default(1),
@@ -107,4 +108,59 @@ export const queryRequisicionDto = Joi.object({
   vista: Joi.string().valid(...REQUISICION_VISTAS).optional(),
   sortBy: Joi.string().valid(...REQUISICION_SORT_FIELDS).default('createdAt'),
   order: Joi.string().valid('asc', 'desc').default('desc'),
+}).unknown(false);
+
+// --- Reception (E2: requisiciones-e2-solicitudes-recepcion) ---------------------------------------------------
+
+/**
+ * Body of POST /:id/recepciones (multipart/form-data: the files travel under `evidencias`, handled by Multer). `items`
+ * arrives as a JSON string (Joi parses a string that looks like an array); the array is then validated normally.
+ */
+// multipart/form-data sends `items` as a JSON string: parse it (only when it looks like an array) before validating.
+const JoiJsonArray = Joi.extend((joi) => ({
+  type: 'array',
+  base: joi.array(),
+  coerce: {
+    from: 'string',
+    method(value) {
+      const text = value.trim();
+      if (!text.startsWith('[')) return undefined;
+      try { return { value: JSON.parse(text) }; } catch { return undefined; }
+    },
+  },
+}));
+
+export const registrarRecepcionDto = Joi.object({
+  fecha: Joi.date().iso().optional().label('fecha'),
+  documento: Joi.string().trim().max(200).allow('').optional().label('documento'),
+  observacion: Joi.string().trim().max(2000).allow('').optional().label('observacion'),
+  items: JoiJsonArray.array().items(Joi.object({
+    lineaId: objectId.required().label('lineaId'),
+    cantidadRecibida: Joi.number().greater(0).required().label('cantidadRecibida'),
+  }).unknown(false)).min(1).max(REQUISICION_MAX_LINEAS).required().label('items'),
+}).unknown(false);
+
+/** Body of POST /:id/recepciones/:recepcionId/confirmar. The quantity / observation rules per result live in the service. */
+export const confirmarEntregaDto = Joi.object({
+  items: Joi.array().items(Joi.object({
+    lineaId: objectId.required().label('lineaId'),
+    resultado: Joi.string().valid(...CONFIRMACION_RESULTADO_VALUES).required().label('resultado'),
+    cantidad: Joi.number().min(0).optional().label('cantidad'),
+    observacion: Joi.string().trim().max(2000).allow('').optional().label('observacion'),
+  }).unknown(false)).min(1).max(REQUISICION_MAX_LINEAS).required().label('items'),
+}).unknown(false);
+
+/** `motivo` is checked by the service so the answer is the specific 400 MOTIVO_REQUERIDO. */
+export const cerrarLineaDto = Joi.object({
+  motivo: Joi.string().trim().max(2000).allow('').optional().label('motivo'),
+}).unknown(false).default({});
+
+export const recepcionParamsDto = Joi.object({
+  id: objectId.required().label('id'),
+  recepcionId: objectId.required().label('recepcionId'),
+}).unknown(false);
+
+export const lineaParamsDto = Joi.object({
+  id: objectId.required().label('id'),
+  lineaId: objectId.required().label('lineaId'),
 }).unknown(false);
