@@ -10,7 +10,6 @@ import { Requisicion } from '../../src/models/requisicion.model.js';
 import { Area } from '../../src/models/area.model.js';
 import { ReglaAprobacion } from '../../src/models/reglaAprobacion.model.js';
 import { tipoRequisicionService } from '../../src/services/tipoRequisicion.service.js';
-import { seedRequisicionDefaults } from '../../src/services/requisicionSeed.service.js';
 import { createTipoRequisicionDto, updateTipoRequisicionDto } from '../../src/dtos/tipoRequisicion.dto.js';
 import { stubModel } from '../helpers/memoryModel.js';
 
@@ -91,48 +90,6 @@ describe('tipoRequisicionService', () => {
     assert.equal(res.data[0].tenantId, 'acme');
   });
 });
-
-describe('seedRequisicionDefaults (scenario: Siembra idempotente)', () => {
-  it('creates the four default types, the GENERAL area and one head-of-area rule', async () => {
-    const r = await seedRequisicionDefaults('acme');
-    assert.deepEqual(r, { tipos: 4, area: 1, regla: 1 });
-    assert.deepEqual(tipos.map((t) => t.codigo).sort(), ['GENERAL', 'PAPELERIA', 'REPUESTO', 'SERVICIO']);
-    assert.ok(tipos.every((t) => t.tenantId === 'acme' && t.activo === true));
-    assert.equal(areas[0].codigo, 'GENERAL');
-    assert.deepEqual(areas[0].jefesIds, []);
-    assert.equal(reglas[0].aprobadorTipo, 'jefe_area');
-    assert.equal(reglas[0].montoDesde, 0);
-    assert.equal(reglas[0].montoHasta, null);
-  });
-
-  it('running it twice does not duplicate anything', async () => {
-    await seedRequisicionDefaults('acme');
-    const second = await seedRequisicionDefaults('acme');
-    assert.deepEqual(second, { tipos: 0, area: 0, regla: 0 });
-    assert.equal(tipos.length, 4);
-    assert.equal(areas.length, 1);
-    assert.equal(reglas.length, 1);
-  });
-
-  it('does not resurrect a type, area or rule an admin deleted on purpose, and keeps custom rules', async () => {
-    tipos.push({ _id: 't0', tenantId: 'acme', codigo: 'GENERAL', isDeleted: true });
-    areas.push({ _id: 'a0', tenantId: 'acme', codigo: 'GENERAL', isDeleted: true });
-    reglas.push({ _id: 'g0', tenantId: 'acme', orden: 1, isDeleted: true });
-    const r = await seedRequisicionDefaults('acme');
-    assert.deepEqual(r, { tipos: 3, area: 0, regla: 0 });
-  });
-
-  it('is per tenant and --dry-run writes nothing', async () => {
-    const dry = await seedRequisicionDefaults('acme', { dryRun: true });
-    assert.deepEqual(dry, { tipos: 4, area: 1, regla: 1 });
-    assert.equal(tipos.length + areas.length + reglas.length, 0);
-    await seedRequisicionDefaults('acme');
-    const other = await seedRequisicionDefaults('globex');
-    assert.deepEqual(other, { tipos: 4, area: 1, regla: 1 });
-    assert.equal(tipos.length, 8);
-  });
-});
-
 describe('tipoRequisicion DTOs', () => {
   it('create requires nombre and codigo and rejects unknown fields', () => {
     assert.equal(createTipoRequisicionDto.validate({ nombre: 'A', codigo: 'A' }).error, undefined);

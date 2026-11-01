@@ -15,6 +15,8 @@ const PresupuestoAreaSchema = new Schema({
   monto: { type: Number, required: true, min: 0 },
   moneda: { type: String, trim: true, uppercase: true, default: DEFAULT_CURRENCY },
   umbralAlerta: { type: Number, min: 1, max: 100, default: DEFAULT_ALERT_THRESHOLD },
+  // Seeded default record (change: requisiciones-datos-por-defecto-tenant): protected, never writable through the API.
+  esSistema: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },
 }, {

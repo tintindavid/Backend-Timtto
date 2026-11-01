@@ -168,18 +168,40 @@ export const DEFAULT_ALERT_THRESHOLD = 80;
 /** Period of a budget: year `YYYY` or month `YYYY-MM`. */
 export const PERIODO_REGEX = /^\d{4}(-(0[1-9]|1[0-2]))?$/;
 
-/** Default request types seeded per tenant (idempotent). */
+/**
+ * Default catalog seeded per tenant when the module is activated (change: requisiciones-datos-por-defecto-tenant).
+ * Records created or adopted from it are flagged `esSistema` and protected (no delete / deactivate / rename).
+ */
 export const DEFAULT_TIPOS_REQUISICION = Object.freeze([
   Object.freeze({ codigo: 'GENERAL', nombre: 'General' }),
   Object.freeze({ codigo: 'REPUESTO', nombre: 'Repuestos' }),
   Object.freeze({ codigo: 'PAPELERIA', nombre: 'Papelería' }),
   Object.freeze({ codigo: 'SERVICIO', nombre: 'Servicios' }),
+  Object.freeze({ codigo: 'INSUMO', nombre: 'Insumos' }),
+  Object.freeze({ codigo: 'MANTENIMIENTO', nombre: 'Mantenimiento' }),
+  Object.freeze({ codigo: 'EQUIPOS_ACTIVOS', nombre: 'Equipos y activos' }),
+  Object.freeze({ codigo: 'TECNOLOGIA', nombre: 'Tecnología' }),
 ]);
-export const DEFAULT_AREA = Object.freeze({ codigo: 'GENERAL', nombre: 'General' });
+/** Default areas (no heads: the tenant admin assigns them). The E1 area GENERAL is not part of the catalog. */
+export const DEFAULT_AREAS = Object.freeze([
+  Object.freeze({ codigo: 'ADMINISTRACION', nombre: 'Administración' }),
+  Object.freeze({ codigo: 'COMPRAS', nombre: 'Compras' }),
+  Object.freeze({ codigo: 'MANTENIMIENTO', nombre: 'Mantenimiento' }),
+  Object.freeze({ codigo: 'OPERACIONES', nombre: 'Operaciones' }),
+  Object.freeze({ codigo: 'CALIDAD', nombre: 'Calidad' }),
+  Object.freeze({ codigo: 'TALENTO_HUMANO', nombre: 'Talento humano' }),
+  Object.freeze({ codigo: 'TECNOLOGIA', nombre: 'Tecnología' }),
+]);
 export const DEFAULT_REGLA = Object.freeze({
   orden: 1,
   nombre: 'Jefe de área',
   montoDesde: 0,
   montoHasta: null,
   aprobadorTipo: 'jefe_area',
+});
+/** Example budget: area ADMINISTRACION, current calendar year (computed at seed time), editable amount. */
+export const DEFAULT_PRESUPUESTO = Object.freeze({
+  areaCodigo: 'ADMINISTRACION',
+  monto: 10000000,
+  moneda: DEFAULT_CURRENCY,
 });

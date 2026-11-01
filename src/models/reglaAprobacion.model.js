@@ -23,6 +23,8 @@ const ReglaAprobacionSchema = new Schema({
   rolId: { type: Schema.Types.ObjectId, ref: 'Role', default: null },
   usuariosIds: { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], default: [] },
   activo: { type: Boolean, default: true },
+  // Seeded default record (change: requisiciones-datos-por-defecto-tenant): protected, never writable through the API.
+  esSistema: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },
 }, {
@@ -46,6 +48,11 @@ ReglaAprobacionSchema.pre('validate', function (next) {
 
 ReglaAprobacionSchema.index({ tenantId: 1, isDeleted: 1 });
 ReglaAprobacionSchema.index({ tenantId: 1, activo: 1, orden: 1 });
+// At most ONE live default rule per tenant: makes the concurrent seed atomic (duplicate key = already exists).
+ReglaAprobacionSchema.index(
+  { tenantId: 1, esSistema: 1 },
+  { unique: true, partialFilterExpression: { esSistema: true, isDeleted: false } },
+);
 
 ReglaAprobacionSchema.set('toJSON', {
   transform: (_doc, ret) => {

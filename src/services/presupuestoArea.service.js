@@ -3,6 +3,7 @@ import { Area } from '../models/area.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { stripEsSistema, assertNotSistema, assertSistemaLocked } from '../utils/registroSistema.util.js';
 import { buildPagination } from '../utils/pagination.util.js';
 import { roundMoney } from '../utils/money.util.js';
 import { getTenantCurrency } from '../utils/tenantCurrency.util.js';
@@ -10,7 +11,7 @@ import { getTenantCurrency } from '../utils/tenantCurrency.util.js';
 export class PresupuestoAreaService {
   async create(tenantId, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, moneda: _m, ...clean } = data;
+    const { tenantId: _t, moneda: _m, ...clean } = stripEsSistema(data);
     const area = await Area.findOne(applyTenantFilter({ _id: clean.areaId }, tenantId)).select('_id').lean();
     if (!area) throw new ApiError(400, 'El área no existe en la organización', 'AREA_INVALIDA', { areaId: clean.areaId });
     const dup = await PresupuestoArea.findOne(applyTenantFilter({ areaId: clean.areaId, periodo: clean.periodo }, tenantId)).select('_id').lean();
@@ -50,7 +51,10 @@ export class PresupuestoAreaService {
 
   async update(tenantId, id, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, ...clean } = data;
+    const { tenantId: _t, ...clean } = stripEsSistema(data);
+    const current = await PresupuestoArea.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+    if (!current) throw new ApiError(404, 'Presupuesto no encontrado', 'PRESUPUESTO_NOT_FOUND', { id });
+    assertSistemaLocked(current, clean, ['areaId', 'periodo']);
     if (clean.monto !== undefined) clean.monto = roundMoney(clean.monto);
     const presupuesto = await PresupuestoArea.findOneAndUpdate(
       applyTenantFilter({ _id: id }, tenantId),
@@ -64,6 +68,9 @@ export class PresupuestoAreaService {
 
   async delete(tenantId, id) {
     requireTenant(tenantId);
+    const current = await PresupuestoArea.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+    if (!current) throw new ApiError(404, 'Presupuesto no encontrado', 'PRESUPUESTO_NOT_FOUND', { id });
+    assertNotSistema(current);
     const presupuesto = await PresupuestoArea.findOneAndUpdate(
       applyTenantFilter({ _id: id }, tenantId),
       { $set: { isDeleted: true, deletedAt: new Date() } },
