@@ -5,6 +5,7 @@ import { PresupuestoArea } from '../models/presupuestoArea.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { stripEsSistema, assertNotSistema, assertSistemaUpdate } from '../utils/registroSistema.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
 import { buildPagination } from '../utils/pagination.util.js';
 
@@ -50,7 +51,7 @@ export class AreaService {
 
   async create(tenantId, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, ...clean } = data;
+    const { tenantId: _t, ...clean } = stripEsSistema(data);
     await this.assertUnique(tenantId, { codigo: clean.codigo, nombre: clean.nombre });
     const jefesIds = await this.assertJefes(tenantId, clean.jefesIds);
     try {
@@ -100,7 +101,10 @@ export class AreaService {
 
   async update(tenantId, id, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, codigo: _c, ...clean } = data;
+    const { tenantId: _t, codigo: _c, ...clean } = stripEsSistema(data);
+    const current = await Area.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+    if (!current) throw new ApiError(404, 'Área no encontrada', 'AREA_NOT_FOUND', { id });
+    assertSistemaUpdate(current, clean, { activeField: 'activa' });
     if (clean.nombre !== undefined) await this.assertUnique(tenantId, { nombre: clean.nombre }, id);
     if (clean.jefesIds !== undefined) clean.jefesIds = await this.assertJefes(tenantId, clean.jefesIds);
     let area;
@@ -121,8 +125,9 @@ export class AreaService {
   /** Soft delete. An area referenced by users, requisitions or budgets cannot be deleted (409 AREA_EN_USO): deactivate it. */
   async delete(tenantId, id) {
     requireTenant(tenantId);
-    const exists = await Area.exists(applyTenantFilter({ _id: id }, tenantId));
+    const exists = await Area.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
     if (!exists) throw new ApiError(404, 'Área no encontrada', 'AREA_NOT_FOUND', { id });
+    assertNotSistema(exists);
     const [usuarios, requisiciones, presupuestos] = await Promise.all([
       User.countDocuments({ tenantId, areaId: id }),
       Requisicion.countDocuments({ tenantId, areaId: id }).setOptions({ includeDeleted: true }),

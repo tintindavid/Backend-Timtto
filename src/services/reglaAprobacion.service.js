@@ -5,6 +5,7 @@ import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { stripEsSistema, assertNotSistema, assertSistemaUpdate } from '../utils/registroSistema.util.js';
 import { buildPagination } from '../utils/pagination.util.js';
 import { roundMoney } from '../utils/money.util.js';
 import { APROBADOR_TIPO } from '../constants/requisicion.constants.js';
@@ -174,7 +175,7 @@ export class ReglaAprobacionService {
 
   async create(tenantId, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, ...clean } = data;
+    const { tenantId: _t, ...clean } = stripEsSistema(data);
     const rule = {
       orden: clean.orden,
       nombre: clean.nombre,
@@ -215,7 +216,8 @@ export class ReglaAprobacionService {
     requireTenant(tenantId);
     const current = await ReglaAprobacion.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
     if (!current) throw new ApiError(404, 'Regla de aprobación no encontrada', 'REGLA_NOT_FOUND', { id });
-    const { tenantId: _t, ...clean } = data;
+    const { tenantId: _t, ...clean } = stripEsSistema(data);
+    assertSistemaUpdate(current, clean, { activeField: 'activo' });
     const merged = {
       orden: clean.orden ?? current.orden,
       nombre: clean.nombre ?? current.nombre,
@@ -256,6 +258,9 @@ export class ReglaAprobacionService {
   /** Soft delete. Requisitions already in approval keep their frozen snapshot of the levels. */
   async delete(tenantId, id) {
     requireTenant(tenantId);
+    const current = await ReglaAprobacion.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+    if (!current) throw new ApiError(404, 'Regla de aprobación no encontrada', 'REGLA_NOT_FOUND', { id });
+    assertNotSistema(current);
     const rule = await ReglaAprobacion.findOneAndUpdate(
       applyTenantFilter({ _id: id }, tenantId),
       { $set: { isDeleted: true, deletedAt: new Date() } },

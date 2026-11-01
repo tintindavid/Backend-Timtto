@@ -52,12 +52,12 @@ describe('list totals exclude soft-deleted rows', () => {
 
   it('area.delete ignores soft-deleted budgets when checking usage', async () => {
     const counts = [];
-    const origExists = Area.exists; const origUser = User.countDocuments; const origUpdate = Area.findOneAndUpdate;
+    const origExists = Area.findOne; const origUser = User.countDocuments; const origUpdate = Area.findOneAndUpdate;
     spy(Requisicion, []); spy(PresupuestoArea, counts);
-    Area.exists = async () => true;
+    Area.findOne = () => ({ lean: async () => ({ _id: 'x' }) });
     User.countDocuments = async () => 0;
     Area.findOneAndUpdate = async () => ({ _id: 'x' });
-    saved.push(() => { Area.exists = origExists; User.countDocuments = origUser; Area.findOneAndUpdate = origUpdate; });
+    saved.push(() => { Area.findOne = origExists; User.countDocuments = origUser; Area.findOneAndUpdate = origUpdate; });
     await areaService.delete('t', '64b000000000000000000002');
     assert.deepEqual(counts[0].isDeleted, { $ne: true });
   });

@@ -12,6 +12,8 @@ const TipoRequisicionSchema = new Schema({
   codigo: { type: String, required: true, trim: true, uppercase: true, maxlength: 30, immutable: true },
   descripcion: { type: String, trim: true, maxlength: 500 },
   activo: { type: Boolean, default: true },
+  // Seeded default record (change: requisiciones-datos-por-defecto-tenant): protected, never writable through the API.
+  esSistema: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },
 }, {

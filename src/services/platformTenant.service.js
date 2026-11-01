@@ -14,6 +14,7 @@ import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
 import { PERMISSION_VALUES } from '../constants/permissions.js';
 import { logger } from '../config/logger.config.js';
 import { env } from '../config/env.js';
+import { seedRequisicionDefaults } from './requisicionSeed.service.js';
 import {
   getTenantType,
   normalizeCapabilities,
@@ -204,6 +205,23 @@ export class PlatformTenantService {
   // ---------------------------------------------------------------------------
 
   /**
+   * Seeds the Requisiciones defaults of a tenant (change: requisiciones-datos-por-defecto-tenant). NEVER throws: a
+   * failure is logged and reported as `{ error: true }` so the capability change / tenant creation stays applied
+   * (the seed script retries it).
+   * @private
+   */
+  static async _seedRequisiciones(tenantId, actorId = null) {
+    try {
+      const result = await seedRequisicionDefaults(tenantId);
+      logger.info('PlatformTenantService: requisiciones defaults seeded', { tenantId, actorId, ...result });
+      return result;
+    } catch (err) {
+      logger.error('PlatformTenantService: requisiciones defaults seed failed', { tenantId, actorId, error: err.message });
+      return { error: true };
+    }
+  }
+
+  /**
    * Creates a Tenant + first admin User atomically.
    * Uses Mongoose sessions + withTransaction (requires Atlas / replica set).
    * Falls back to compensatory flow on single-node MongoDB (design D1).
@@ -319,6 +337,11 @@ export class PlatformTenantService {
         adminEmail: createdAdmin.email,
       });
 
+      // Outside the transaction; never throws (a failure is reported, the tenant stays created).
+      const requisicionesDefaults = capabilities.usesRequisiciones === true
+        ? await PlatformTenantService._seedRequisiciones(createdTenant.tenantId)
+        : undefined;
+
       // Fire-and-forget the welcome email so the HTTP response is not blocked
       // by the SMTP round-trip (~1-10s to Resend). Design D4/D8: `emailSent`
       // is best-effort intent, not delivery confirmation. Failures logged in
@@ -339,6 +362,7 @@ export class PlatformTenantService {
         admin: createdAdmin.toJSON(), // password stripped by toJSON transform
         temporaryPassword,
         emailSent: env.NOTIFICATIONS_ENABLED === true,
+        ...(requisicionesDefaults ? { requisicionesDefaults } : {}),
       };
     } catch (txErr) {
       if (isTransactionUnsupportedError(txErr)) {
@@ -402,6 +426,9 @@ export class PlatformTenantService {
       logger.info('PlatformTenantService._createWithAdminCompensatory: success', {
         tenantId: createdTenant.tenantId,
       });
+      const requisicionesDefaults = tenantPayload.capabilities?.usesRequisiciones === true
+        ? await PlatformTenantService._seedRequisiciones(createdTenant.tenantId)
+        : undefined;
 
       // Fire-and-forget (see comment in transaction path above).
       emailService
@@ -420,6 +447,7 @@ export class PlatformTenantService {
         admin: createdAdmin.toJSON(),
         temporaryPassword,
         emailSent: env.NOTIFICATIONS_ENABLED === true,
+        ...(requisicionesDefaults ? { requisicionesDefaults } : {}),
       };
     } catch (userErr) {
       logger.error(
@@ -664,12 +692,18 @@ export class PlatformTenantService {
       organizationCustomerCreated: Boolean(customerToCreate),
     });
 
+    // Seed only on the false -> true transition of usesRequisiciones, after the change is persisted.
+    const requisicionesDefaults = before.usesRequisiciones !== true && after.usesRequisiciones === true
+      ? await PlatformTenantService._seedRequisiciones(tenant.tenantId, actorId)
+      : undefined;
+
     return {
       tenantId: updated.tenantId ?? tenant.tenantId,
       capabilities: after,
       type: getTenantType(after),
       organizationCustomerId: updated.organizationCustomerId ? String(updated.organizationCustomerId) : null,
       organizationCustomerCreated: Boolean(customerToCreate),
+      ...(requisicionesDefaults ? { requisicionesDefaults } : {}),
     };
   }
 

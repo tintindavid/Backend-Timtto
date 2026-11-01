@@ -3,6 +3,7 @@ import { Requisicion } from '../models/requisicion.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
+import { stripEsSistema, assertNotSistema, assertSistemaUpdate } from '../utils/registroSistema.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
 import { buildPagination } from '../utils/pagination.util.js';
 
@@ -36,7 +37,7 @@ export class TipoRequisicionService {
 
   async create(tenantId, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, ...clean } = data;
+    const { tenantId: _t, ...clean } = stripEsSistema(data);
     await this.assertUnique(tenantId, { codigo: clean.codigo, nombre: clean.nombre });
     try {
       const tipo = await TipoRequisicion.create({ ...clean, codigo: normalizeCodigo(clean.codigo), tenantId });
@@ -82,7 +83,10 @@ export class TipoRequisicionService {
 
   async update(tenantId, id, data) {
     requireTenant(tenantId);
-    const { tenantId: _t, codigo: _c, ...clean } = data;
+    const { tenantId: _t, codigo: _c, ...clean } = stripEsSistema(data);
+    const current = await TipoRequisicion.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
+    if (!current) throw new ApiError(404, 'Tipo de requisición no encontrado', 'TIPO_NOT_FOUND', { id });
+    assertSistemaUpdate(current, clean, { activeField: 'activo' });
     if (clean.nombre !== undefined) await this.assertUnique(tenantId, { nombre: clean.nombre }, id);
     let tipo;
     try {
@@ -102,8 +106,9 @@ export class TipoRequisicionService {
   /** Soft delete. A type referenced by a requisition cannot be deleted (409 TIPO_EN_USO): deactivate it. */
   async delete(tenantId, id) {
     requireTenant(tenantId);
-    const exists = await TipoRequisicion.exists(applyTenantFilter({ _id: id }, tenantId));
+    const exists = await TipoRequisicion.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
     if (!exists) throw new ApiError(404, 'Tipo de requisición no encontrado', 'TIPO_NOT_FOUND', { id });
+    assertNotSistema(exists);
     const requisiciones = await Requisicion.countDocuments({ tenantId, tipoRequisicionId: id }).setOptions({ includeDeleted: true });
     if (requisiciones > 0) {
       throw new ApiError(409, 'El tipo está en uso por requisiciones; solo puede desactivarse', 'TIPO_EN_USO', { requisiciones });
