@@ -1,3 +1,10 @@
+# [2.28.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.27.0...v2.28.0) (2026-11-01)
+
+
+### Features
+
+* **requisiciones:** seed protected default data when the module is enabled for a tenant ([#49](https://github.com/tintindavid/Backend-Timtto/issues/49)) ([70d1582](https://github.com/tintindavid/Backend-Timtto/commit/70d1582a56db665749542a5951057bbb2910a1ac))
+
 # [2.27.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.26.2...v2.27.0) (2026-10-31)
 
 
