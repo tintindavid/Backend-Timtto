@@ -20,6 +20,13 @@ import {
   PUBLIC_RATE_LIMIT_WINDOW_MS,
 } from '../constants/equipmentQr.constants.js';
 
+import {
+  PORTAL_IP_WINDOW_MS,
+  PORTAL_IP_MAX,
+  PORTAL_TOKEN_WINDOW_MS,
+  PORTAL_TOKEN_MAX,
+} from '../constants/requisicion.constants.js';
+
 export const rateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
@@ -141,6 +148,37 @@ export const clientPortalReadIpLimiter = rateLimit({
     CLIENT_PORTAL_READ_IP_WINDOW_MS,
     'RATE_LIMIT_CLIENT_PORTAL_READ_IP',
     'Demasiadas solicitudes desde tu IP. Intenta en un momento.'
+  ),
+});
+
+/**
+ * Supplier portal of the requisitions (E3, /api/v1/public/requisiciones/:token...) — wide per-IP limiter. Mount it
+ * BEFORE the token limiter and BEFORE any database access, so unknown tokens consume it too.
+ */
+export const requisicionPortalIpLimiter = rateLimit({
+  windowMs: PORTAL_IP_WINDOW_MS,
+  max: PORTAL_IP_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `rqp:ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`,
+  handler: buildLimitHandler(
+    PORTAL_IP_WINDOW_MS,
+    'RATE_LIMIT_REQUISICION_PORTAL_IP',
+    'Demasiadas solicitudes. Intenta de nuevo en un momento.'
+  ),
+});
+
+/** Supplier portal — narrow per IP + token limiter (the token part is bounded in length: it is attacker-controlled). */
+export const requisicionPortalTokenLimiter = rateLimit({
+  windowMs: PORTAL_TOKEN_WINDOW_MS,
+  max: PORTAL_TOKEN_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `rqp:tok:${req.ip || req.connection?.remoteAddress || 'unknown'}:${String(req.params.token || '').slice(0, 64)}`,
+  handler: buildLimitHandler(
+    PORTAL_TOKEN_WINDOW_MS,
+    'RATE_LIMIT_REQUISICION_PORTAL',
+    'Demasiadas solicitudes. Intenta de nuevo en un momento.'
   ),
 });
 

@@ -13,6 +13,9 @@ const TOKEN_PATH_PREFIXES = [
   '/public/tickets/',
   '/public/ticket/',
   '/public/equipo/',
+  // E3: supplier portal (API route and the SPA page that appears in the referrer).
+  '/public/requisiciones/',
+  '/public/requisicion/',
   '/api/public/equipo/',
   '/portal/',
   '/firma/',

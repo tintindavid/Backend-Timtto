@@ -38,6 +38,10 @@ describe('route table', () => {
       'POST /:id/aprobacion/aprobar', 'POST /:id/aprobacion/reasignar', 'POST /:id/aprobacion/rechazar', 'POST /:id/cancelar', 'POST /:id/enviar',
       // E2 (reception)
       'POST /:id/recepciones', 'POST /:id/recepciones/:recepcionId/confirmar', 'POST /:id/lineas/:lineaId/cerrar',
+      // E3 (tendering)
+      'POST /:id/proveedores', 'DELETE /:id/proveedores/:paId', 'POST /:id/licitacion/abrir', 'POST /:id/proveedores/:paId/reenviar',
+      'POST /:id/proveedores/:paId/cotizacion', 'POST /:id/licitacion/cerrar', 'GET /:id/licitacion/comparativo',
+      'PATCH /:id/proveedores/:paId/seleccionar-ganador', 'POST /:id/compra-directa', 'PATCH /:id/licitacion/fecha-limite',
     ].sort());
     for (const r of routes) assert.ok(r.route.stack.length >= 3, `${r.method} ${r.path}`);
   });

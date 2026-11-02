@@ -76,6 +76,7 @@ import clientAccessTokenRoutes from './routes/clientAccessToken.routes.js';
 import clientPortalRoutes from './routes/clientPortal.routes.js';
 import publicSheetSignRoutes from './routes/publicSheetSign.routes.js';
 import publicSheetDownloadRoutes from './routes/publicSheetDownload.routes.js';
+import publicRequisicionRoutes from './routes/publicRequisicion.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import notificationRuleRoutes from './routes/notificationRule.routes.js';
 import notificationPreferenceRoutes from './routes/notificationPreference.routes.js';
@@ -288,6 +289,11 @@ app.use('/public/sheet-sign', publicSheetSignRoutes);
 // Public download share links for signed HTs
 // (sheetwork-share-and-portal-widening). Same mount pattern (before authenticate).
 app.use('/public/sheet-download', publicSheetDownloadRoutes);
+
+// Supplier portal of the requisitions (requisiciones-e3-compras-portal): PUBLIC, gated only by the token of ONE supplier.
+// No JWT and no capability-map entry on purpose: the service requires an active tenant with the Requisiciones module and
+// answers a generic 404 otherwise. The limiters live in the router and run before any database access.
+app.use('/api/v1/public/requisiciones/:token', publicRequisicionRoutes);
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json(successResponse({ uptime: process.uptime() }, 'OK')));

@@ -135,6 +135,8 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
   // spare parts
   '/api/v1/repuestos',
   '/api/v1/repuesto-trazabilidad',
+  // public supplier portal of the requisitions (token-gated, no session; the tenant module is checked by the portal service)
+  '/api/v1/public/requisiciones',
   // documents
   '/api/v1/informes',
   '/api/v1/pdf-reports',

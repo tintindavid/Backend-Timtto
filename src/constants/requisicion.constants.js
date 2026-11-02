@@ -18,6 +18,10 @@ export const REQUISICION_ESTADO = Object.freeze({
   // E2 (requisiciones-e2-solicitudes-recepcion): reception of the goods and satisfied delivery.
   EN_RECEPCION: 'En_Recepcion',
   CERRADA: 'Cerrada',
+  // E3 (requisiciones-e3-compras-portal): optional tendering with suppliers and award.
+  EN_LICITACION: 'En_Licitacion',
+  COTIZACION_RECIBIDA: 'Cotizacion_Recibida',
+  ADJUDICADA: 'Adjudicada',
 });
 export const REQUISICION_ESTADO_VALUES = Object.freeze(Object.values(REQUISICION_ESTADO));
 
@@ -36,7 +40,17 @@ export const REQUISICION_TRANSICIONES = Object.freeze({
   ]),
   // E2: Aprobada -> En_Recepcion (automatic on the first reception) | Cerrada (automatic when every active line is
   // confirmed or cancelled) | Cancelada.
+  // E3: Aprobada -> En_Licitacion (open the tender) | Adjudicada (justified direct purchase). Tendering is optional.
   [REQUISICION_ESTADO.APROBADA]: Object.freeze([
+    REQUISICION_ESTADO.EN_LICITACION,
+    REQUISICION_ESTADO.ADJUDICADA,
+    REQUISICION_ESTADO.EN_RECEPCION,
+    REQUISICION_ESTADO.CERRADA,
+    REQUISICION_ESTADO.CANCELADA,
+  ]),
+  [REQUISICION_ESTADO.EN_LICITACION]: Object.freeze([REQUISICION_ESTADO.COTIZACION_RECIBIDA, REQUISICION_ESTADO.CANCELADA]),
+  [REQUISICION_ESTADO.COTIZACION_RECIBIDA]: Object.freeze([REQUISICION_ESTADO.ADJUDICADA, REQUISICION_ESTADO.CANCELADA]),
+  [REQUISICION_ESTADO.ADJUDICADA]: Object.freeze([
     REQUISICION_ESTADO.EN_RECEPCION,
     REQUISICION_ESTADO.CERRADA,
     REQUISICION_ESTADO.CANCELADA,
@@ -50,6 +64,9 @@ export const REQUISICION_TRANSICIONES = Object.freeze({
 /** States whose estimated amount counts as CONSUMED / COMMITTED in the (informative) area budget. */
 export const PRESUPUESTO_ESTADOS_CONSUMIDO = Object.freeze([
   REQUISICION_ESTADO.APROBADA,
+  REQUISICION_ESTADO.EN_LICITACION,
+  REQUISICION_ESTADO.COTIZACION_RECIBIDA,
+  REQUISICION_ESTADO.ADJUDICADA,
   REQUISICION_ESTADO.EN_RECEPCION,
   REQUISICION_ESTADO.CERRADA,
 ]);
@@ -76,10 +93,23 @@ export const REQUISICION_EVENTO = Object.freeze({
   LINEA_CERRADA: 'LINEA_CERRADA',
   LINEA_CANCELADA: 'LINEA_CANCELADA',
   CERRADA: 'CERRADA',
+  // E3: tendering and award.
+  PROVEEDOR_ASIGNADO: 'PROVEEDOR_ASIGNADO',
+  PROVEEDOR_QUITADO: 'PROVEEDOR_QUITADO',
+  LICITACION_INICIADA: 'LICITACION_INICIADA',
+  INVITACIONES_ENVIADAS: 'INVITACIONES_ENVIADAS',
+  INVITACION_ACEPTADA: 'INVITACION_ACEPTADA',
+  INVITACION_RECHAZADA: 'INVITACION_RECHAZADA',
+  COTIZACION_RECIBIDA: 'COTIZACION_RECIBIDA',
+  COTIZACIONES_CERRADAS: 'COTIZACIONES_CERRADAS',
+  PROVEEDOR_SELECCIONADO: 'PROVEEDOR_SELECCIONADO',
+  PROVEEDOR_DESCARTADO: 'PROVEEDOR_DESCARTADO',
+  COMPRA_DIRECTA_JUSTIFICADA: 'COMPRA_DIRECTA_JUSTIFICADA',
+  FECHA_LIMITE_AMPLIADA: 'FECHA_LIMITE_AMPLIADA',
 });
 export const REQUISICION_EVENTO_VALUES = Object.freeze(Object.values(REQUISICION_EVENTO));
 
-export const TIMELINE_ACTOR_TIPO = Object.freeze({ USUARIO: 'usuario', SISTEMA: 'sistema' });
+export const TIMELINE_ACTOR_TIPO = Object.freeze({ USUARIO: 'usuario', SISTEMA: 'sistema', PROVEEDOR: 'proveedor' });
 export const TIMELINE_ACTOR_TIPO_VALUES = Object.freeze(Object.values(TIMELINE_ACTOR_TIPO));
 /** Soft cap of timeline entries per requisition (design D3). */
 export const TIMELINE_SOFT_CAP = 500;
@@ -142,6 +172,55 @@ export const REPUESTO_REQUISICION_FILTER_VALUES = Object.freeze([
   REPUESTO_DISPONIBILIDAD.DISPONIBLE,
   REPUESTO_DISPONIBILIDAD.EN_DISPUTA,
 ]);
+
+// --- E3: tendering (licitacion) ---------------------------------------------------------------------------------
+
+/** Per-supplier delivery/answer state of an invitation. `Descartado`/`Rechazado`/`Ganador` are terminal. */
+export const PROVEEDOR_ESTADO_ENVIO = Object.freeze({
+  PENDIENTE: 'Pendiente',
+  ENVIADO: 'Enviado',
+  ACEPTADO: 'Aceptado',
+  RECHAZADO: 'Rechazado',
+  GANADOR: 'Ganador',
+  DESCARTADO: 'Descartado',
+});
+export const PROVEEDOR_ESTADO_ENVIO_VALUES = Object.freeze(Object.values(PROVEEDOR_ESTADO_ENVIO));
+/** Suppliers that still count in the tender (neither refused nor discarded). */
+export const PROVEEDOR_ESTADOS_ACTIVOS = Object.freeze([
+  PROVEEDOR_ESTADO_ENVIO.PENDIENTE,
+  PROVEEDOR_ESTADO_ENVIO.ENVIADO,
+  PROVEEDOR_ESTADO_ENVIO.ACEPTADO,
+]);
+/** States in which the supplier portal link is still usable (before the deadline and while the tender is open). */
+export const PROVEEDOR_ESTADOS_PORTAL = Object.freeze([PROVEEDOR_ESTADO_ENVIO.ENVIADO, PROVEEDOR_ESTADO_ENVIO.ACEPTADO]);
+
+export const COTIZACION_ORIGEN = Object.freeze({ PORTAL: 'portal', INTERNO: 'interno' });
+export const COTIZACION_ORIGEN_VALUES = Object.freeze(Object.values(COTIZACION_ORIGEN));
+
+export const LICITACION_MAX_PROVEEDORES = 25;
+export const LICITACION_MIN_PROVEEDORES = 2;
+export const LICITACION_MAX_VISTAS = 200;
+/** Previous quotation submissions kept per supplier (the oldest one is dropped with its file). */
+export const COTIZACION_MAX_VERSIONES = 10;
+export const LICITACION_MAX_DIAS_LIMITE = 90;
+export const COMPRA_DIRECTA_MIN_JUSTIFICACION = 20;
+/** After the award / the close of the window the links that may still read their page last this many days. */
+export const PROVEEDOR_ENLACE_POST_CIERRE_DIAS = 30;
+/** Token: 32 random bytes (base64url); only the SHA-256 hash and the last 4 chars are stored. */
+export const PROVEEDOR_TOKEN_BYTES = 32;
+export const PROVEEDOR_TOKEN_HINT_LENGTH = 4;
+/** Quotation file: one PDF/image of up to 5 MiB. */
+export const COTIZACION_ARCHIVO_MIME = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+export const COTIZACION_ARCHIVO_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Public portal: fixed (non-leaking) messages. */
+export const PORTAL_MENSAJE_NO_ENCONTRADO = 'Enlace no encontrado';
+export const PORTAL_MENSAJE_TOKEN_EXPIRADO = 'Gracias por tu interés, decidimos no continuar tu proceso.';
+/** Public portal limiters: wide per IP, narrow per IP + token (both run before any database access). */
+export const PORTAL_IP_WINDOW_MS = 60 * 1000;
+export const PORTAL_IP_MAX = 100;
+export const PORTAL_TOKEN_WINDOW_MS = 60 * 1000;
+export const PORTAL_TOKEN_MAX = 20;
 
 export const REQUISICION_PRIORIDAD = Object.freeze({ BAJA: 'Baja', MEDIA: 'Media', ALTA: 'Alta', URGENTE: 'Urgente' });
 export const REQUISICION_PRIORIDAD_VALUES = Object.freeze(Object.values(REQUISICION_PRIORIDAD));

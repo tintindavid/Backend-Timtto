@@ -356,6 +356,56 @@ async function sendClientPortalLinkEmail({ to, clienteName, portalUrl, requester
 }
 
 /**
+ * E3 (requisiciones-e3-compras-portal): invitation to quote sent to an EXTERNAL supplier with its own personal link.
+ * Items carry NO prices. Every text is escaped by Handlebars. Never throws.
+ */
+async function sendRequisicionRfqInvitationEmail({ to, proveedorNombre, tenantName, consecutivo, titulo, fechaLimite, instrucciones, items, portalUrl }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'requisicion-rfq-invitation' });
+    return { sent: false, skipped: true };
+  }
+  try {
+    const vars = {
+      proveedorNombre: proveedorNombre || '',
+      tenantName: tenantName || 'TIMTTO',
+      consecutivo: consecutivo || '',
+      titulo: titulo || '',
+      fechaLimite: fechaLimite || '',
+      instrucciones: instrucciones || '',
+      portalUrl,
+      items: (items || []).map((i) => ({ descripcion: i.descripcion, cantidad: i.cantidad, unidad: i.unidad, especificacion: i.especificacion || '' })),
+    };
+    const [html, text] = await Promise.all([
+      renderTemplate('requisicion-rfq-invitation.hbs', vars),
+      renderTemplate('requisicion-rfq-invitation.txt.hbs', vars),
+    ]);
+    return await _send({ to, subject: `Invitación a cotizar — ${consecutivo || 'solicitud'}`, html, text, templateName: 'requisicion-rfq-invitation' });
+  } catch (err) {
+    logger.error('email-service: rfq invitation render failed', { to, error: err.message });
+    return { sent: false, error: err.message };
+  }
+}
+
+/** E3: award notice to the winning supplier (no prices, no link). Never throws. */
+async function sendRequisicionAwardEmail({ to, proveedorNombre, tenantName, consecutivo, titulo }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'requisicion-award' });
+    return { sent: false, skipped: true };
+  }
+  try {
+    const vars = { proveedorNombre: proveedorNombre || '', tenantName: tenantName || 'TIMTTO', consecutivo: consecutivo || '', titulo: titulo || '' };
+    const [html, text] = await Promise.all([
+      renderTemplate('requisicion-award.hbs', vars),
+      renderTemplate('requisicion-award.txt.hbs', vars),
+    ]);
+    return await _send({ to, subject: `Cotización adjudicada — ${consecutivo || 'solicitud'}`, html, text, templateName: 'requisicion-award' });
+  } catch (err) {
+    logger.error('email-service: award render failed', { to, error: err.message });
+    return { sent: false, error: err.message };
+  }
+}
+
+/**
  * Generic notification email used by notificationService (channel `email`).
  * Renders `notification.hbs` / `notification.txt.hbs`. Never throws.
  *
@@ -411,4 +461,6 @@ export const emailService = {
   sendClientPortalLinkEmail,
   sendSheetShareDownloadEmail,
   sendNotificationEmail,
+  sendRequisicionRfqInvitationEmail,
+  sendRequisicionAwardEmail,
 };

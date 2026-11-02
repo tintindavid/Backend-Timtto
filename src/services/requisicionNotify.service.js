@@ -65,6 +65,14 @@ export async function getLineResponsibleIds(tenantId, req, { lineaIds = null, in
   return unique(out);
 }
 
+/** E3: buyers = users whose role holds `requisiciones:manage-suppliers`. */
+export async function getBuyerUserIds(tenantId) {
+  const roles = await Role.find({ tenantId, permissions: PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS }).select('_id').lean();
+  if (roles.length === 0) return [];
+  const users = await User.find({ tenantId, roleId: { $in: roles.map((r) => r._id) } }).select('_id').lean();
+  return unique(users.map((u) => String(u._id)));
+}
+
 /** Users whose role holds `requisiciones:manage-all` (the supervisors that handle disputes). */
 export async function getManageAllUserIds(tenantId) {
   const roles = await Role.find({ tenantId, permissions: PERMISSIONS.REQUISICIONES_MANAGE_ALL }).select('_id').lean();
@@ -144,6 +152,14 @@ export function notifyRequisicion(tenantId, event, req, ctx = {}) {
         case 'requisicion.closed':
           recipients = people;
           break;
+        case 'requisicion.rfq.sent':
+          recipients = people;
+          break;
+        case 'requisicion.quote.received':
+        case 'requisicion.winner.selected':
+          // E3: creator, requester and the buyers (manage-suppliers).
+          recipients = unique([...people, ...(await getBuyerUserIds(tenantId))]);
+          break;
         default: // level.approved
           recipients = people;
       }
@@ -169,6 +185,9 @@ export function notifyRequisicion(tenantId, event, req, ctx = {}) {
           reason: ctx.reason,
           descripcion: ctx.descripcion,
           link: ctx.link,
+          proveedorNombre: ctx.proveedorNombre,
+          enviados: ctx.enviados,
+          fallidos: ctx.fallidos,
         },
         recipients,
         // The "available" notice is also a record for the one who just confirmed: nobody is excluded.
