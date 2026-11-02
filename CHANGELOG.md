@@ -1,3 +1,10 @@
+# [2.29.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.28.0...v2.29.0) (2026-11-02)
+
+
+### Features
+
+* **requisiciones:** add supplier tendering, public quotation portal and winner selection (E3) ([#50](https://github.com/tintindavid/Backend-Timtto/issues/50)) ([ada3784](https://github.com/tintindavid/Backend-Timtto/commit/ada37847c7bc8f5a48cc912da57c4e23a4eb6b04))
+
 # [2.28.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.27.0...v2.28.0) (2026-11-01)
 
 
