@@ -37,4 +37,8 @@ export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed', 'ot.responsib
   'requisicion.delivery.confirmed',
   'requisicion.delivery.disputed',
   'requisicion.line.closed',
-  'requisicion.closed'];
+  'requisicion.closed',
+  // requisiciones-e3-compras-portal — tendering
+  'requisicion.rfq.sent',
+  'requisicion.quote.received',
+  'requisicion.winner.selected'];

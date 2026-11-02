@@ -103,6 +103,36 @@ export function buildRequisicionClosedPayload(p) {
   return build(p, `${label(p)} cerrada`, 'La requisición fue cerrada: todas las entregas quedaron confirmadas o canceladas.');
 }
 
+// --- E3: tendering --------------------------------------------------------------------------------------------
+
+export function buildRequisicionRfqSentPayload(p) {
+  const fallidos = Number(p.fallidos) || 0;
+  const tail = fallidos > 0 ? ` ${fallidos} no se pudieron enviar: revisa la pestaña de licitación.` : '';
+  return build(
+    { ...p, link: p.link || `/requisiciones/${p.requisicionId}?tab=licitacion` },
+    `${label(p)}: invitaciones enviadas`,
+    `${actor(p)} abrió la licitación y envió ${Number(p.enviados) || 0} invitación(es) a proveedores.${tail}`,
+  );
+}
+
+export function buildRequisicionQuoteReceivedPayload(p) {
+  const who = p.proveedorNombre ? String(p.proveedorNombre).slice(0, 120) : 'Un proveedor';
+  return build(
+    { ...p, link: p.link || `/requisiciones/${p.requisicionId}?tab=licitacion` },
+    `${label(p)}: cotización recibida`,
+    `${who} envió su cotización.`,
+  );
+}
+
+export function buildRequisicionWinnerSelectedPayload(p) {
+  const who = p.proveedorNombre ? ` a ${String(p.proveedorNombre).slice(0, 120)}` : ' un proveedor';
+  return build(
+    { ...p, link: p.link || `/requisiciones/${p.requisicionId}?tab=licitacion` },
+    `${label(p)}: proveedor seleccionado`,
+    `${actor(p)} adjudicó la requisición${who}.`,
+  );
+}
+
 /** event name -> builder, for generic callers. */
 export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.submitted': buildRequisicionSubmittedPayload,
@@ -117,4 +147,7 @@ export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.delivery.disputed': buildRequisicionDeliveryDisputedPayload,
   'requisicion.line.closed': buildRequisicionLineClosedPayload,
   'requisicion.closed': buildRequisicionClosedPayload,
+  'requisicion.rfq.sent': buildRequisicionRfqSentPayload,
+  'requisicion.quote.received': buildRequisicionQuoteReceivedPayload,
+  'requisicion.winner.selected': buildRequisicionWinnerSelectedPayload,
 };

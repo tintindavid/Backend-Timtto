@@ -135,6 +135,23 @@ const requisicionEvidenciaUpload = multer({
 export const uploadRequisicionEvidencias = requisicionEvidenciaUpload.array('evidencias', REQUISICION_EVIDENCIA_MAX_FILES);
 
 /**
+ * Multer instance for a supplier quotation (E3): ONE PDF/JPEG/PNG/WebP file of up to 5 MiB, field `archivo`, no other
+ * file part (a stray one is a 400). The magic bytes are verified later in the Firebase service. Used by the internal
+ * route AND by the public (unauthenticated) supplier portal, so the limits are deliberately tight.
+ */
+export const COTIZACION_ARCHIVO_MIME = REQUISICION_EVIDENCIA_MIME;
+const cotizacionArchivoUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (COTIZACION_ARCHIVO_MIME.includes(file.mimetype)) return cb(null, true);
+    return cb(new ApiError(400, 'Tipo de archivo no permitido. Usa PDF o imágenes JPG, PNG o WebP.', 'INVALID_FILE_TYPE'), false);
+  },
+  limits: { fileSize: REQUISICION_EVIDENCIA_MAX_BYTES, files: 1, fields: 12, parts: 14 },
+});
+
+export const uploadCotizacionArchivo = cotizacionArchivoUpload.single('archivo');
+
+/**
  * Middleware para manejar errores de multer
  */
 export const handleMulterError = (err, req, res, next) => {

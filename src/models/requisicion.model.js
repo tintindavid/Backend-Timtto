@@ -8,6 +8,9 @@ import {
   LINEA_ESTADO,
   LINEA_ESTADO_VALUES,
   CONFIRMACION_RESULTADO_VALUES,
+  COTIZACION_ORIGEN_VALUES,
+  PROVEEDOR_ESTADO_ENVIO,
+  PROVEEDOR_ESTADO_ENVIO_VALUES,
   RECEPCIONES_SOFT_CAP,
   NIVEL_ESTADO,
   NIVEL_ESTADO_VALUES,
@@ -56,7 +59,7 @@ export function computeMontoEstimado(lineas = []) {
  * Builds a timeline entry. `actorId` null means a system actor.
  * @param {{ tipo: string, actorId?: any, estadoAnterior?: string, estadoNuevo?: string, observacion?: string, datos?: object, fecha?: Date }} event
  */
-export function buildTimelineEvent({ tipo, actorId = null, estadoAnterior, estadoNuevo, observacion, datos, fecha } = {}) {
+export function buildTimelineEvent({ tipo, actorId = null, actorExterno = null, estadoAnterior, estadoNuevo, observacion, datos, fecha } = {}) {
   if (!REQUISICION_EVENTO_VALUES.includes(tipo)) {
     throw new ApiError(500, `Evento de timeline desconocido: ${tipo}`, 'TIMELINE_EVENT_UNKNOWN');
   }
@@ -64,9 +67,12 @@ export function buildTimelineEvent({ tipo, actorId = null, estadoAnterior, estad
     eventId: new mongoose.Types.ObjectId(),
     tipo,
     fecha: fecha || new Date(),
+    // E3: an external actor (a supplier answering through the public portal) carries only a display name.
     actor: actorId
       ? { tipo: TIMELINE_ACTOR_TIPO.USUARIO, usuarioId: actorId }
-      : { tipo: TIMELINE_ACTOR_TIPO.SISTEMA },
+      : (actorExterno
+        ? { tipo: TIMELINE_ACTOR_TIPO.PROVEEDOR, nombreExterno: String(actorExterno.nombre || '').slice(0, 200) }
+        : { tipo: TIMELINE_ACTOR_TIPO.SISTEMA }),
   };
   if (estadoAnterior !== undefined) event.estadoAnterior = estadoAnterior;
   if (estadoNuevo !== undefined) event.estadoNuevo = estadoNuevo;
@@ -167,6 +173,89 @@ const RecepcionSchema = new Schema({
   },
 }, { _id: false });
 
+// --- Tendering sub-schemas (E3) -------------------------------------------------------------------------------
+
+const ArchivoSchemaDef = {
+  url: { type: String, trim: true, maxlength: 2000 },
+  nombre: { type: String, trim: true, maxlength: 300 },
+  tipo: { type: String, trim: true, maxlength: 100 },
+  tamano: { type: Number, min: 0 },
+  // Internal storage reference (used to delete replaced files); never serialised in any DTO.
+  storagePath: { type: String, trim: true, maxlength: 500 },
+};
+
+// Previous submissions of the same supplier (bounded history, E3 round 2). Internal responses only.
+const CotizacionVersionSchema = new Schema({
+  fechaRespuesta: { type: Date },
+  archivo: ArchivoSchemaDef,
+  linkPropuesta: { type: String, trim: true, maxlength: 2000 },
+  observacion: { type: String, trim: true, maxlength: 2000 },
+  valorTotal: { type: Number, min: 0 },
+  moneda: { type: String, trim: true, uppercase: true, maxlength: 10 },
+  origen: { type: String, enum: COTIZACION_ORIGEN_VALUES },
+}, { _id: false });
+
+const CotizacionSchema = new Schema({
+  archivo: ArchivoSchemaDef,
+  versiones: { type: [CotizacionVersionSchema], default: undefined },
+  linkPropuesta: { type: String, trim: true, maxlength: 2000 },
+  observacion: { type: String, trim: true, maxlength: 2000 },
+  valorTotal: { type: Number, min: 0 },
+  moneda: { type: String, trim: true, uppercase: true, maxlength: 10 },
+  tiempoEntregaDias: { type: Number, min: 0, max: 3650 },
+  fechaRespuesta: { type: Date, default: Date.now },
+  origen: { type: String, enum: COTIZACION_ORIGEN_VALUES, required: true },
+  registradaPor: { type: Schema.Types.ObjectId, ref: 'User' },
+}, { _id: false });
+
+const VistaSchema = new Schema({
+  fecha: { type: Date, default: Date.now },
+  ip: { type: String, trim: true, maxlength: 64 },
+  bloqueada: { type: Boolean, default: false },
+}, { _id: false });
+
+/** Never serialise the token hash nor the access log: neither belongs in any response. */
+const dropSecrets = (_doc, ret) => {
+  delete ret.tokenHash;
+  delete ret.vistas;
+  return ret;
+};
+
+const ProveedorLicitacionSchema = new Schema({
+  proveedorId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
+  nombre: { type: String, trim: true, maxlength: 300 },
+  correoEnvio: { type: String, trim: true, lowercase: true, maxlength: 254 },
+  // SHA-256 of the token (the clear token only lives in the e-mailed link). Excluded from every read by default.
+  tokenHash: { type: String, select: false },
+  tokenHint: { type: String, maxlength: 8 },
+  tokenVence: { type: Date, default: null },
+  estadoEnvio: { type: String, enum: PROVEEDOR_ESTADO_ENVIO_VALUES, default: PROVEEDOR_ESTADO_ENVIO.PENDIENTE },
+  fechaEnvio: { type: Date, default: null },
+  cotizacion: { type: CotizacionSchema, default: undefined },
+  vistasCount: { type: Number, default: 0, min: 0 },
+  vistas: { type: [VistaSchema], default: undefined, select: false },
+}, { toJSON: { transform: dropSecrets }, toObject: { transform: dropSecrets } });
+
+const LicitacionSchema = new Schema({
+  fechaLimiteCotizacion: { type: Date, default: null },
+  // Optional supplier-facing text written by the buyer when opening the tender (the ONLY free text the portal shows).
+  instrucciones: { type: String, trim: true, maxlength: 500 },
+  abiertaAt: { type: Date, default: null },
+  cerradaAt: { type: Date, default: null },
+  // `_id` of the winning entry of `proveedores`; written once, conditioned to `ganadorId: null` (see the update guard).
+  ganadorId: { type: Schema.Types.ObjectId, default: null },
+  compraDirecta: {
+    type: new Schema({
+      proveedorId: { type: Schema.Types.ObjectId, ref: 'Customer' },
+      justificacion: { type: String, trim: true, maxlength: 2000 },
+      porId: { type: Schema.Types.ObjectId, ref: 'User' },
+      at: { type: Date },
+    }, { _id: false }),
+    default: undefined,
+  },
+  proveedores: { type: [ProveedorLicitacionSchema], default: [] },
+}, { _id: false });
+
 const NivelSchema = new Schema({
   orden: { type: Number, required: true },
   nombre: { type: String, trim: true },
@@ -234,6 +323,8 @@ const RequisicionSchema = new Schema({
     default: [],
     validate: { validator: (v) => Array.isArray(v) && v.length <= RECEPCIONES_SOFT_CAP, message: `Máximo ${RECEPCIONES_SOFT_CAP} recepciones por requisición` },
   },
+  // E3: tendering with suppliers. Written ONLY by the tendering services (guarded by the update hooks below).
+  licitacion: { type: LicitacionSchema, default: undefined },
   // Internal: set when the solicitud sync failed after a committed transition; the reconcile script finds and clears it.
   solicitudesSyncPendiente: { type: Boolean, default: undefined },
   isDeleted: { type: Boolean, default: false, index: true },
@@ -254,6 +345,8 @@ RequisicionSchema.index({ tenantId: 1, areaId: 1, estado: 1 });
 RequisicionSchema.index({ tenantId: 1, creadaPor: 1, createdAt: -1 });
 RequisicionSchema.index({ tenantId: 1, estado: 1, 'aprobacion.nivelActual': 1 });
 RequisicionSchema.index({ tenantId: 1, tipoRequisicionId: 1 });
+// E3: public portal lookup by the SHA-256 of the supplier token (the tenant comes out of the found document).
+RequisicionSchema.index({ 'licitacion.proveedores.tokenHash': 1 });
 
 // --- Derived amount -------------------------------------------------------------------------------------------
 
@@ -271,6 +364,12 @@ RequisicionSchema.pre('validate', function (next) {
 const isTimelinePath = (path) => typeof path === 'string' && (path === 'timeline' || path.startsWith('timeline.') || path.startsWith('timeline['));
 const isTipoPath = (path) => typeof path === 'string' && (path === 'tipoRequisicionId' || path.startsWith('tipoRequisicionId.'));
 const isRecepPath = (path) => typeof path === 'string' && (path === 'recepciones' || path.startsWith('recepciones.') || path.startsWith('recepciones['));
+
+const isLicitPath = (path) => typeof path === 'string' && (path === 'licitacion' || path.startsWith('licitacion.') || path.startsWith('licitacion['));
+
+function licitacionError(detail) {
+  return new ApiError(409, `El bloque de licitación solo se modifica desde los servicios de compras: ${detail}`, 'LICITACION_INMUTABLE');
+}
 
 function timelineError(detail) {
   return new ApiError(409, `La línea de tiempo de la requisición es inmutable (solo se agregan eventos): ${detail}`, 'TIMELINE_INMUTABLE');
@@ -298,6 +397,41 @@ function isPlainRecepcionAppend(value) {
   const list = Object.keys(value).includes('$each') ? value.$each : [value];
   return list.every((r) => r !== null && typeof r === 'object' && !Array.isArray(r)
     && (r.items === undefined || (Array.isArray(r.items) && r.items.every((it) => it !== null && typeof it === 'object' && it.confirmacion === undefined))));
+}
+
+/** True when the write filter (or one of its `$and` members) pins `licitacion.ganadorId: null` (winner written once). */
+function filterPinsNoWinner(filter) {
+  if (filter === null || typeof filter !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(filter, 'licitacion.ganadorId') && filter['licitacion.ganadorId'] === null) return true;
+  return Array.isArray(filter.$and) && filter.$and.some(filterPinsNoWinner);
+}
+
+/**
+ * Legal writes inside `licitacion` (the tendering services use them through `appendEvent`): `$set` of leaf paths
+ * (never the whole block nor the whole `proveedores` array; `ganadorId` only when the filter pins it to null),
+ * `$push` appending suppliers (plain append) or access views, `$pull` of ONE supplier by `_id`, and `$inc` counters.
+ * Everything else (`$unset`, `$rename`, `$pop`, `$addToSet`, pipelines...) on the block is rejected.
+ */
+function checkLicitacionOp(op, path, arg, options) {
+  if (op === '$set') {
+    if (path === 'licitacion' || path === 'licitacion.proveedores') return licitacionError(`asignación sobre "${path}"`);
+    if (path === 'licitacion.ganadorId' && !filterPinsNoWinner(options && options.filter)) {
+      return licitacionError('el ganador solo se fija con la condición ganadorId = null');
+    }
+    return null;
+  }
+  if (op === '$push') {
+    if (path === 'licitacion.proveedores') return isPlainAppend(arg) ? null : licitacionError('$push no permitido en proveedores');
+    if (/^licitacion\.proveedores\.\$\[[A-Za-z][A-Za-z0-9]*\]\.vistas$/.test(path)) return null;
+    return licitacionError(`$push sobre "${path}"`);
+  }
+  if (op === '$pull') {
+    const keys = arg !== null && typeof arg === 'object' ? Object.keys(arg) : [];
+    if (path === 'licitacion.proveedores' && keys.length === 1 && keys[0] === '_id' && isScalarFilterValue(arg._id)) return null;
+    return licitacionError(`$pull sobre "${path}"`);
+  }
+  if (op === '$inc') return null;
+  return licitacionError(`${op} sobre "${path}"`);
 }
 
 const CONFIRM_PATH_RE = /^recepciones\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.items\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.confirmacion$/;
@@ -362,6 +496,10 @@ export function findForbiddenRequisicionUpdate(update, options = {}) {
         const err = checkRecepSet(key, value);
         if (err) return err;
       }
+      if (isLicitPath(key)) {
+        const err = checkLicitacionOp('$set', key, value, options);
+        if (err) return err;
+      }
       continue;
     }
     if (value === null || typeof value !== 'object') continue;
@@ -370,6 +508,12 @@ export function findForbiddenRequisicionUpdate(update, options = {}) {
         if (isTimelinePath(path) || isTimelinePath(String(arg))) return timelineError('$rename');
         if (isRecepPath(path) || isRecepPath(String(arg))) return recepcionesError('$rename');
         if (isTipoPath(path) || isTipoPath(String(arg))) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
+        if (isLicitPath(path) || isLicitPath(String(arg))) return licitacionError('$rename');
+        continue;
+      }
+      if (isLicitPath(path)) {
+        const err = checkLicitacionOp(key, path, arg, options);
+        if (err) return err;
         continue;
       }
       if (isTipoPath(path)) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
@@ -393,7 +537,7 @@ export function findForbiddenRequisicionUpdate(update, options = {}) {
 function guardUpdate(next) {
   const options = this.getOptions ? this.getOptions() : {};
   if (options && options.overwrite) return next(timelineError('reemplazo de documento'));
-  const err = findForbiddenRequisicionUpdate(this.getUpdate(), options);
+  const err = findForbiddenRequisicionUpdate(this.getUpdate(), { ...options, filter: this.getFilter() });
   return next(err || undefined);
 }
 
@@ -420,7 +564,7 @@ RequisicionSchema.pre('bulkWrite', function (next, ops) {
     if (op.replaceOne || op.deleteOne || op.deleteMany) return next(timelineError('operación de reemplazo o borrado en bulkWrite'));
     for (const kind of ['updateOne', 'updateMany']) {
       if (op[kind]) {
-        const err = findForbiddenRequisicionUpdate(op[kind].update, { arrayFilters: op[kind].arrayFilters });
+        const err = findForbiddenRequisicionUpdate(op[kind].update, { arrayFilters: op[kind].arrayFilters, filter: op[kind].filter });
         if (err) return next(err);
       }
     }
@@ -432,8 +576,11 @@ RequisicionSchema.pre('save', function (next) {
   if (!this.isNew) {
     if (this.modifiedPaths().some((p) => isTimelinePath(p))) return next(timelineError('save() con timeline modificado'));
     if (this.modifiedPaths().some((p) => isRecepPath(p))) return next(recepcionesError('save() con recepciones modificadas'));
+    if (this.modifiedPaths().some((p) => isLicitPath(p))) return next(licitacionError('save() con licitación modificada'));
     if (this.isModified('tipoRequisicionId')) return next(new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE'));
   }
+  // A new document never starts with a tendering block (it is created by the tendering services only).
+  if (this.isNew && this.licitacion) return next(licitacionError('licitación en la creación'));
   return next();
 });
 
@@ -454,7 +601,9 @@ RequisicionSchema.pre('save', function (next) {
  *
  * @param {object} filter   e.g. { _id, tenantId, estado: 'Borrador' }
  * @param {object|object[]} events  entries built with `buildTimelineEvent`
- * @param {{ set?: object, unset?: object, inc?: object, arrayFilters?: object[], session?: any, pushRecepciones?: object|object[],
+ * E3: `extra.push` / `extra.pull` carry the tendering-block writes (`{ 'licitacion.proveedores': { $each: [...] } }`,
+ * `{ 'licitacion.proveedores': { _id } }`); the model hooks only accept the legal shapes.
+ * @param {{ set?: object, unset?: object, inc?: object, push?: object, pull?: object, arrayFilters?: object[], session?: any, pushRecepciones?: object|object[],
  *           confirmarItem?: { recepcionId: any, lineaId: any, confirmacion: object } }} [extra]
  */
 RequisicionSchema.statics.appendEvent = function appendEvent(filter, events, extra = {}) {
@@ -494,6 +643,13 @@ function buildPlan(baseFilter, list, extra) {
     arrayFilters.push({ 'rec.recepcionId': rid }, { 'itm.lineaId': lid, 'itm.confirmacion': { $exists: false } });
     and.push({ recepciones: { $elemMatch: { recepcionId: rid, items: { $elemMatch: { lineaId: lid, confirmacion: { $exists: false } } } } } });
   }
+
+  // E3: extra pushes/pulls inside the tendering block (never `timeline` / `recepciones`; the update guard checks them too).
+  for (const [path, value] of Object.entries(extra.push || {})) {
+    if (isTimelinePath(path) || isRecepPath(path)) throw new Error(`appendEvent: push on "${path}" is not allowed`);
+    update.$push[path] = value;
+  }
+  if (extra.pull) update.$pull = extra.pull;
 
   if (Object.keys(set).length > 0) update.$set = set;
   if (extra.unset) update.$unset = extra.unset;

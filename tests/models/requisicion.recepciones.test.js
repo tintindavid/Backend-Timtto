@@ -57,8 +57,8 @@ describe('E2 constants: states, transitions, line states, events', () => {
     }
   });
 
-  it('transition table: Aprobada -> En_Recepcion | Cerrada | Cancelada; En_Recepcion -> Cerrada | Cancelada; Cerrada terminal', () => {
-    assert.deepEqual([...T[E.APROBADA]].sort(), [E.CANCELADA, E.CERRADA, E.EN_RECEPCION].sort());
+  it('transition table: Aprobada -> En_Recepcion | Cerrada | Cancelada (+ E3 tender/award); En_Recepcion -> Cerrada | Cancelada; Cerrada terminal', () => {
+    assert.deepEqual([...T[E.APROBADA]].sort(), [E.ADJUDICADA, E.CANCELADA, E.CERRADA, E.EN_LICITACION, E.EN_RECEPCION].sort());
     assert.deepEqual([...T[E.EN_RECEPCION]].sort(), [E.CANCELADA, E.CERRADA].sort());
     assert.deepEqual(T[E.CERRADA], []);
     assert.deepEqual(T[E.CANCELADA], []);
@@ -79,7 +79,7 @@ describe('E2 constants: states, transitions, line states, events', () => {
   });
 
   it('the budget counts a requisition as consumed from approval until closing', () => {
-    assert.deepEqual([...PRESUPUESTO_ESTADOS_CONSUMIDO].sort(), [E.APROBADA, E.CERRADA, E.EN_RECEPCION].sort());
+    assert.deepEqual([...PRESUPUESTO_ESTADOS_CONSUMIDO].sort(), [E.ADJUDICADA, E.APROBADA, E.CERRADA, E.COTIZACION_RECIBIDA, E.EN_LICITACION, E.EN_RECEPCION].sort());
   });
 
   it('line states and timeline events', () => {

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitación a cotizar</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 24px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 6px; overflow: hidden;">
+          <tr>
+            <td style="background-color: #0d6efd; padding: 28px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700;">Invitación a cotizar</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px; color: #333333; font-size: 16px;">Hola{{#if proveedorNombre}}, equipo de <strong>{{proveedorNombre}}</strong>{{/if}},</p>
+              <p style="margin: 0 0 16px; color: #333333; font-size: 15px; line-height: 1.6;">
+                <strong>{{tenantName}}</strong> te invita a presentar tu cotización para la solicitud <strong>{{consecutivo}}</strong>{{#if titulo}} ({{titulo}}){{/if}}.
+                La fecha límite para responder es <strong>{{fechaLimite}}</strong>.
+              </p>
+              {{#if instrucciones}}
+              <p style="margin: 0 0 16px; color: #333333; font-size: 14px; line-height: 1.6; white-space: pre-line;"><strong>Instrucciones:</strong> {{instrucciones}}</p>
+              {{/if}}
+              {{#if items.length}}
+              <p style="margin: 0 0 8px; color: #333333; font-size: 15px; font-weight: 600;">Ítems solicitados</p>
+              <ul style="margin: 0 0 20px; padding-left: 20px; color: #333333; font-size: 14px; line-height: 1.6;">
+                {{#each items}}
+                <li>{{descripcion}} — {{cantidad}} {{unidad}}{{#if especificacion}} ({{especificacion}}){{/if}}</li>
+                {{/each}}
+              </ul>
+              {{/if}}
+              <p style="text-align: center; margin: 0 0 24px;">
+                <a href="{{portalUrl}}" style="display: inline-block; background-color: #0d6efd; color: #ffffff; font-size: 15px; font-weight: 600; padding: 13px 32px; text-decoration: none; border-radius: 4px;">Responder la invitación</a>
+              </p>
+              <p style="margin: 0; color: #888888; font-size: 12px; line-height: 1.5; border-top: 1px solid #e9ecef; padding-top: 20px;">
+                Este enlace es único y personal. No lo compartas con terceros. Si no esperabas este correo, puedes ignorarlo.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 16px 32px; text-align: center;">
+              <p style="margin: 0; color: #aaaaaa; font-size: 11px;">TIMTTO — Sistema de Gestión de Mantenimiento Biomédico</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

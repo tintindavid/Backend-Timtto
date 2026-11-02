@@ -209,6 +209,10 @@ export const PERMISSIONS = {
   REQUISICIONES_MANAGE_ALL: 'requisiciones:manage-all',
   // E2: register receptions, close lines short and cancel lines (confirming a delivery needs no role permission).
   REQUISICIONES_RECEIVE: 'requisiciones:receive',
+  // E3: assign suppliers, send/resend the invitations, register quotations and close the quotation window.
+  REQUISICIONES_MANAGE_SUPPLIERS: 'requisiciones:manage-suppliers',
+  // E3: choose the winning supplier and register a justified direct purchase.
+  REQUISICIONES_SELECT_WINNER: 'requisiciones:select-winner',
 
   // Areas (organizational structure of the requisitions module)
   AREAS_READ: 'areas:read',

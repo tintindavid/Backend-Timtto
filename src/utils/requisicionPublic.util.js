@@ -1,5 +1,6 @@
 import { Requisicion } from '../models/requisicion.model.js';
 import '../models/repuestos.model.js';
+import { toLicitacionDto } from './requisicionLicitacionDto.util.js';
 
 /**
  * Read-side shape of a requisition. Populate happens ONLY here (on plain objects built for the response); the
@@ -36,6 +37,8 @@ const stripPrivate = (obj) => {
   delete out.deletedAt;
   delete out.__v;
   delete out.solicitudesSyncPendiente; // internal reconcile marker
+  // E3: allowlist DTO of the tendering block (never tokenHash / access log).
+  out.licitacion = toLicitacionDto(out.licitacion);
   if (Array.isArray(out.lineas)) {
     out.lineas = out.lineas.map((l) => (l && l._id === undefined && l.lineaId !== undefined ? { ...l, _id: l.lineaId } : l));
   }

@@ -1,0 +1,21 @@
+Invitación a cotizar — TIMTTO
+=============================
+
+Hola{{#if proveedorNombre}}, equipo de {{proveedorNombre}}{{/if}},
+
+{{tenantName}} te invita a presentar tu cotización para la solicitud {{consecutivo}}{{#if titulo}} ({{titulo}}){{/if}}.
+Fecha límite para responder: {{fechaLimite}}
+
+{{#if instrucciones}}Instrucciones: {{instrucciones}}
+
+{{/if}}{{#if items.length}}Ítems solicitados:
+{{#each items}}- {{descripcion}} — {{cantidad}} {{unidad}}{{#if especificacion}} ({{especificacion}}){{/if}}
+{{/each}}
+{{/if}}Responder la invitación:
+{{{portalUrl}}}
+
+Este enlace es único y personal. No lo compartas con terceros.
+Si no esperabas este correo, puedes ignorarlo.
+
+---
+TIMTTO — Sistema de Gestión de Mantenimiento Biomédico

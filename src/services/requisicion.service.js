@@ -289,7 +289,7 @@ export class RequisicionService {
       // Approved / in reception with at least one line still to receive; only for who can receive.
       if (!access.canReceive && !access.canManageAll) query.estado = '__none__';
       else {
-        and.push({ estado: { $in: [REQUISICION_ESTADO.APROBADA, REQUISICION_ESTADO.EN_RECEPCION] } });
+        and.push({ estado: { $in: [REQUISICION_ESTADO.APROBADA, REQUISICION_ESTADO.ADJUDICADA, REQUISICION_ESTADO.EN_RECEPCION] } });
         and.push({ lineas: { $elemMatch: { estadoLinea: { $in: [LINEA_ESTADO.PENDIENTE, LINEA_ESTADO.RECIBIDA_PARCIAL, LINEA_ESTADO.EN_DISPUTA] } } } });
       }
     } else if (filters.vista === 'por-confirmar') {
@@ -656,6 +656,13 @@ export class RequisicionService {
       }
       const arrayFilters = [];
       const guards = [];
+      // E3: cancelling expires every supplier link (what was quoted stays in the document and the history).
+      const proveedoresN = (doc.licitacion?.proveedores || []).length;
+      if (proveedoresN > 0) {
+        set['licitacion.proveedores.$[tk].tokenVence'] = now;
+        arrayFilters.push({ 'tk._id': { $exists: true } });
+        guards.push({ 'licitacion.proveedores': { $size: proveedoresN } });
+      }
       const closeEvents = toClose.map((l, i) => {
         set[`lineas.$[c${i}].estadoLinea`] = LINEA_ESTADO.CONFIRMADA;
         set[`lineas.$[c${i}].cierre`] = { motivo, por: actor.userId, fecha: now };

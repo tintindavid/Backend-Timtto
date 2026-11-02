@@ -31,7 +31,9 @@ import {
  * transaction as the confirmation write when the server supports it; otherwise the movements are compensated.
  */
 
-const RECEIVABLE = [E.APROBADA, E.EN_RECEPCION];
+// E3: a tendered requisition is receivable once awarded (Adjudicada); while the tender is open it answers 409 LICITACION_ABIERTA.
+const RECEIVABLE = [E.APROBADA, E.ADJUDICADA, E.EN_RECEPCION];
+const TENDER_OPEN = [E.EN_LICITACION, E.COTIZACION_RECIBIDA];
 const ACTIVE_LINE = [L.PENDIENTE, L.RECIBIDA_PARCIAL, L.RECIBIDA, L.EN_DISPUTA];
 const MAX_ATTEMPTS = 6;
 
@@ -78,6 +80,9 @@ export class RequisicionRecepcionService {
   }
 
   _assertEstado(doc, allowed) {
+    if (allowed === RECEIVABLE && TENDER_OPEN.includes(doc.estado)) {
+      throw new ApiError(409, 'La licitación está abierta; adjudica un proveedor antes de registrar recepciones', 'LICITACION_ABIERTA', { estadoActual: doc.estado });
+    }
     if (!allowed.includes(doc.estado)) {
       throw new ApiError(409, `La requisición está en estado ${doc.estado} y no admite esta operación`, 'TRANSICION_INVALIDA', { estadoActual: doc.estado });
     }

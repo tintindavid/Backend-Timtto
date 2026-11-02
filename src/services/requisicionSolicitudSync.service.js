@@ -25,7 +25,7 @@ import {
  * Truth table (see `computeSolicitudTarget`):
  *   Borrador                                   -> En_Requisicion
  *   Enviada | En_Aprobacion                    -> En_Aprobacion
- *   Aprobada | En_Recepcion | Cerrada, line:
+ *   Aprobada | En_Licitacion | Cotizacion_Recibida | Adjudicada | En_Recepcion | Cerrada, line:
  *       Pendiente | Recibida_Parcial           -> En_Abastecimiento
  *       Recibida (not confirmed)               -> Recibida
  *       Confirmada (cantidadConfirmada > 0)    -> Disponible
@@ -78,6 +78,10 @@ export function computeSolicitudTarget(requisicion, linea) {
       if (confirmada > 0) return { disponibilidad: D.DISPONIBLE, cantidadConfirmada: confirmada };
       return { disponibilidad: UNLINK, cantidadConfirmada: 0, motivo: 'la requisición fue cancelada; la solicitud quedó libre' };
     case E.APROBADA:
+    // E3: tendering and award are still "en abastecimiento" for the solicitud (never goes backwards, see the guard below).
+    case E.EN_LICITACION:
+    case E.COTIZACION_RECIBIDA:
+    case E.ADJUDICADA:
     case E.EN_RECEPCION:
     case E.CERRADA:
       if (estadoLinea === LINEA_ESTADO.CONFIRMADA) return { disponibilidad: D.DISPONIBLE, cantidadConfirmada: confirmada };

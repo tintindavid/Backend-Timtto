@@ -130,7 +130,8 @@ describe('requisicion.constants transition table', () => {
     assert.deepEqual([...T[E.RECHAZADA]].sort(), [E.BORRADOR, E.CANCELADA].sort());
     assert.deepEqual(T[E.CANCELADA], []);
     // E2: reception states.
-    assert.deepEqual([...T[E.APROBADA]].sort(), [E.CANCELADA, E.CERRADA, E.EN_RECEPCION].sort());
+    // E3 adds tendering/award as OPTIONAL steps; the reception path stays.
+    assert.deepEqual([...T[E.APROBADA]].sort(), [E.ADJUDICADA, E.CANCELADA, E.CERRADA, E.EN_LICITACION, E.EN_RECEPCION].sort());
     assert.deepEqual([...T[E.EN_RECEPCION]].sort(), [E.CANCELADA, E.CERRADA].sort());
     assert.deepEqual(T[E.CERRADA], []);
     assert.deepEqual([...REQUISICION_ESTADOS_TERMINALES].sort(), [E.CANCELADA, E.CERRADA].sort());
