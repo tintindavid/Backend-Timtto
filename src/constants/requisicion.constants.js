@@ -111,6 +111,22 @@ export const REQUISICION_EVENTO_VALUES = Object.freeze(Object.values(REQUISICION
 
 export const TIMELINE_ACTOR_TIPO = Object.freeze({ USUARIO: 'usuario', SISTEMA: 'sistema', PROVEEDOR: 'proveedor' });
 export const TIMELINE_ACTOR_TIPO_VALUES = Object.freeze(Object.values(TIMELINE_ACTOR_TIPO));
+/**
+ * "Mi historial": action filter -> timeline events the caller authored (change: requisiciones-mi-historial). Only events whose
+ * actor is a user count (never system / supplier). `todo` is the union.
+ */
+export const REQUISICION_ACCIONES_HISTORIAL = Object.freeze({
+  aprobe: Object.freeze([REQUISICION_EVENTO.NIVEL_APROBADO]),
+  rechace: Object.freeze([REQUISICION_EVENTO.NIVEL_RECHAZADO, REQUISICION_EVENTO.RECHAZADA]),
+  recibi: Object.freeze([REQUISICION_EVENTO.RECEPCION_REGISTRADA]),
+  confirme: Object.freeze([REQUISICION_EVENTO.ENTREGA_CONFIRMADA, REQUISICION_EVENTO.ENTREGA_DISPUTADA]),
+  cree: Object.freeze([REQUISICION_EVENTO.CREADA]),
+  adjudique: Object.freeze([REQUISICION_EVENTO.PROVEEDOR_SELECCIONADO, REQUISICION_EVENTO.COMPRA_DIRECTA_JUSTIFICADA]),
+});
+export const REQUISICION_ACCIONES_HISTORIAL_VALUES = Object.freeze(['todo', ...Object.keys(REQUISICION_ACCIONES_HISTORIAL)]);
+/** Max own events returned per row in `miActividad`. */
+export const REQUISICION_MI_ACTIVIDAD_MAX = 5;
+
 /** Soft cap of timeline entries per requisition (design D3). */
 export const TIMELINE_SOFT_CAP = 500;
 

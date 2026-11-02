@@ -3,6 +3,7 @@ import { requisicionController } from '../controllers/requisicion.controller.js'
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { redactLicitacionQuotes } from '../middlewares/redactLicitacionQuotes.middleware.js';
 import { authorize, authorizeAny } from '../middlewares/rbac.middleware.js';
+import { authorizeReadOrParticipation, authorizeListOrMiHistorial } from '../middlewares/requisicionReadAccess.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import {
@@ -41,10 +42,11 @@ router.use(authenticate);
 router.use(redactLicitacionQuotes);
 
 // Gated by the usesRequisiciones capability (CAPABILITY_ROUTE_MAP '/api/v1/requisiciones', blockReads).
-router.get('/', authorize(PERMISSIONS.REQUISICIONES_READ), validate(queryRequisicionDto, 'query'), requisicionController.list);
+// Mi historial / detail: also open to who participated (the service answers 404 for the rest); a plain list still needs read.
+router.get('/', authorizeListOrMiHistorial, validate(queryRequisicionDto, 'query'), requisicionController.list);
 router.post('/', authorize(PERMISSIONS.REQUISICIONES_CREATE), validate(createRequisicionDto, 'body'), requisicionController.create);
 
-router.get('/:id', authorize(PERMISSIONS.REQUISICIONES_READ), validate(objectIdParamDto, 'params'), requisicionController.getById);
+router.get('/:id', authorizeReadOrParticipation(), validate(objectIdParamDto, 'params'), requisicionController.getById);
 router.patch('/:id', authorize(PERMISSIONS.REQUISICIONES_UPDATE), validate(objectIdParamDto, 'params'), validate(updateRequisicionDto, 'body'), requisicionController.update);
 router.delete('/:id', authorize(PERMISSIONS.REQUISICIONES_DELETE), validate(objectIdParamDto, 'params'), requisicionController.delete);
 

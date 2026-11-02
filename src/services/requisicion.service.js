@@ -23,6 +23,7 @@ import { atomicWrite, transition } from './requisicionTransition.service.js';
 import { notifyRequisicion, currentPendingLevel } from './requisicionNotify.service.js';
 import { syncRequisicionSolicitudesSafe, healStaleLinks } from './requisicionSolicitudSync.service.js';
 import { lineGuard } from './requisicionRecepcion.service.js';
+import { listMiHistorial, isParticipant } from './requisicionHistorial.service.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import {
   LINEA_ESTADO,
@@ -263,6 +264,8 @@ export class RequisicionService {
   async list(tenantId, userId, filters = {}, pagination = {}, access = {}) {
     requireTenant(tenantId);
     const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc' } = pagination;
+    // "Mi historial": own timeline events only (the caller comes from the token); the list filters apply, the order is fixed.
+    if (filters.vista === 'mi-historial') return listMiHistorial(tenantId, userId, filters.accion, { page, limit }, filters);
     const sortField = REQUISICION_SORT_FIELDS.includes(sortBy) ? sortBy : 'createdAt';
     const dir = order === 'asc' ? 1 : -1;
     const query = applyTenantFilter({}, tenantId);
@@ -310,11 +313,17 @@ export class RequisicionService {
     return { data: await toPublicPopulatedList(rows), pagination: buildPagination(page, limit, total) };
   }
 
-  /** Detail by id; another tenant's (or deleted) requisition is a 404, never a 403. */
-  async getById(tenantId, id) {
+  /**
+   * Detail by id; another tenant's (or deleted) requisition is a 404, never a 403. `access = { userId, canRead: false }`
+   * (reader without requisiciones:read) only gets the requisitions they participated in; otherwise a 404.
+   */
+  async getById(tenantId, id, access = {}) {
     requireTenant(tenantId);
     const doc = await Requisicion.findOne(applyTenantFilter({ _id: id }, tenantId));
     if (!doc) throw new ApiError(404, 'Requisición no encontrada', 'REQUISICION_NOT_FOUND', { id });
+    if (access.canRead === false && !isParticipant(doc, access.userId)) {
+      throw new ApiError(404, 'Requisición no encontrada', 'REQUISICION_NOT_FOUND', { id });
+    }
     return toPublicPopulated(doc);
   }
 

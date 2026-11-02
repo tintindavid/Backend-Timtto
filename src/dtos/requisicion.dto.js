@@ -1,6 +1,7 @@
 import Joi from 'joi';
 import {
   CONFIRMACION_RESULTADO_VALUES,
+  REQUISICION_ACCIONES_HISTORIAL_VALUES,
   REQUISICION_ESTADO,
   REQUISICION_ESTADO_VALUES,
   REQUISICION_MAX_LINEAS,
@@ -93,7 +94,7 @@ export const reasignarAprobadoresDto = Joi.object({
   observacion: Joi.string().trim().min(1).max(2000).optional().label('observacion'),
 }).unknown(false);
 
-export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar', 'por-recibir', 'por-confirmar']);
+export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar', 'por-recibir', 'por-confirmar', 'mi-historial']);
 
 export const queryRequisicionDto = Joi.object({
   page: Joi.number().integer().min(1).default(1),
@@ -106,6 +107,7 @@ export const queryRequisicionDto = Joi.object({
   fechaHasta: dateOnly.optional().label('fechaHasta'),
   search: Joi.string().trim().max(100).optional(),
   vista: Joi.string().valid(...REQUISICION_VISTAS).optional(),
+  accion: Joi.string().valid(...REQUISICION_ACCIONES_HISTORIAL_VALUES).optional(),
   sortBy: Joi.string().valid(...REQUISICION_SORT_FIELDS).default('createdAt'),
   order: Joi.string().valid('asc', 'desc').default('desc'),
 }).unknown(false);
