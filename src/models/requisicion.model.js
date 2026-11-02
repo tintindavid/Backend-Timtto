@@ -338,6 +338,8 @@ const RequisicionSchema = new Schema({
 // --- Indexes --------------------------------------------------------------------------------------------------
 
 RequisicionSchema.index({ tenantId: 1, isDeleted: 1 });
+// "Mi historial": requisitions where a user acted (multikey over the single timeline array).
+RequisicionSchema.index({ tenantId: 1, 'timeline.actor.usuarioId': 1, createdAt: -1 });
 // Second defence of the atomic counter: a consecutivo is never reused inside a tenant.
 RequisicionSchema.index({ tenantId: 1, consecutivo: 1 }, { unique: true });
 RequisicionSchema.index({ tenantId: 1, estado: 1, createdAt: -1 });

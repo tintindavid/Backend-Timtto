@@ -38,7 +38,7 @@ export class RequisicionController {
 
   async getById(req, res, next) {
     try {
-      const data = await requisicionService.getById(req.tenantId, req.params.id);
+      const data = await requisicionService.getById(req.tenantId, req.params.id, { userId: req.user.userId, canRead: req.canRead === true });
       res.json(successResponse(data, 'Requisición recuperada exitosamente'));
     } catch (err) { next(err); }
   }

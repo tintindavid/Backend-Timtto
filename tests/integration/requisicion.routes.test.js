@@ -49,7 +49,18 @@ describe('route table', () => {
   it('permissions: each guard denies a user with only an unrelated permission', () => {
     const user = { userId: 'u', tenantId: 'acme', role: 'user', permissions: [PERMISSIONS.AREAS_READ] };
     // E2: confirming a delivery has no role permission by design (the service checks the responsible / manage-all).
-    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar'))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
+    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar') && !(x.method === 'get' && x.path === '/:id'))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
+    // GET /:id is wired with the participation gate: a user without participation gets past it (service answers 404), never a 403.
+    const detail = routes.find((r) => r.method === 'get' && r.path === '/:id');
+    const detailReq = { user };
+    assert.equal(run(detail.route.stack[0].handle, detailReq), undefined);
+    assert.equal(detailReq.canRead, false);
+    const detailRead = { user: { ...user, permissions: [PERMISSIONS.REQUISICIONES_READ] } };
+    run(detail.route.stack[0].handle, detailRead);
+    assert.equal(detailRead.canRead, true);
+    const list = routes.find((r) => r.method === 'get' && r.path === '/');
+    assert.equal(run(list.route.stack[0].handle, { user, query: { vista: 'mias' } }), undefined);
+    assert.equal(run(list.route.stack[0].handle, { user, query: {} })?.statusCode, 403);
     const approve = routes.find((r) => r.path === '/:id/aprobacion/aprobar');
     assert.equal(run(approve.route.stack[0].handle, { user: { ...user, permissions: [PERMISSIONS.REQUISICIONES_APPROVE] } }), undefined);
     const create = routes.find((r) => r.method === 'post' && r.path === '/');
