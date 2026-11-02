@@ -1,3 +1,10 @@
+# [2.30.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.29.0...v2.30.0) (2026-11-02)
+
+
+### Features
+
+* **requisiciones:** add "Mi historial" tab and self-scoped read access for participants ([#51](https://github.com/tintindavid/Backend-Timtto/issues/51)) ([3cb6c52](https://github.com/tintindavid/Backend-Timtto/commit/3cb6c5235fa4edf7fcd22827a20bb2735512eb2f))
+
 # [2.29.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.28.0...v2.29.0) (2026-11-02)
 
 
