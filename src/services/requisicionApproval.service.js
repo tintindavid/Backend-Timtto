@@ -55,7 +55,7 @@ export class RequisicionApprovalService {
       .filter((r) => r.activo !== false && Number(r.montoDesde) <= monto)
       .sort((a, b) => a.orden - b.orden);
     if (aplicables.length === 0) {
-      throw new ApiError(422, 'No hay reglas de aprobación activas aplicables al monto de la requisición', 'SIN_REGLAS_APROBACION', { montoEstimado: monto });
+      throw new ApiError(422, 'No hay reglas de aprobación activas aplicables al monto de la requisición', 'SIN_REGLAS_APROBACION', { montoEstimado: monto, sinPrecios: monto === 0 });
     }
     const excluded = new Set([sid(requisicion.creadaPor), sid(requisicion.solicitanteId)]);
     const eligibles = [];

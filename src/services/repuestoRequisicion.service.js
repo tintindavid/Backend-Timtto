@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 import { Repuestos } from '../models/repuestos.model.js';
 import { EquipoItem } from '../models/equipoitem.model.js';
 import { InventarioRepuesto } from '../models/inventarioRepuesto.model.js';
+import { User } from '../models/user.model.js';
+import { TipoRequisicion } from '../models/tipoRequisicion.model.js';
+import { areaService } from './area.service.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
@@ -58,7 +61,7 @@ export class RepuestoRequisicionService {
   /**
    * @param {string} tenantId
    * @param {{ userId: string, name?: string, canManageAll?: boolean }} actor
-   * @param {{ repuestoIds: string[], titulo?: string, tipoRequisicionId: string, areaId: string, prioridad?: string,
+   * @param {{ repuestoIds: string[], titulo?: string, areaId?: string, prioridad?: string,
    *           fechaRequerida?: string|null, justificacion?: string, lineas?: object[], enviar?: boolean }} data
    * @param {object} capabilities  `req.tenant.capabilities`
    * @returns {Promise<{ requisicion: object, advertencias: object[] }>}
@@ -88,6 +91,9 @@ export class RepuestoRequisicionService {
     const solicitudes = await this._loadEligible(tenantId, ids);
     const { lineas, advertencias } = await this._buildLineas(tenantId, solicitudes, overrides, caps.usesInventoryBasic);
 
+    // Type and area are resolved by the server BEFORE claiming, so a failure here never leaves solicitudes linked.
+    const { tipoId, areaId } = await this._resolveTipoYArea(tenantId, actor, data.areaId);
+
     // Claim: atomic per solicitud. The id is generated now so the requisition is created WITH it.
     const requisicionId = new mongoose.Types.ObjectId();
     const claim = await Repuestos.updateMany(
@@ -115,8 +121,8 @@ export class RepuestoRequisicionService {
         actor.userId,
         {
           titulo: (data.titulo || '').trim() || defaultTitulo(solicitudes),
-          tipoRequisicionId: data.tipoRequisicionId,
-          areaId: data.areaId,
+          tipoRequisicionId: tipoId,
+          areaId,
           prioridad: data.prioridad,
           fechaRequerida: data.fechaRequerida ?? null,
           justificacion,
@@ -154,6 +160,34 @@ export class RepuestoRequisicionService {
     const requisicion = await requisicionService.getById(tenantId, sid(created._id));
     logger.info('Requisicion creada desde solicitudes: ' + sid(created._id));
     return { requisicion, advertencias };
+  }
+
+  /**
+   * Server-side type and area. Type: the tenant's active `REPUESTO` type (409 TIPO_REPUESTO_NO_CONFIGURADO). Area: the
+   * caller's own active area (read from the DB, tenant-filtered); the body `areaId` is used only when the caller has none
+   * (must be an active area of the tenant), else 400 AREA_REQUERIDA.
+   */
+  async _resolveTipoYArea(tenantId, actor, bodyAreaId) {
+    const tipo = await TipoRequisicion.findOne(applyTenantFilter({ codigo: 'REPUESTO', activo: true }, tenantId)).select('_id').lean();
+    if (!tipo) {
+      throw new ApiError(409, 'El tipo de requisición «Repuestos» debe existir y estar activo en tu organización. Activa el tipo «Repuestos» o ejecuta la siembra de datos por defecto.', 'TIPO_REPUESTO_NO_CONFIGURADO');
+    }
+    const user = actor?.userId ? await User.findOne({ _id: actor.userId, tenantId }).select('areaId').lean() : null;
+    let areaId = null;
+    if (user?.areaId) {
+      try {
+        const own = await areaService.assertAreaActiva(tenantId, user.areaId);
+        areaId = sid(own._id);
+      } catch (err) {
+        if (err?.code !== 'AREA_INVALIDA') throw err;
+      }
+    }
+    if (!areaId) {
+      if (!bodyAreaId) throw new ApiError(400, 'Selecciona el área de la requisición', 'AREA_REQUERIDA');
+      const chosen = await areaService.assertAreaActiva(tenantId, bodyAreaId);
+      areaId = sid(chosen._id);
+    }
+    return { tipoId: sid(tipo._id), areaId };
   }
 
   async _release(tenantId, requisicionId) {
@@ -233,8 +267,7 @@ export class RepuestoRequisicionService {
       const item = itemKey ? itemById.get(itemKey) : null;
 
       let precio;
-      if (o.precioEstimado !== undefined && o.precioEstimado !== null) precio = Number(o.precioEstimado);
-      else if (Number(sol.PrecioRepuesto) > 0) precio = Number(sol.PrecioRepuesto);
+      if (Number(sol.PrecioRepuesto) > 0) precio = Number(sol.PrecioRepuesto);
       else precio = Number(item?.precio) || 0;
 
       const descripcion = (o.descripcion && String(o.descripcion).trim()) || buildDescripcion(sol, equipoById.get(sid(sol.EquipoId)));

@@ -76,7 +76,7 @@ async function mkWorld({ withRules = true } = {}) {
   const jefe2 = await mkUser(tenantId, { roleId: approverRole._id });
   const techRole = await Role.create({ tenantId, name: `tech-${rnd()}`, permissions: ['ots:can-be-responsible'] });
   const tech = await mkUser(tenantId, { roleId: techRole._id });
-  const tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'rep' });
+  const tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'REPUESTO' });
   const area = await areaService.create(tenantId, { nombre: 'Biomedica', codigo: 'bio', jefesIds: [sid(jefe1._id), sid(jefe2._id)] });
   if (withRules) await reglaAprobacionService.create(tenantId, { orden: 1, nombre: 'Jefe', montoDesde: 0, montoHasta: null, aprobadorTipo: 'jefe_area' });
   return { tenantId, creator, jefe1, jefe2, tech, tipo, area };
@@ -109,7 +109,6 @@ const countReqs = (tenantId) => Requisicion.collection.countDocuments({ tenantId
 
 const body = (w, ids, extra = {}) => ({
   repuestoIds: ids.map(sid),
-  tipoRequisicionId: sid(w.tipo._id),
   areaId: sid(w.area._id),
   justificacion: 'Se requiere para el servicio',
   ...extra,
@@ -212,14 +211,14 @@ describe('Requisiciones E2 on real MongoDB', { skip: !URI && 'MONGO_INTEGRATION_
       assert.equal(advertencias[0].campo, 'cantidad');
     });
 
-    it('request overrides (quantity, price, description) win over the solicitud values', async () => {
+    it('request overrides (quantity, description) win; the price always comes from the solicitud', async () => {
       const w = await mkWorld();
       const a = await mkSol(w.tenantId, { Cantidad: '9', PrecioRepuesto: 10 });
-      const { requisicion } = await create(w, [a._id], { lineas: [{ repuestoId: sid(a._id), cantidad: 4, precioEstimado: 25, descripcion: 'Sensor SpO2 adulto' }] });
+      const { requisicion } = await create(w, [a._id], { lineas: [{ repuestoId: sid(a._id), cantidad: 4, descripcion: 'Sensor SpO2 adulto' }] });
       assert.equal(requisicion.lineas[0].cantidadSolicitada, 4);
-      assert.equal(requisicion.lineas[0].precioEstimado, 25);
+      assert.equal(requisicion.lineas[0].precioEstimado, 10);
       assert.equal(requisicion.lineas[0].descripcion, 'Sensor SpO2 adulto');
-      assert.equal(requisicion.montoEstimado, 100);
+      assert.equal(requisicion.montoEstimado, 40);
     });
 
     it('Stock basico: the line references the stock item and takes its price; without it the line is free text', async () => {
@@ -287,7 +286,6 @@ describe('Requisiciones E2 on real MongoDB', { skip: !URI && 'MONGO_INTEGRATION_
       const w = await mkWorld();
       const a = await mkSol(w.tenantId);
       await expectApi(create(w, [a._id], { areaId: sid(oid()) }), 400, 'AREA_INVALIDA');
-      await expectApi(create(w, [a._id], { tipoRequisicionId: sid(oid()) }), 400, 'TIPO_INVALIDO');
       assert.equal(await link(a._id), undefined);
       assert.equal(await countReqs(w.tenantId), 0);
     });

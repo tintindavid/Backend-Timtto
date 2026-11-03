@@ -406,13 +406,13 @@ describe('repuestoRequisicionService: conversion rules', () => {
     let reads = 0;
     stub(Repuestos, 'find', () => { reads += 1; return { lean: async () => [] }; });
     await assert.rejects(
-      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID }, { usesRequisiciones: false }),
+      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], areaId: OID }, { usesRequisiciones: false }),
       (e) => e.statusCode === 403 && e.code === 'CAPABILITY_DISABLED',
     );
     // no capabilities in the call: read from the database (unknown tenant -> everything off)
     stub(Tenant, 'findOne', () => ({ lean: async () => null }));
     await assert.rejects(
-      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID }, undefined),
+      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], areaId: OID }, undefined),
       (e) => e.code === 'CAPABILITY_DISABLED',
     );
     assert.equal(reads, 0);
@@ -423,7 +423,7 @@ describe('repuestoRequisicionService: conversion rules', () => {
     for (const mode of ['off', 'warn']) {
       process.env.ENFORCE_TENANT_CAPABILITIES = mode;
       await assert.rejects(
-        () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID }, OFF),
+        () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], areaId: OID }, OFF),
         (e) => e.statusCode === 403 && e.code === 'CAPABILITY_DISABLED',
         mode,
       );
@@ -434,7 +434,7 @@ describe('repuestoRequisicionService: conversion rules', () => {
     let reads = 0;
     stub(Repuestos, 'find', () => { reads += 1; return { lean: async () => [] }; });
     await assert.rejects(
-      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID, enviar: true }, ON),
+      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], areaId: OID, enviar: true }, ON),
       (e) => e.statusCode === 400 && e.code === 'JUSTIFICACION_REQUERIDA',
     );
     assert.equal(reads, 0);
@@ -442,7 +442,7 @@ describe('repuestoRequisicionService: conversion rules', () => {
 
   it('a line override for a solicitud outside the selection is a 400', async () => {
     await assert.rejects(
-      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID, lineas: [{ repuestoId: '507f1f77bcf86cd799439099', cantidad: 1 }] }, ON),
+      () => repuestoRequisicionService.createFromSolicitudes(T, { userId: 'u' }, { repuestoIds: [OID], areaId: OID, lineas: [{ repuestoId: '507f1f77bcf86cd799439099', cantidad: 1 }] }, ON),
       (e) => e.statusCode === 400 && e.code === 'LINEA_FUERA_DE_SELECCION',
     );
   });
@@ -525,12 +525,11 @@ describe('repuestoRequisicionService: conversion rules', () => {
       assert.equal(advertencias.length, 0);
     });
 
-    it('price precedence: explicit override (even 0) > PrecioRepuesto > stock item price > 0', async () => {
+    it('price precedence: PrecioRepuesto > stock item price > 0 (a client override is ignored)', async () => {
       arrange({ items: [{ _id: itemId, precio: 80, unidad: 'caja' }] });
       const withItem = (over) => mk({ InventarioItemId: itemId, ...over });
       const run = async (s, o) => (await repuestoRequisicionService._buildLineas(T, [s], new Map(o ? [[String(s._id), o]] : []), true)).lineas[0].precioEstimado;
-      assert.equal(await run(withItem({ PrecioRepuesto: 100 }), { precioEstimado: 7 }), 7);
-      assert.equal(await run(withItem({ PrecioRepuesto: 100 }), { precioEstimado: 0 }), 0);
+      assert.equal(await run(withItem({ PrecioRepuesto: 100 }), { precioEstimado: 7 }), 100);
       assert.equal(await run(withItem({ PrecioRepuesto: 100 })), 100);
       assert.equal(await run(withItem({ PrecioRepuesto: 0 })), 80);
       arrange();
@@ -583,22 +582,23 @@ describe('repuestoRequisicionService: conversion rules', () => {
 // ------------------------------------------------------------------------------------------------ DTOs
 
 describe('DTOs', () => {
-  const base = { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID };
+  const base = { repuestoIds: [OID], areaId: OID };
   const err = (dto, v) => dto.validate(v, { abortEarly: false }).error;
 
   it('POST /repuestos/requisicion: minimal and complete payloads pass', () => {
     assert.equal(err(createRequisicionFromSolicitudesDto, base), undefined);
     assert.equal(err(createRequisicionFromSolicitudesDto, {
       ...base, titulo: 'T', prioridad: 'Alta', fechaRequerida: '2026-11-30', justificacion: 'Porque sí', enviar: true,
-      lineas: [{ repuestoId: OID, cantidad: 2, precioEstimado: 10, descripcion: 'x' }],
+      lineas: [{ repuestoId: OID, cantidad: 2, descripcion: 'x' }],
     }), undefined);
   });
 
-  it('type and area are required (no implicit defaults)', () => {
-    for (const k of ['tipoRequisicionId', 'areaId', 'repuestoIds']) {
-      const { [k]: _omit, ...rest } = base;
-      assert.ok(err(createRequisicionFromSolicitudesDto, rest)?.details.some((d) => d.path[0] === k), k);
-    }
+  it('repuestoIds is required; areaId is optional; tipoRequisicionId and line prices are rejected', () => {
+    const { repuestoIds: _omit, ...rest } = base;
+    assert.ok(err(createRequisicionFromSolicitudesDto, rest)?.details.some((d) => d.path[0] === 'repuestoIds'));
+    assert.equal(err(createRequisicionFromSolicitudesDto, { repuestoIds: [OID] }), undefined);
+    assert.ok(err(createRequisicionFromSolicitudesDto, { ...base, tipoRequisicionId: OID }));
+    assert.ok(err(createRequisicionFromSolicitudesDto, { ...base, lineas: [{ repuestoId: OID, precioEstimado: 10 }] }));
   });
 
   it('rejects protected / unknown fields, empty or duplicated ids, bad overrides', () => {
@@ -652,7 +652,7 @@ describe('POST /repuestos/requisicion: route guards and controller', () => {
     }
     return undefined;
   };
-  const valid = { repuestoIds: [OID], tipoRequisicionId: OID, areaId: OID };
+  const valid = { repuestoIds: [OID], areaId: OID };
   const user = (permissions) => ({ userId: 'u', tenantId: T, role: 'user', permissions });
 
   it('is registered once, behind authenticate, and before the :id routes', () => {
@@ -680,7 +680,7 @@ describe('POST /repuestos/requisicion: route guards and controller', () => {
 
   it('rejects an invalid body with 400 and a tenantId in the body', () => {
     const u = user([PERMISSIONS.REQUISICIONES_CREATE, PERMISSIONS.REPUESTOS_READ]);
-    assert.equal(guards({ user: u, body: { repuestoIds: [OID] } })?.statusCode, 400);
+    assert.equal(guards({ user: u, body: { ...valid, tipoRequisicionId: OID } })?.statusCode, 400);
     assert.equal(guards({ user: u, body: { ...valid, tenantId: 'otro' } })?.statusCode, 400);
   });
 
