@@ -72,7 +72,7 @@ async function mkWorld() {
   w.receiver = await mkUser(tenantId, [P.REQUISICIONES_RECEIVE]);
   w.requester = await mkUser(tenantId, [P.REPUESTOS_READ]);
   w.stranger = await mkUser(tenantId, [P.REPUESTOS_READ]);
-  w.tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'rep' });
+  w.tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'REPUESTO' });
   w.area = await areaService.create(tenantId, { nombre: 'Biomedica', codigo: 'bio', jefesIds: [w.jefe.id] });
   await reglaAprobacionService.create(tenantId, { orden: 1, nombre: 'Jefe', montoDesde: 0, montoHasta: null, aprobadorTipo: 'jefe_area' });
   return w;
@@ -86,7 +86,7 @@ const mkSol = (w, over = {}) => {
     ReporteSolicitudId: oid(), ResponsableSolicitud: w.requester.user._id, EstadoSolicitud: 'Solicitado', CantidadInstalacion: 2, ...over,
   });
 };
-const reqBody = (w, ids, extra = {}) => ({ repuestoIds: ids.map(sid), tipoRequisicionId: sid(w.tipo._id), areaId: sid(w.area._id), justificacion: 'Se requiere para el servicio', ...extra });
+const reqBody = (w, ids, extra = {}) => ({ repuestoIds: ids.map(sid), areaId: sid(w.area._id), justificacion: 'Se requiere para el servicio', ...extra });
 const recForm = (items, fields = {}, files = []) => {
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) form.append(k, v);

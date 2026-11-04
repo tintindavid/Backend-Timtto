@@ -71,7 +71,7 @@ async function mkWorld(caps = CAPS_STOCK) {
   const requester = await mkUser(tenantId);
   const admin = await mkUser(tenantId, { roleId: (await mkRole(tenantId, [PERMISSIONS.REQUISICIONES_MANAGE_ALL]))._id });
   const tech = await mkUser(tenantId, { roleId: (await mkRole(tenantId, ['ots:can-be-responsible']))._id });
-  const tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'rep' });
+  const tipo = await tipoRequisicionService.create(tenantId, { nombre: 'Repuesto', codigo: 'REPUESTO' });
   const area = await areaService.create(tenantId, { nombre: 'Biomedica', codigo: 'bio', jefesIds: [sid(jefe._id)] });
   await reglaAprobacionService.create(tenantId, { orden: 1, nombre: 'Jefe', montoDesde: 0, montoHasta: null, aprobadorTipo: 'jefe_area' });
   return { tenantId, creator, jefe, receiver, requester, admin, tech, tipo, area, caps };
@@ -90,7 +90,7 @@ const rawSol = (id) => Repuestos.collection.findOne({ _id: new mongoose.Types.Ob
 const rawReq = (id) => Requisicion.collection.findOne({ _id: new mongoose.Types.ObjectId(sid(id)) });
 const traceOf = async (id) => (await RepuestoTrazabilidad.collection.find({ SolicitudRepuestoId: new mongoose.Types.ObjectId(sid(id)) }).sort({ createdAt: 1, _id: 1 }).toArray()).map((t) => t.Comentarios);
 const create = (w, ids, extra = {}, who = w.creator) => repuestoRequisicionService.createFromSolicitudes(w.tenantId, actor(who), {
-  repuestoIds: ids.map(sid), tipoRequisicionId: sid(w.tipo._id), areaId: sid(w.area._id), justificacion: 'Se requiere para el servicio', ...extra,
+  repuestoIds: ids.map(sid), areaId: sid(w.area._id), justificacion: 'Se requiere para el servicio', ...extra,
 }, w.caps);
 const approve = async (w, id) => requisicionApprovalService.approve(w.tenantId, sid(id), actor(w.jefe), { version: (await rawReq(id)).version });
 /** Created + sent + approved requisition over the given solicitudes. */
