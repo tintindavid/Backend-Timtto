@@ -1,3 +1,10 @@
+# [2.31.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.30.0...v2.31.0) (2026-11-04)
+
+
+### Features
+
+* **requisiciones:** fix type and area server-side and drop price entry when creating from requests ([#52](https://github.com/tintindavid/Backend-Timtto/issues/52)) ([0f29805](https://github.com/tintindavid/Backend-Timtto/commit/0f29805e51ec4a793faf0c035e8f437b49a4aa7c))
+
 # [2.30.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.29.0...v2.30.0) (2026-11-02)
 
 
