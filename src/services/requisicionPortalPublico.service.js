@@ -7,9 +7,12 @@ import { hashToken, isPlausibleToken } from '../utils/requisicionToken.util.js';
 import { toPortalDto } from '../utils/requisicionPortalDto.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import { notifyRequisicion } from './requisicionNotify.service.js';
+import { requisicionEntregablesService } from './requisicionEntregables.service.js';
+import { requisicionOrdenCompraPdfService } from './requisicionOrdenCompraPdf.service.js';
 import { deleteDroppedFiles, normalizeCotizacionInput, requisicionLicitacionCotizacionService, withHistory, writeCotizacion } from './requisicionLicitacionCotizacion.service.js';
 import {
   COTIZACION_ORIGEN,
+  ENTREGA_ESTADO,
   LICITACION_MAX_VISTAS,
   PORTAL_MENSAJE_NO_ENCONTRADO,
   PORTAL_MENSAJE_TOKEN_EXPIRADO,
@@ -36,11 +39,16 @@ const expired = () => new ApiError(403, PORTAL_MENSAJE_TOKEN_EXPIRADO, 'TOKEN_EX
 const vencida = () => new ApiError(403, 'La fecha límite para cotizar ya venció', 'FECHA_LIMITE_VENCIDA');
 const conflict = (message, code) => new ApiError(409, message, code);
 
-const VISIBLE_ESTADOS = [E.EN_LICITACION, E.COTIZACION_RECIBIDA, E.ADJUDICADA, E.EN_RECEPCION, E.CERRADA];
+// E4: the winner sees the purchase order from the moment it is sent (and keeps seeing it while he fulfils it).
+const OC_VISIBLE_ESTADOS = [E.OC_ENVIADA, E.EN_RECEPCION, E.CERRADA];
+const OC_UPLOAD_ESTADOS = [E.OC_ENVIADA, E.EN_RECEPCION];
+const ENTREGA_UPLOADABLE = [ENTREGA_ESTADO.PENDIENTE, ENTREGA_ESTADO.RECIBIDOS, ENTREGA_ESTADO.DEVOLUCION];
+
+const VISIBLE_ESTADOS = [E.EN_LICITACION, E.COTIZACION_RECIBIDA, E.ADJUDICADA, E.OC_EMITIDA, E.OC_EN_REAPROBACION, E.OC_APROBADA, E.OC_ENVIADA, E.EN_RECEPCION, E.CERRADA];
 
 export class RequisicionPortalPublicoService {
   // Seam for tests (ESM bindings are immutable).
-  deps = { storage: firebaseStorageService, notify: notifyRequisicion, now: () => new Date() };
+  deps = { storage: firebaseStorageService, notify: notifyRequisicion, now: () => new Date(), entregables: requisicionEntregablesService, pdf: requisicionOrdenCompraPdfService };
 
   /** One aggregate that returns the header, the lines WITHOUT prices and ONLY the supplier owning `hash`. */
   async _fetch(hash) {
@@ -54,6 +62,29 @@ export class RequisicionPortalPublicoService {
         instrucciones: '$licitacion.instrucciones',
         estado: 1,
         fechaLimiteCotizacion: '$licitacion.fechaLimiteCotizacion',
+        ganadorId: '$licitacion.ganadorId',
+        // E4: only the fields the winner may see (and the issue date for the PDF); never the estimate, the excess, the
+        // approval levels, the issuer nor the storage path of a file. The second stage drops it for everybody but the winner.
+        'ordenCompra.numero': 1,
+        'ordenCompra.version': 1,
+        'ordenCompra.lineas.descripcion': 1,
+        'ordenCompra.lineas.cantidad': 1,
+        'ordenCompra.lineas.precioUnitario': 1,
+        'ordenCompra.lineas.subtotal': 1,
+        'ordenCompra.total': 1,
+        'ordenCompra.moneda': 1,
+        'ordenCompra.condiciones': 1,
+        'ordenCompra.fechaEntrega': 1,
+        'ordenCompra.emitidaEn': 1,
+        'ordenCompra.requiereEntregables': 1,
+        'ordenCompra.entrega.estado': 1,
+        'ordenCompra.entrega.ultimaObservacion': 1,
+        'ordenCompra.entrega.archivos.url': 1,
+        'ordenCompra.entrega.archivos.nombre': 1,
+        'ordenCompra.entrega.archivos.tipo': 1,
+        'ordenCompra.entrega.archivos.tamano': 1,
+        'ordenCompra.entrega.archivos.subidoPor': 1,
+        'ordenCompra.entrega.archivos.fecha': 1,
         items: { $map: {
           input: { $filter: { input: '$lineas', as: 'l', cond: { $ne: ['$$l.estadoLinea', 'Cancelada'] } } },
           as: 'l',
@@ -62,8 +93,13 @@ export class RequisicionPortalPublicoService {
         proveedor: { $first: { $filter: { input: '$licitacion.proveedores', as: 'p', cond: { $eq: ['$$p.tokenHash', hash] } } } },
       } },
       { $project: {
-        tenantId: 1, consecutivo: 1, titulo: 1, instrucciones: 1, estado: 1, fechaLimiteCotizacion: 1, items: 1,
+        tenantId: 1, consecutivo: 1, titulo: 1, instrucciones: 1, estado: 1, fechaLimiteCotizacion: 1, items: 1, ganadorId: 1,
         'proveedor._id': 1, 'proveedor.nombre': 1, 'proveedor.estadoEnvio': 1, 'proveedor.tokenVence': 1, 'proveedor.cotizacion': 1,
+        ordenCompra: { $cond: [
+          { $and: [{ $eq: ['$ganadorId', '$proveedor._id'] }, { $in: ['$estado', OC_VISIBLE_ESTADOS] }] },
+          '$ordenCompra',
+          '$$REMOVE',
+        ] },
       } },
     ]);
     return rows[0] || null;
@@ -88,7 +124,7 @@ export class RequisicionPortalPublicoService {
    * Resolves the token of a request into a context, or throws the generic 404 / TOKEN_EXPIRADO. Audits the access.
    * @returns {Promise<{ row: object, hash: string, tenantNombre: string, now: Date, cerrada: boolean, vencida: boolean }>}
    */
-  async resolve(token, { ip } = {}) {
+  async resolve(token, { ip, soloGanador = false } = {}) {
     if (!isPlausibleToken(token)) throw notFound(); // a malformed token cannot match: no database access
     const hash = hashToken(token);
     const row = await this._fetch(hash);
@@ -104,6 +140,12 @@ export class RequisicionPortalPublicoService {
     }
 
     const p = row.proveedor;
+    // E4 purchase-order routes belong to the WINNER only: anybody else (discarded, refused, still quoting) gets the same
+    // generic 404 as an unknown token, whatever the state of his own link.
+    if (soloGanador && String(row.ganadorId ?? '') !== String(p._id)) {
+      await this._recordView(row, ip, true);
+      throw notFound();
+    }
     const limite = row.fechaLimiteCotizacion ? new Date(row.fechaLimiteCotizacion) : null;
     const vence = p.tokenVence ? new Date(p.tokenVence) : null;
     // `tokenVence` in the past means expired (403), with ONE documented exception: while the tender is open, a link whose
@@ -134,6 +176,40 @@ export class RequisicionPortalPublicoService {
     if (!row?.proveedor) throw notFound();
     const cerrada = row.estado !== E.EN_LICITACION || (row.fechaLimiteCotizacion && ctx.now.getTime() > new Date(row.fechaLimiteCotizacion).getTime());
     return this.view({ ...ctx, row, cerrada });
+  }
+
+  // ------------------------------------------------------------------------------------------ E4: purchase order
+
+  /** The winner's OC from the resolved context, or the generic 404 (not the winner / not sent yet / no OC). */
+  _ocOr404(ctx) {
+    if (!ctx.row.ordenCompra?.numero) throw notFound();
+    return ctx.row.ordenCompra;
+  }
+
+  /** Cheap checks done BEFORE a file is buffered (the winner, a sent OC that requires deliverables, an open delivery). */
+  assertPuedeEntregar(ctx) {
+    const oc = this._ocOr404(ctx);
+    if (!OC_UPLOAD_ESTADOS.includes(ctx.row.estado)) throw conflict('La orden de compra ya está cerrada', 'ENTREGA_CERRADA');
+    if (!oc.requiereEntregables) throw conflict('La orden de compra no exige entregables', 'ENTREGABLES_NO_REQUERIDOS');
+    const estado = oc.entrega?.estado || ENTREGA_ESTADO.PENDIENTE;
+    if (!ENTREGA_UPLOADABLE.includes(estado)) throw conflict(`La entrega está en estado ${estado} y no admite archivos`, 'ENTREGA_ESTADO_INVALIDO');
+  }
+
+  async enviarEntregables(ctx, files = []) {
+    this.assertPuedeEntregar(ctx);
+    await this.deps.entregables.subirDesdePortal(ctx, files);
+    return this._fresh(ctx);
+  }
+
+  /** PDF of the winner's own OC (generated on demand, never stored). */
+  async pdfOrdenCompra(ctx) {
+    const oc = this._ocOr404(ctx);
+    return this.deps.pdf.renderParts(oc, {
+      tenantNombre: ctx.tenantNombre,
+      consecutivo: ctx.row.consecutivo,
+      titulo: ctx.row.titulo,
+      proveedorNombre: ctx.row.proveedor.nombre,
+    }, { requisicionId: String(ctx.row._id) });
   }
 
   // ------------------------------------------------------------------------------------------ answer the invitation

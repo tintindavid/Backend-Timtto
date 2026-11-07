@@ -14,10 +14,26 @@ export async function resolvePortalToken(req, _res, next) {
   } catch (err) { next(err); }
 }
 
+/** E4: same as `resolvePortalToken` for the purchase-order routes, which exist for the WINNER only (anybody else: generic 404). */
+export async function resolvePortalTokenGanador(req, _res, next) {
+  try {
+    req.portal = await portal.resolve(req.params.token, { ip: req.ip, soloGanador: true });
+    next();
+  } catch (err) { next(err); }
+}
+
 /** Refuses a quotation before multer buffers the file when the tender is closed / late / the supplier cannot quote. */
 export function precheckPortalCotizacion(req, _res, next) {
   try {
     portal.assertPuedeCotizar(req.portal);
+    next();
+  } catch (err) { next(err); }
+}
+
+/** E4: refuses deliverables before a file is buffered (not the winner / OC not sent -> generic 404; closed or wrong state -> 409). */
+export function precheckPortalEntregables(req, _res, next) {
+  try {
+    portal.assertPuedeEntregar(req.portal);
     next();
   } catch (err) { next(err); }
 }
@@ -40,6 +56,26 @@ export class RequisicionPortalPublicoController {
     try {
       const data = await portal.enviarCotizacion(req.portal, req.body, req.file || null);
       res.json(successResponse(data, 'Cotización recibida'));
+    } catch (err) { next(err); }
+  }
+
+  async enviarEntregables(req, res, next) {
+    try {
+      const data = await portal.enviarEntregables(req.portal, req.files || []);
+      res.json(successResponse(data, 'Entregables recibidos'));
+    } catch (err) { next(err); }
+  }
+
+  async pdfOrdenCompra(req, res, next) {
+    try {
+      const { buffer, filename } = await portal.pdfOrdenCompra(req.portal);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': buffer.length,
+        'Cache-Control': 'private, no-store',
+      });
+      res.status(200).send(buffer);
     } catch (err) { next(err); }
   }
 }

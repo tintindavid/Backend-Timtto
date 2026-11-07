@@ -1,4 +1,5 @@
 import { PERMISSIONS } from '../constants/permissions.js';
+import { redactOrdenCompra } from './requisicionOrdenCompraDto.util.js';
 
 /**
  * Visibility of the supplier quotations in INTERNAL responses (E3, owner decision on F12). Quotations are commercial
@@ -18,6 +19,26 @@ export function hasQuotePermission(user) {
   return perms.includes(PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS) || perms.includes(PERMISSIONS.REQUISICIONES_SELECT_WINNER);
 }
 
+/**
+ * E4: who may see the real prices of the purchase order: the purchasing / OC / deliverables permissions, manage-all, or the
+ * creator of the requisition. Everybody else keeps the state and the dates but gets no prices, conditions or approval data.
+ */
+export function hasOrdenCompraPermission(user) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  const perms = Array.isArray(user.permissions) ? user.permissions : [];
+  return [
+    PERMISSIONS.REQUISICIONES_ISSUE_PO,
+    PERMISSIONS.REQUISICIONES_APPROVE_PO,
+    // an eligible level approver needs the prices to decide a re-approval
+    PERMISSIONS.REQUISICIONES_APPROVE,
+    PERMISSIONS.REQUISICIONES_MANAGE_DELIVERABLES,
+    PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS,
+    PERMISSIONS.REQUISICIONES_SELECT_WINNER,
+    PERMISSIONS.REQUISICIONES_MANAGE_ALL,
+  ].some((p) => perms.includes(p));
+}
+
 const idOf = (v) => (v === null || v === undefined ? '' : String(v?._id ?? v));
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
 
@@ -28,6 +49,22 @@ function redactTimeline(timeline) {
     const { valorTotal: _v, moneda: _m, ...datos } = e.datos;
     return { ...e, datos };
   });
+}
+
+/** E4: amounts of the purchase order events (total / estimate / margin) for viewers without access to purchasing. */
+function redactOcTimeline(timeline) {
+  return timeline.map((e) => {
+    if (!e || typeof e.tipo !== 'string' || !e.tipo.startsWith('OC_') || !isObj(e.datos)) return e;
+    const { total: _t, estimado: _e, margenPct: _m, ...datos } = e.datos;
+    return { ...e, datos };
+  });
+}
+
+function redactOc(r) {
+  const out = { ...r };
+  if (r.ordenCompra) out.ordenCompra = redactOrdenCompra(r.ordenCompra);
+  if (Array.isArray(r.timeline)) out.timeline = redactOcTimeline(r.timeline);
+  return out;
 }
 
 function redactRequisicion(r) {
@@ -52,8 +89,11 @@ export function redactQuotesFor(node, user, depth = 0) {
   if (Array.isArray(node)) return node.map((n) => redactQuotesFor(n, user, depth));
   if (!isObj(node)) return node;
   if (Array.isArray(node.licitacion?.proveedores)) {
-    const allowed = hasQuotePermission(user) || (user?.userId && idOf(node.creadaPor) === String(user.userId));
-    return allowed ? node : redactRequisicion(node);
+    const isCreator = Boolean(user?.userId) && idOf(node.creadaPor) === String(user.userId);
+    const quotesOk = hasQuotePermission(user) || isCreator;
+    const ocOk = hasOrdenCompraPermission(user) || isCreator;
+    const afterQuotes = quotesOk ? node : redactRequisicion(node);
+    return ocOk ? afterQuotes : redactOc(afterQuotes);
   }
   if (depth >= 2) return node;
   let changed = false;

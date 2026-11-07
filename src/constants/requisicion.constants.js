@@ -22,6 +22,11 @@ export const REQUISICION_ESTADO = Object.freeze({
   EN_LICITACION: 'En_Licitacion',
   COTIZACION_RECIBIDA: 'Cotizacion_Recibida',
   ADJUDICADA: 'Adjudicada',
+  // E4 (requisiciones-e4-oc-recepcion): purchase order (OC) of the winning supplier.
+  OC_EMITIDA: 'OC_Emitida',
+  OC_EN_REAPROBACION: 'OC_En_Reaprobacion',
+  OC_APROBADA: 'OC_Aprobada',
+  OC_ENVIADA: 'OC_Enviada',
 });
 export const REQUISICION_ESTADO_VALUES = Object.freeze(Object.values(REQUISICION_ESTADO));
 
@@ -50,7 +55,25 @@ export const REQUISICION_TRANSICIONES = Object.freeze({
   ]),
   [REQUISICION_ESTADO.EN_LICITACION]: Object.freeze([REQUISICION_ESTADO.COTIZACION_RECIBIDA, REQUISICION_ESTADO.CANCELADA]),
   [REQUISICION_ESTADO.COTIZACION_RECIBIDA]: Object.freeze([REQUISICION_ESTADO.ADJUDICADA, REQUISICION_ESTADO.CANCELADA]),
+  // E4: the awarded goods are received only after the purchase order was sent (`Adjudicada -> En_Recepcion` no longer exists).
   [REQUISICION_ESTADO.ADJUDICADA]: Object.freeze([
+    REQUISICION_ESTADO.OC_EMITIDA,
+    REQUISICION_ESTADO.CERRADA,
+    REQUISICION_ESTADO.CANCELADA,
+  ]),
+  [REQUISICION_ESTADO.OC_EMITIDA]: Object.freeze([
+    REQUISICION_ESTADO.OC_APROBADA,
+    REQUISICION_ESTADO.OC_EN_REAPROBACION,
+    REQUISICION_ESTADO.ADJUDICADA,
+    REQUISICION_ESTADO.CANCELADA,
+  ]),
+  [REQUISICION_ESTADO.OC_EN_REAPROBACION]: Object.freeze([
+    REQUISICION_ESTADO.OC_APROBADA,
+    REQUISICION_ESTADO.OC_EMITIDA,
+    REQUISICION_ESTADO.CANCELADA,
+  ]),
+  [REQUISICION_ESTADO.OC_APROBADA]: Object.freeze([REQUISICION_ESTADO.OC_ENVIADA, REQUISICION_ESTADO.CANCELADA]),
+  [REQUISICION_ESTADO.OC_ENVIADA]: Object.freeze([
     REQUISICION_ESTADO.EN_RECEPCION,
     REQUISICION_ESTADO.CERRADA,
     REQUISICION_ESTADO.CANCELADA,
@@ -67,6 +90,10 @@ export const PRESUPUESTO_ESTADOS_CONSUMIDO = Object.freeze([
   REQUISICION_ESTADO.EN_LICITACION,
   REQUISICION_ESTADO.COTIZACION_RECIBIDA,
   REQUISICION_ESTADO.ADJUDICADA,
+  REQUISICION_ESTADO.OC_EMITIDA,
+  REQUISICION_ESTADO.OC_EN_REAPROBACION,
+  REQUISICION_ESTADO.OC_APROBADA,
+  REQUISICION_ESTADO.OC_ENVIADA,
   REQUISICION_ESTADO.EN_RECEPCION,
   REQUISICION_ESTADO.CERRADA,
 ]);
@@ -106,6 +133,19 @@ export const REQUISICION_EVENTO = Object.freeze({
   PROVEEDOR_DESCARTADO: 'PROVEEDOR_DESCARTADO',
   COMPRA_DIRECTA_JUSTIFICADA: 'COMPRA_DIRECTA_JUSTIFICADA',
   FECHA_LIMITE_AMPLIADA: 'FECHA_LIMITE_AMPLIADA',
+  // E4: purchase order and supplier deliverables.
+  OC_EMITIDA: 'OC_EMITIDA',
+  OC_EDITADA: 'OC_EDITADA',
+  OC_REAPROBACION_REQUERIDA: 'OC_REAPROBACION_REQUERIDA',
+  OC_APROBADA: 'OC_APROBADA',
+  OC_RECHAZADA: 'OC_RECHAZADA',
+  OC_ENVIADA: 'OC_ENVIADA',
+  OC_REENVIADA: 'OC_REENVIADA',
+  ENTREGABLES_RECIBIDOS: 'ENTREGABLES_RECIBIDOS',
+  PASO_REVISION_ENTREGA: 'PASO_REVISION_ENTREGA',
+  DEVUELTA: 'DEVUELTA',
+  ENTREGABLES_ACEPTADOS: 'ENTREGABLES_ACEPTADOS',
+  RECORDATORIO_ENVIADO: 'RECORDATORIO_ENVIADO',
 });
 export const REQUISICION_EVENTO_VALUES = Object.freeze(Object.values(REQUISICION_EVENTO));
 
@@ -228,6 +268,46 @@ export const PROVEEDOR_TOKEN_HINT_LENGTH = 4;
 /** Quotation file: one PDF/image of up to 5 MiB. */
 export const COTIZACION_ARCHIVO_MIME = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 export const COTIZACION_ARCHIVO_MAX_BYTES = 5 * 1024 * 1024;
+
+// --- E4: purchase order (OC) and deliverables -------------------------------------------------------------------
+
+/** Sub-state of the OC block (the header `estado` is the source of truth for the flow). */
+export const OC_ESTADO = Object.freeze({ EMITIDA: 'Emitida', EN_REAPROBACION: 'En_Reaprobacion', APROBADA: 'Aprobada', ENVIADA: 'Enviada' });
+export const OC_ESTADO_VALUES = Object.freeze(Object.values(OC_ESTADO));
+/** Header states in which the OC exists (it cannot be edited from any but `OC_Emitida`). */
+export const OC_ESTADOS_CABECERA = Object.freeze([
+  REQUISICION_ESTADO.OC_EMITIDA,
+  REQUISICION_ESTADO.OC_EN_REAPROBACION,
+  REQUISICION_ESTADO.OC_APROBADA,
+  REQUISICION_ESTADO.OC_ENVIADA,
+]);
+/** Numbering: OC-{YYYY}-{NNNN}, yearly counter key `ordenes-compra:{YYYY}` (year in America/Bogota). */
+export const OC_CONSECUTIVO_PREFIX = 'OC';
+export const OC_CONSECUTIVO_PAD = 4;
+export const OC_COUNTER_KEY = (year) => `ordenes-compra:${year}`;
+/** Re-approval margin: the OC total may exceed the estimated amount by this percentage (tenant setting, 0-100). */
+export const OC_MARGEN_REAPROBACION_DEFAULT = 10;
+export const OC_CONDICIONES_MAX = 2000;
+/** Mailing status of the OC sent to the winner. */
+export const OC_CORREO_ESTADO = Object.freeze({ ENVIADO: 'Enviado', FALLIDO: 'Fallido', DESACTIVADO: 'Desactivado', SIN_CORREO: 'Sin_correo' });
+export const OC_CORREO_ESTADO_VALUES = Object.freeze(Object.values(OC_CORREO_ESTADO));
+
+/** Deliverables (supplier supports) sub-state of the OC. */
+export const ENTREGA_ESTADO = Object.freeze({
+  PENDIENTE: 'Pendiente',
+  RECIBIDOS: 'Recibidos',
+  EN_REVISION: 'En_Revision',
+  DEVOLUCION: 'Devolucion',
+  ACEPTADOS: 'Aceptados',
+});
+export const ENTREGA_ESTADO_VALUES = Object.freeze(Object.values(ENTREGA_ESTADO));
+export const ENTREGA_ARCHIVO_ORIGEN = Object.freeze({ PROVEEDOR: 'proveedor', USUARIO: 'usuario' });
+export const ENTREGA_ARCHIVO_ORIGEN_VALUES = Object.freeze(Object.values(ENTREGA_ARCHIVO_ORIGEN));
+/** Files kept per delivery (every upload round adds to the list), and per request. */
+export const ENTREGA_MAX_ARCHIVOS = 30;
+export const ENTREGA_MAX_ARCHIVOS_POR_SUBIDA = 5;
+/** Reminder thresholds (days) read from the environment by the reminders script. */
+export const RECORDATORIO_DIAS_DEFAULT = 3;
 
 /** Public portal: fixed (non-leaking) messages. */
 export const PORTAL_MENSAJE_NO_ENCONTRADO = 'Enlace no encontrado';

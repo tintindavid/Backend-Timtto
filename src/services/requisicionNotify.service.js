@@ -73,6 +73,14 @@ export async function getBuyerUserIds(tenantId) {
   return unique(users.map((u) => String(u._id)));
 }
 
+/** E4: live users whose role holds `permission` (issuers, approvers of the OC, deliverables reviewers). */
+export async function getUserIdsWithPermission(tenantId, permission) {
+  const roles = await Role.find({ tenantId, permissions: permission }).select('_id').lean();
+  if (roles.length === 0) return [];
+  const users = await User.find({ tenantId, roleId: { $in: roles.map((r) => r._id) } }).select('_id').lean();
+  return unique(users.map((u) => String(u._id)));
+}
+
 /** Users whose role holds `requisiciones:manage-all` (the supervisors that handle disputes). */
 export async function getManageAllUserIds(tenantId) {
   const roles = await Role.find({ tenantId, permissions: PERMISSIONS.REQUISICIONES_MANAGE_ALL }).select('_id').lean();
@@ -86,8 +94,13 @@ function emitSafe(tenantId, event, params, recipients, excludeUserId) {
     try {
       const builder = REQUISICION_PAYLOAD_BUILDERS[event];
       const payload = builder(params);
+      // Only live users of the tenant are notified (frozen approver ids may point to users deleted since).
+      const ids = unique(recipients || []);
+      // (E4 events only: the older ones keep their recipients as resolved)
+      const checkLive = /^requisicion\.(po|deliverables|reminder)\./.test(event);
+      const live = !checkLive || ids.length === 0 ? ids : (await User.find({ _id: { $in: ids }, tenantId }).select('_id').lean()).map((u) => String(u._id));
       await notificationService.emit(tenantId, event, payload, {
-        extraRecipientUserIds: recipients,
+        extraRecipientUserIds: live,
         excludeRecipientUserIds: excludeUserId ? [String(excludeUserId)] : [],
       });
     } catch (err) {
@@ -160,6 +173,34 @@ export function notifyRequisicion(tenantId, event, req, ctx = {}) {
           // E3: creator, requester and the buyers (manage-suppliers).
           recipients = unique([...people, ...(await getBuyerUserIds(tenantId))]);
           break;
+        // E4: purchase order and deliverables. Recipients are dynamic; the actor is excluded below.
+        case 'requisicion.po.issued':
+        case 'requisicion.po.sent':
+          recipients = unique([...people, ...(await getBuyerUserIds(tenantId))]);
+          break;
+        case 'requisicion.po.approval.requested':
+          // A re-approval level notifies the level's approvers; the simple approval, the holders of approve-po. Never the issuer.
+          recipients = ctx.approverLevel
+            ? await getLevelApproverIds(tenantId, ctx.approverLevel)
+            : await getUserIdsWithPermission(tenantId, PERMISSIONS.REQUISICIONES_APPROVE_PO);
+          recipients = recipients.filter((id) => id !== String(ctx.issuerId || ''));
+          break;
+        case 'requisicion.po.approved':
+        case 'requisicion.po.rejected':
+          recipients = unique([ctx.issuerId, ...people]);
+          break;
+        case 'requisicion.deliverables.received':
+        case 'requisicion.deliverables.returned':
+        case 'requisicion.reminder.deliverables':
+          recipients = await getUserIdsWithPermission(tenantId, PERMISSIONS.REQUISICIONES_MANAGE_DELIVERABLES);
+          if (event === 'requisicion.deliverables.returned') recipients = unique([...recipients, ...people]);
+          break;
+        case 'requisicion.deliverables.accepted':
+          recipients = unique([...people, ...(await getUserIdsWithPermission(tenantId, PERMISSIONS.REQUISICIONES_MANAGE_DELIVERABLES))]);
+          break;
+        case 'requisicion.reminder.confirmation':
+          recipients = await getLineResponsibleIds(tenantId, req, { lineaIds: ctx.lineaIds || [], includeFree: true });
+          break;
         default: // level.approved
           recipients = people;
       }
@@ -188,6 +229,7 @@ export function notifyRequisicion(tenantId, event, req, ctx = {}) {
           proveedorNombre: ctx.proveedorNombre,
           enviados: ctx.enviados,
           fallidos: ctx.fallidos,
+          ocNumero: ctx.ocNumero,
         },
         recipients,
         // The "available" notice is also a record for the one who just confirmed: nobody is excluded.
