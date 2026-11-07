@@ -133,6 +133,52 @@ export function buildRequisicionWinnerSelectedPayload(p) {
   );
 }
 
+// --- E4: purchase order and deliverables ----------------------------------------------------------------------
+
+const ocLink = (p, tab = 'orden-compra') => p.link || `/requisiciones/${p.requisicionId}?tab=${tab}`;
+const ocLabel = (p) => (p.ocNumero ? ` ${String(p.ocNumero).slice(0, 40)}` : '');
+
+export function buildRequisicionPoIssuedPayload(p) {
+  return build({ ...p, link: ocLink(p) }, `${label(p)}: orden de compra emitida`, `${actor(p)} emitió la orden de compra${ocLabel(p)}.`);
+}
+
+export function buildRequisicionPoApprovalRequestedPayload(p) {
+  return build({ ...p, link: ocLink(p) }, `${label(p)}: orden de compra por aprobar`, `${actor(p)} emitió la orden de compra${ocLabel(p)}; está pendiente de tu aprobación.`);
+}
+
+export function buildRequisicionPoApprovedPayload(p) {
+  return build({ ...p, link: ocLink(p) }, `${label(p)}: orden de compra aprobada`, `${actor(p)} aprobó la orden de compra${ocLabel(p)}.`);
+}
+
+export function buildRequisicionPoRejectedPayload(p) {
+  return build({ ...p, link: ocLink(p) }, `${label(p)}: orden de compra rechazada`, withReason(`${actor(p)} rechazó la orden de compra${ocLabel(p)}.`, p));
+}
+
+export function buildRequisicionPoSentPayload(p) {
+  return build({ ...p, link: ocLink(p) }, `${label(p)}: orden de compra enviada`, `${actor(p)} envió la orden de compra${ocLabel(p)} al proveedor.`);
+}
+
+export function buildRequisicionDeliverablesReceivedPayload(p) {
+  const who = p.proveedorNombre ? String(p.proveedorNombre).slice(0, 120) : 'El proveedor';
+  return build({ ...p, link: ocLink(p, 'entregables') }, `${label(p)}: entregables recibidos`, `${who} adjuntó los soportes de entrega; pendientes de revisión.`);
+}
+
+export function buildRequisicionDeliverablesReturnedPayload(p) {
+  return build({ ...p, link: ocLink(p, 'entregables') }, `${label(p)}: entregables devueltos`, withReason(`${actor(p)} devolvió los entregables al proveedor.`, p));
+}
+
+export function buildRequisicionDeliverablesAcceptedPayload(p) {
+  return build({ ...p, link: ocLink(p, 'entregables') }, `${label(p)}: entregables aceptados`, `${actor(p)} aceptó los entregables del proveedor.`);
+}
+
+export function buildRequisicionReminderDeliverablesPayload(p) {
+  return build({ ...p, link: ocLink(p, 'entregables') }, `${label(p)}: entregables devueltos sin re-entrega`, withReason('El proveedor aún no ha vuelto a entregar los soportes devueltos.', p));
+}
+
+export function buildRequisicionReminderConfirmationPayload(p) {
+  return build(p, `${label(p)}: confirma la entrega`, `Hay una entrega recibida${item(p)} pendiente de tu confirmación.`);
+}
+
 /** event name -> builder, for generic callers. */
 export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.submitted': buildRequisicionSubmittedPayload,
@@ -150,4 +196,14 @@ export const REQUISICION_PAYLOAD_BUILDERS = {
   'requisicion.rfq.sent': buildRequisicionRfqSentPayload,
   'requisicion.quote.received': buildRequisicionQuoteReceivedPayload,
   'requisicion.winner.selected': buildRequisicionWinnerSelectedPayload,
+  'requisicion.po.issued': buildRequisicionPoIssuedPayload,
+  'requisicion.po.approval.requested': buildRequisicionPoApprovalRequestedPayload,
+  'requisicion.po.approved': buildRequisicionPoApprovedPayload,
+  'requisicion.po.rejected': buildRequisicionPoRejectedPayload,
+  'requisicion.po.sent': buildRequisicionPoSentPayload,
+  'requisicion.deliverables.received': buildRequisicionDeliverablesReceivedPayload,
+  'requisicion.deliverables.returned': buildRequisicionDeliverablesReturnedPayload,
+  'requisicion.deliverables.accepted': buildRequisicionDeliverablesAcceptedPayload,
+  'requisicion.reminder.deliverables': buildRequisicionReminderDeliverablesPayload,
+  'requisicion.reminder.confirmation': buildRequisicionReminderConfirmationPayload,
 };

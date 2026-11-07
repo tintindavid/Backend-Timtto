@@ -27,11 +27,12 @@ export function authorizeReadOrParticipation(allowWithoutRead = () => true) {
 }
 
 /**
- * Vistas of `GET /` that are scoped to the caller by the service itself (mias: creator or requester of the caller;
+ * Vistas of `GET /` that are scoped to the caller by the service itself (oc-por-aprobar: the OC the caller can decide, and
+ * nothing unless he holds approve-po; mias: creator or requester of the caller;
  * por-confirmar: lines whose responsible is the caller, unless manage-all; mi-historial: own timeline events), so they
  * need no `requisiciones:read`. Strict string equality: arrays, duplicates or odd casings fail closed (403).
  */
-export const SELF_SCOPED_VISTAS = Object.freeze(['mias', 'por-confirmar', 'mi-historial']);
+export const SELF_SCOPED_VISTAS = Object.freeze(['mias', 'por-confirmar', 'mi-historial', 'oc-por-aprobar']);
 
 /** `GET /` gate: read required unless the request asks for one of the caller's own (self-scoped) vistas. */
 export const authorizeListOrMiHistorial = authorizeReadOrParticipation(

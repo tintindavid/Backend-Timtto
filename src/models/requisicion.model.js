@@ -9,6 +9,11 @@ import {
   LINEA_ESTADO_VALUES,
   CONFIRMACION_RESULTADO_VALUES,
   COTIZACION_ORIGEN_VALUES,
+  ENTREGA_ARCHIVO_ORIGEN_VALUES,
+  ENTREGA_ESTADO,
+  ENTREGA_ESTADO_VALUES,
+  OC_CORREO_ESTADO_VALUES,
+  OC_ESTADO_VALUES,
   PROVEEDOR_ESTADO_ENVIO,
   PROVEEDOR_ESTADO_ENVIO_VALUES,
   RECEPCIONES_SOFT_CAP,
@@ -274,6 +279,68 @@ const NivelSchema = new Schema({
   observacion: { type: String, trim: true, maxlength: 2000 },
 }, { _id: false });
 
+// --- Purchase order sub-schemas (E4) --------------------------------------------------------------------------
+
+const OcLineaSchema = new Schema({
+  lineaId: { type: Schema.Types.ObjectId, required: true },
+  descripcion: { type: String, trim: true, maxlength: 300 },
+  cantidad: { type: Number, required: true, min: 0 },
+  precioUnitario: { type: Number, required: true, min: 0 },
+  subtotal: { type: Number, required: true, min: 0 },
+}, { _id: false });
+
+const EntregaArchivoSchema = new Schema({
+  ...ArchivoSchemaDef,
+  subidoPor: { type: String, enum: ENTREGA_ARCHIVO_ORIGEN_VALUES, required: true },
+  usuarioId: { type: Schema.Types.ObjectId, ref: 'User' },
+  fecha: { type: Date, default: Date.now },
+}, { _id: false });
+
+const EntregaSchema = new Schema({
+  estado: { type: String, enum: ENTREGA_ESTADO_VALUES, default: ENTREGA_ESTADO.PENDIENTE },
+  archivos: { type: [EntregaArchivoSchema], default: [] },
+  ultimaObservacion: { type: String, trim: true, maxlength: 2000 },
+  // Start of the current waiting period (used by the reminders script): the last return / the last upload.
+  devueltaAt: { type: Date, default: null },
+  recibidosAt: { type: Date, default: null },
+  aceptadosAt: { type: Date, default: null },
+  ultimoRecordatorio: { type: Date, default: null },
+}, { _id: false });
+
+const OrdenCompraSchema = new Schema({
+  numero: { type: String, required: true, trim: true },
+  // Version of the OC itself (+1 on every edit and re-issue after a rejection); decisions are bound to it.
+  version: { type: Number, default: 1, min: 1 },
+  estado: { type: String, enum: OC_ESTADO_VALUES, default: 'Emitida' },
+  lineas: { type: [OcLineaSchema], default: [] },
+  total: { type: Number, required: true, min: 0 },
+  moneda: { type: String, trim: true, uppercase: true, default: DEFAULT_CURRENCY },
+  condiciones: { type: String, trim: true, maxlength: 2000 },
+  fechaEntrega: { type: Date, default: null },
+  requiereEntregables: { type: Boolean, default: false },
+  emitidaPor: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  emitidaEn: { type: Date, default: Date.now },
+  // Who rewrote the current version (edit by a supervisor): he cannot decide it, like the issuer.
+  editadaPor: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  exceso: {
+    requerido: { type: Boolean, default: false },
+    estimado: { type: Number, default: 0 },
+    total: { type: Number, default: 0 },
+    margenPct: { type: Number, default: 0 },
+  },
+  aprobacion: {
+    niveles: { type: [NivelSchema], default: [] },
+    nivelActual: { type: Number, default: null },
+  },
+  aprobadaPor: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  aprobadaEn: { type: Date, default: null },
+  envio: {
+    enviadaEn: { type: Date, default: null },
+    estadoCorreo: { type: String, enum: OC_CORREO_ESTADO_VALUES },
+  },
+  entrega: { type: EntregaSchema, default: undefined },
+}, { _id: false });
+
 const RequisicionSchema = new Schema({
   tenantId: { type: String, required: true, index: true, immutable: true },
   consecutivo: { type: String, required: true, trim: true, immutable: true },
@@ -325,6 +392,9 @@ const RequisicionSchema = new Schema({
   },
   // E3: tendering with suppliers. Written ONLY by the tendering services (guarded by the update hooks below).
   licitacion: { type: LicitacionSchema, default: undefined },
+  // E4: purchase order of the winning supplier (one per requisition). Written ONLY by the OC / deliverables services
+  // (guarded by the update hooks below).
+  ordenCompra: { type: OrdenCompraSchema, default: undefined },
   // Internal: set when the solicitud sync failed after a committed transition; the reconcile script finds and clears it.
   solicitudesSyncPendiente: { type: Boolean, default: undefined },
   isDeleted: { type: Boolean, default: false, index: true },
@@ -349,6 +419,8 @@ RequisicionSchema.index({ tenantId: 1, estado: 1, 'aprobacion.nivelActual': 1 })
 RequisicionSchema.index({ tenantId: 1, tipoRequisicionId: 1 });
 // E3: public portal lookup by the SHA-256 of the supplier token (the tenant comes out of the found document).
 RequisicionSchema.index({ 'licitacion.proveedores.tokenHash': 1 });
+// E4: reminders script (deliverables waiting for a re-delivery) and the OC lists.
+RequisicionSchema.index({ tenantId: 1, 'ordenCompra.entrega.estado': 1 });
 
 // --- Derived amount -------------------------------------------------------------------------------------------
 
@@ -371,6 +443,12 @@ const isLicitPath = (path) => typeof path === 'string' && (path === 'licitacion'
 
 function licitacionError(detail) {
   return new ApiError(409, `El bloque de licitación solo se modifica desde los servicios de compras: ${detail}`, 'LICITACION_INMUTABLE');
+}
+
+const isOcPath = (path) => typeof path === 'string' && (path === 'ordenCompra' || path.startsWith('ordenCompra.') || path.startsWith('ordenCompra['));
+
+function ordenCompraError(detail) {
+  return new ApiError(409, `El bloque de orden de compra solo se modifica desde los servicios de compras: ${detail}`, 'ORDEN_COMPRA_INMUTABLE');
 }
 
 function timelineError(detail) {
@@ -436,7 +514,38 @@ function checkLicitacionOp(op, path, arg, options) {
   return licitacionError(`${op} sobre "${path}"`);
 }
 
-const CONFIRM_PATH_RE = /^recepciones\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.items\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.confirmacion$/;
+/** True when the write filter (or one of its `$and` members) pins `estado` to exactly `value`. */
+function filterPinsEstado(filter, value) {
+  if (filter === null || typeof filter !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(filter, 'estado') && filter.estado === value) return true;
+  return Array.isArray(filter.$and) && filter.$and.some((f) => filterPinsEstado(f, value));
+}
+
+// Leaves of the OC that, once written, only change through their own dedicated operation.
+const OC_FROZEN_LEAVES = ['ordenCompra.numero', 'ordenCompra.entrega', 'ordenCompra.entrega.archivos', 'ordenCompra.emitidaPor'];
+
+/**
+ * Legal writes inside `ordenCompra` (the OC / deliverables services use them through `appendEvent`): `$set` of leaf
+ * paths (the whole block only when the filter pins `estado = Adjudicada`, i.e. the issue / re-issue; the number, the
+ * issuer and the file list are never set leaf by leaf) and `$push` appending files to `ordenCompra.entrega.archivos`
+ * (plain append). `$inc`, `$unset`, `$rename`, `$pull`, `$addToSet`, `$pop` and pipelines on the block are rejected.
+ */
+function checkOrdenCompraOp(op, path, arg, options) {
+  if (op === '$set') {
+    if (path === 'ordenCompra') {
+      return filterPinsEstado(options && options.filter, 'Adjudicada') ? null : ordenCompraError('la OC completa solo se escribe al emitirla desde Adjudicada');
+    }
+    if (OC_FROZEN_LEAVES.includes(path)) return ordenCompraError(`asignación sobre "${path}"`);
+    return null;
+  }
+  if (op === '$push') {
+    if (path === 'ordenCompra.entrega.archivos') return isPlainAppend(arg) ? null : ordenCompraError('$push no permitido en los archivos de la entrega');
+    return ordenCompraError(`$push sobre "${path}"`);
+  }
+  return ordenCompraError(`${op} sobre "${path}"`);
+}
+
+const CONFIRM_PATH_RE =/^recepciones\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.items\.\$\[([A-Za-z][A-Za-z0-9]*)\]\.confirmacion$/;
 const CONFIRMACION_KEYS = ['por', 'fecha', 'resultado', 'cantidad', 'observacion', 'porManageAll'];
 
 /** Array filters whose every key addresses the identifier `id` (`id` or `id.field`). */
@@ -502,6 +611,10 @@ export function findForbiddenRequisicionUpdate(update, options = {}) {
         const err = checkLicitacionOp('$set', key, value, options);
         if (err) return err;
       }
+      if (isOcPath(key)) {
+        const err = checkOrdenCompraOp('$set', key, value, options);
+        if (err) return err;
+      }
       continue;
     }
     if (value === null || typeof value !== 'object') continue;
@@ -511,10 +624,16 @@ export function findForbiddenRequisicionUpdate(update, options = {}) {
         if (isRecepPath(path) || isRecepPath(String(arg))) return recepcionesError('$rename');
         if (isTipoPath(path) || isTipoPath(String(arg))) return new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE');
         if (isLicitPath(path) || isLicitPath(String(arg))) return licitacionError('$rename');
+        if (isOcPath(path) || isOcPath(String(arg))) return ordenCompraError('$rename');
         continue;
       }
       if (isLicitPath(path)) {
         const err = checkLicitacionOp(key, path, arg, options);
+        if (err) return err;
+        continue;
+      }
+      if (isOcPath(path)) {
+        const err = checkOrdenCompraOp(key, path, arg, options);
         if (err) return err;
         continue;
       }
@@ -579,10 +698,12 @@ RequisicionSchema.pre('save', function (next) {
     if (this.modifiedPaths().some((p) => isTimelinePath(p))) return next(timelineError('save() con timeline modificado'));
     if (this.modifiedPaths().some((p) => isRecepPath(p))) return next(recepcionesError('save() con recepciones modificadas'));
     if (this.modifiedPaths().some((p) => isLicitPath(p))) return next(licitacionError('save() con licitación modificada'));
+    if (this.modifiedPaths().some((p) => isOcPath(p))) return next(ordenCompraError('save() con orden de compra modificada'));
     if (this.isModified('tipoRequisicionId')) return next(new ApiError(400, 'El tipo de requisición no puede cambiar', 'TIPO_INMUTABLE'));
   }
   // A new document never starts with a tendering block (it is created by the tendering services only).
   if (this.isNew && this.licitacion) return next(licitacionError('licitación en la creación'));
+  if (this.isNew && this.ordenCompra) return next(ordenCompraError('orden de compra en la creación'));
   return next();
 });
 

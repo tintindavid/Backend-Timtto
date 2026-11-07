@@ -11,6 +11,9 @@ const canManageAll = (req) => req.user?.role === 'superadmin'
 const canReceive = (req) => canManageAll(req)
   || (Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.REQUISICIONES_RECEIVE));
 
+const canApprovePo = (req) => req.user?.role === 'superadmin'
+  || (Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.REQUISICIONES_APPROVE_PO));
+
 const canRead = (req) => canManageAll(req)
   || (Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.REQUISICIONES_READ));
 
@@ -31,14 +34,14 @@ export class RequisicionController {
   async list(req, res, next) {
     try {
       const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await requisicionService.list(req.tenantId, req.user.userId, filters, { page, limit, sortBy, order }, { canReceive: canReceive(req), canManageAll: canManageAll(req) });
+      const result = await requisicionService.list(req.tenantId, req.user.userId, filters, { page, limit, sortBy, order }, { canReceive: canReceive(req), canManageAll: canManageAll(req), canApprovePo: canApprovePo(req) });
       res.json(successResponse(result.data, 'Requisiciones recuperadas exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
 
   async getById(req, res, next) {
     try {
-      const data = await requisicionService.getById(req.tenantId, req.params.id, { userId: req.user.userId, canRead: req.canRead === true });
+      const data = await requisicionService.getById(req.tenantId, req.params.id, { userId: req.user.userId, canRead: req.canRead === true, canApprovePo: canApprovePo(req) });
       res.json(successResponse(data, 'Requisición recuperada exitosamente'));
     } catch (err) { next(err); }
   }

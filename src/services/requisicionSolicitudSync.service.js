@@ -82,6 +82,11 @@ export function computeSolicitudTarget(requisicion, linea) {
     case E.EN_LICITACION:
     case E.COTIZACION_RECIBIDA:
     case E.ADJUDICADA:
+    // E4: the purchase order stages are still "en abastecimiento" until the goods arrive.
+    case E.OC_EMITIDA:
+    case E.OC_EN_REAPROBACION:
+    case E.OC_APROBADA:
+    case E.OC_ENVIADA:
     case E.EN_RECEPCION:
     case E.CERRADA:
       if (estadoLinea === LINEA_ESTADO.CONFIRMADA) return { disponibilidad: D.DISPONIBLE, cantidadConfirmada: confirmada };

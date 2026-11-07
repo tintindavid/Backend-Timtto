@@ -79,7 +79,7 @@ describe('E2 constants: states, transitions, line states, events', () => {
   });
 
   it('the budget counts a requisition as consumed from approval until closing', () => {
-    assert.deepEqual([...PRESUPUESTO_ESTADOS_CONSUMIDO].sort(), [E.ADJUDICADA, E.APROBADA, E.CERRADA, E.COTIZACION_RECIBIDA, E.EN_LICITACION, E.EN_RECEPCION].sort());
+    assert.deepEqual([...PRESUPUESTO_ESTADOS_CONSUMIDO].sort(), [E.ADJUDICADA, E.APROBADA, E.CERRADA, E.COTIZACION_RECIBIDA, E.EN_LICITACION, E.EN_RECEPCION, E.OC_APROBADA, E.OC_EMITIDA, E.OC_ENVIADA, E.OC_EN_REAPROBACION].sort());
   });
 
   it('line states and timeline events', () => {

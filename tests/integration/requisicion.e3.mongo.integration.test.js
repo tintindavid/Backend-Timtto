@@ -25,6 +25,9 @@ import { notificationService } from '../../src/services/notification.service.js'
 import {
   CAPS, expectApi, futureDate, mkProvider, mkWorld, openTender, outbox, rawReq, sid, stubOutbound, tokenFromEmail,
 } from '../helpers/requisicionE3World.js';
+import { actorOf, mkRoleUser, ocBody, stubOutbound4 } from '../helpers/requisicionE4World.js';
+import { requisicionOrdenCompraService as ocService } from '../../src/services/requisicionOrdenCompra.service.js';
+import { requisicionOrdenCompraEnvioService as ocEnvio } from '../../src/services/requisicionOrdenCompraEnvio.service.js';
 import { hashToken } from '../../src/utils/requisicionToken.util.js';
 
 const URI = process.env.MONGO_INTEGRATION_URI;
@@ -331,8 +334,8 @@ describe('Requisiciones E3 on real MongoDB', { skip: !URI && 'MONGO_INTEGRATION_
       assert.ok(raw.licitacion.proveedores.some((p) => p.cotizacion));
     });
 
-    it('reception: 409 LICITACION_ABIERTA while tendering, allowed once Adjudicada, E2 path untouched', async () => {
-      stubOutbound();
+    it('reception: 409 LICITACION_ABIERTA while tendering, OC_REQUERIDA once awarded, allowed once the OC is sent, E2 path untouched', async () => {
+      stubOutbound4();
       const w = await mkWorld();
       const raw0 = await rawReq(w.reqId);
       const lineaId = String(raw0.lineas[0].lineaId);
@@ -342,6 +345,13 @@ describe('Requisiciones E3 on real MongoDB', { skip: !URI && 'MONGO_INTEGRATION_
       for (const p of provs) await quote(w, p.paId);
       await expectApi(recibir(w.reqId), 409, 'LICITACION_ABIERTA');
       await gan.seleccionarGanador(w.tenantId, w.reqId, provs[0].paId, w.actor, CAPS);
+      // E4: the awarded goods are received only after the purchase order was issued, approved and sent
+      await expectApi(recibir(w.reqId), 409, 'OC_REQUERIDA');
+      const approver = actorOf(await mkRoleUser(w.tenantId));
+      await ocService.emitir(w.tenantId, w.reqId, w.actor, await ocBody(w), CAPS);
+      await expectApi(recibir(w.reqId), 409, 'OC_REQUERIDA');
+      await ocService.aprobar(w.tenantId, w.reqId, approver, {}, CAPS);
+      await ocEnvio.enviar(w.tenantId, w.reqId, w.actor, CAPS);
       const out = await recibir(w.reqId);
       assert.equal(out.estado, 'En_Recepcion');
       // path without tender (E2 behaviour)

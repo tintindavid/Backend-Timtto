@@ -14,7 +14,9 @@ import { notifyRequisicion } from './requisicionNotify.service.js';
 import { syncRequisicionSolicitudesSafe } from './requisicionSolicitudSync.service.js';
 import {
   CONFIRMACION_RESULTADO as RES,
+  ENTREGA_ESTADO,
   LINEA_ESTADO as L,
+  PROVEEDOR_ENLACE_POST_CIERRE_DIAS,
   REQUISICION_ESTADO as E,
   REQUISICION_EVENTO as EV,
 } from '../constants/requisicion.constants.js';
@@ -31,9 +33,12 @@ import {
  * transaction as the confirmation write when the server supports it; otherwise the movements are compensated.
  */
 
-// E3: a tendered requisition is receivable once awarded (Adjudicada); while the tender is open it answers 409 LICITACION_ABIERTA.
-const RECEIVABLE = [E.APROBADA, E.ADJUDICADA, E.EN_RECEPCION];
+// E4: an awarded requisition is receivable only once its purchase order was sent (OC_Enviada); while the tender is open it
+// answers 409 LICITACION_ABIERTA and before the OC is sent 409 OC_REQUERIDA. Requisitions without a purchase (almacén,
+// libres) keep the E2 flow from Aprobada.
+const RECEIVABLE = [E.APROBADA, E.OC_ENVIADA, E.EN_RECEPCION];
 const TENDER_OPEN = [E.EN_LICITACION, E.COTIZACION_RECIBIDA];
+const OC_PENDING = [E.ADJUDICADA, E.OC_EMITIDA, E.OC_EN_REAPROBACION, E.OC_APROBADA];
 const ACTIVE_LINE = [L.PENDIENTE, L.RECIBIDA_PARCIAL, L.RECIBIDA, L.EN_DISPUTA];
 const MAX_ATTEMPTS = 6;
 
@@ -82,6 +87,9 @@ export class RequisicionRecepcionService {
   _assertEstado(doc, allowed) {
     if (allowed === RECEIVABLE && TENDER_OPEN.includes(doc.estado)) {
       throw new ApiError(409, 'La licitación está abierta; adjudica un proveedor antes de registrar recepciones', 'LICITACION_ABIERTA', { estadoActual: doc.estado });
+    }
+    if (allowed === RECEIVABLE && OC_PENDING.includes(doc.estado)) {
+      throw new ApiError(409, 'La orden de compra debe estar enviada al proveedor antes de registrar recepciones', 'OC_REQUERIDA', { estadoActual: doc.estado });
     }
     if (!allowed.includes(doc.estado)) {
       throw new ApiError(409, `La requisición está en estado ${doc.estado} y no admite esta operación`, 'TRANSICION_INVALIDA', { estadoActual: doc.estado });
@@ -471,10 +479,18 @@ export class RequisicionRecepcionService {
     const active = lineas.filter((l) => l.estadoLinea !== L.CANCELADA);
     if (active.length === 0 && lineas.length > 0) return this._cancelAll(tenantId, id, doc, actor);
     if (!active.every((l) => l.estadoLinea === L.CONFIRMADA)) return null;
+    // E4: when the purchase order requires deliverables the requisition waits for them to be accepted.
+    if (doc.ordenCompra?.requiereEntregables && doc.ordenCompra.entrega?.estado !== ENTREGA_ESTADO.ACEPTADOS) return null;
+    const winner = doc.licitacion?.ganadorId ? oidOf(doc.licitacion.ganadorId) : null;
     try {
       const closed = await transition(tenantId, id, {
         from: doc.estado,
         to: E.CERRADA,
+        // The winner's link (no expiry while the requisition is open) keeps a read-only page for a while after the close.
+        ...(winner ? {
+          set: { 'licitacion.proveedores.$[w].tokenVence': new Date(Date.now() + PROVEEDOR_ENLACE_POST_CIERRE_DIAS * 86400000) },
+          arrayFilters: [{ 'w._id': winner }],
+        } : {}),
         events: [buildTimelineEvent({
           tipo: EV.CERRADA,
           actorId: actor.userId,
@@ -488,6 +504,22 @@ export class RequisicionRecepcionService {
       if (['TRANSICION_INVALIDA', 'CONFLICTO_CONCURRENTE', 'REQUISICION_NOT_FOUND'].includes(err.code)) return null; // someone else closed it
       throw err;
     }
+  }
+
+  /**
+   * Public entry of the automatic close (E4: also called when the deliverables are accepted). Closes the requisition when
+   * every active line is confirmed / cancelled and the required deliverables are accepted; then syncs the solicitudes and
+   * notifies. Returns the closed document or null. Never throws for a lost race.
+   */
+  async closeIfDone(tenantId, id, actor) {
+    const ended = await this._maybeClose(tenantId, id, actor);
+    if (!ended) return null;
+    const fresh = await this._load(tenantId, id);
+    await syncRequisicionSolicitudesSafe(tenantId, fresh, { actorId: actor.userId });
+    const ctx = { actorId: actor.userId, actorName: actor.name };
+    if (ended.tipo === 'closed') notifyRequisicion(tenantId, 'requisicion.closed', fresh, ctx);
+    if (ended.tipo === 'cancelled') notifyRequisicion(tenantId, 'requisicion.cancelled', fresh, { ...ctx, reason: ended.motivo });
+    return fresh;
   }
 
   /** Every line was cancelled and nothing was confirmed: the requisition ends Cancelada (not "delivered"). */

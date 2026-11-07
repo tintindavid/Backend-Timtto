@@ -4,6 +4,8 @@
  * returns prices, amounts, area, requester, approvers, timeline, other suppliers, the token hash nor the access log.
  */
 
+import { toPortalOrdenCompra } from './requisicionOrdenCompraDto.util.js';
+
 /** The supplier's own quotation as shown back to him (no internal `origen` / `registradaPor`). */
 export function toPortalCotizacion(c) {
   if (!c) return null;
@@ -40,5 +42,7 @@ export function toPortalDto(view, proveedor, { tenantNombre, cerrada }) {
     estadoEnvio: proveedor.estadoEnvio,
     cotizacion: toPortalCotizacion(proveedor.cotizacion),
     cerrada: Boolean(cerrada),
+    // E4: present only for the winner and only once the OC was sent (the projection already drops it otherwise).
+    ...(view.ordenCompra ? { ordenCompra: toPortalOrdenCompra(view.ordenCompra) } : {}),
   };
 }
