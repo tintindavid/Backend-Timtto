@@ -1,3 +1,10 @@
+# [2.33.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.32.0...v2.33.0) (2026-11-10)
+
+
+### Features
+
+* **requisiciones:** add pending dashboard, metrics and PDF/Excel exports (E5) ([#54](https://github.com/tintindavid/Backend-Timtto/issues/54)) ([9f5bc11](https://github.com/tintindavid/Backend-Timtto/commit/9f5bc1140f1f74d696bc5096eaa4ef6c52b7efd9))
+
 # [2.32.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.31.0...v2.32.0) (2026-11-10)
 
 
