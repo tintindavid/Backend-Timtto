@@ -201,3 +201,19 @@ export const publicEquipmentReadLimiter = rateLimit({
     'Demasiadas solicitudes. Intenta de nuevo en un minuto.'
   ),
 });
+
+/**
+ * E5 reporting (dashboard, metrics and every export): per tenant + user, after `authenticate`. Each call may run a 10 s
+ * aggregation or hit the PDF microservice. 30 requests per minute by default; `REPORTES_RATE_LIMIT_MAX` overrides it.
+ */
+export const REPORTES_WINDOW_MS = 60 * 1000;
+export const REPORTES_DEFAULT_MAX = 30;
+export const requisicionReportesUserLimiter = rateLimit({
+  windowMs: REPORTES_WINDOW_MS,
+  max: () => Number(process.env.REPORTES_RATE_LIMIT_MAX) || REPORTES_DEFAULT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `rep:${req.user?.tenantId || 'x'}:${req.user?.userId || 'anon'}`,
+  validate: { keyGeneratorIpFallback: false },
+  handler: buildLimitHandler(REPORTES_WINDOW_MS, 'RATE_LIMIT_EXCEEDED', 'Demasiadas solicitudes de reportes. Intenta de nuevo en un minuto.'),
+});

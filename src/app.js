@@ -109,6 +109,8 @@ const corsOrigins = process.env.CORS_ORIGIN?.split(',') || process.env.CORS_ORIG
 const corsOptions = {
   origin: corsOrigins,
   credentials: true,
+  // Lets the browser read the file name of the report/PDF downloads (requisiciones-e5-reporteria).
+  exposedHeaders: ['Content-Disposition'],
   optionsSuccessStatus: 200,
 };
 

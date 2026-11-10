@@ -36,5 +36,7 @@ export const SELF_SCOPED_VISTAS = Object.freeze(['mias', 'por-confirmar', 'mi-hi
 
 /** `GET /` gate: read required unless the request asks for one of the caller's own (self-scoped) vistas. */
 export const authorizeListOrMiHistorial = authorizeReadOrParticipation(
-  (req) => typeof req.query?.vista === 'string' && SELF_SCOPED_VISTAS.includes(req.query.vista),
+  (req) => (typeof req.query?.vista === 'string' && SELF_SCOPED_VISTAS.includes(req.query.vista))
+    // E5: the tenant-wide list needs requisiciones:reports instead of read (enforced by the route and by the service).
+    || req.query?.alcance === 'tenant',
 );

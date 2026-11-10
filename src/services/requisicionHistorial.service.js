@@ -93,13 +93,20 @@ export function participationFilter(userId) {
   };
 }
 
+/** Mongo match of "Mi historial" (tenant, caller's own user events of the action, list filters). Shared with the list export. */
+export function buildMiHistorialMatch(tenantId, userId, accion, filters = {}) {
+  const oid = toObjectId(userId);
+  if (!oid) return null;
+  const ownEvent = { 'actor.tipo': TIMELINE_ACTOR_TIPO.USUARIO, 'actor.usuarioId': oid, tipo: { $in: tiposForAccion(accion) } };
+  return applyTenantFilter({ ...filtersMatch(filters), isDeleted: { $ne: true }, timeline: { $elemMatch: ownEvent } }, tenantId);
+}
+
 export async function listMiHistorial(tenantId, userId, accion, { page = 1, limit = 10 } = {}, filters = {}) {
   requireTenant(tenantId);
   const oid = toObjectId(userId);
   if (!oid) return { data: [], pagination: buildPagination(page, limit, 0) };
   const tipos = tiposForAccion(accion);
-  const ownEvent = { 'actor.tipo': TIMELINE_ACTOR_TIPO.USUARIO, 'actor.usuarioId': oid, tipo: { $in: tipos } };
-  const match = applyTenantFilter({ ...filtersMatch(filters), isDeleted: { $ne: true }, timeline: { $elemMatch: ownEvent } }, tenantId);
+  const match = buildMiHistorialMatch(tenantId, userId, accion, filters);
   const own = {
     $filter: {
       input: '$timeline',

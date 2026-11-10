@@ -12,6 +12,7 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
 import { buildPagination } from '../utils/pagination.util.js';
 import { toPublicPopulated, toPublicPopulatedList } from '../utils/requisicionPublic.util.js';
+import { tenantFilterMatch } from '../utils/requisicionTenantFilters.util.js';
 import { roundMoney } from '../utils/money.util.js';
 import { getTenantCurrency } from '../utils/tenantCurrency.util.js';
 import { assertCapability } from '../config/tenantCapabilities.config.js';
@@ -317,6 +318,27 @@ export class RequisicionService {
     if (filters.vista === 'mi-historial') return listMiHistorial(tenantId, userId, filters.accion, { page, limit }, filters);
     const sortField = REQUISICION_SORT_FIELDS.includes(sortBy) ? sortBy : 'createdAt';
     const dir = order === 'asc' ? 1 : -1;
+    const query = await this.buildListQuery(tenantId, userId, filters, access);
+
+    const [rows, total] = await Promise.all([
+      Requisicion.find(query)
+        .select('-timeline')
+        .sort({ [sortField]: dir, _id: dir })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Requisicion.countDocuments({ ...query, isDeleted: { $ne: true } }),
+    ]);
+    return { data: await toPublicPopulatedList(rows), pagination: buildPagination(page, limit, total) };
+  }
+
+  /**
+   * Mongo filter of the list (tenant, plain filters, search and the self-scoped `vista`s). SHARED by `list`, the dashboard
+   * counters (requisicionTablero.service) and the list Excel export, so a number and its list can never diverge.
+   */
+  async buildListQuery(tenantId, userId, filters = {}, access = {}) {
+    requireTenant(tenantId);
+    if (filters.alcance === 'tenant' && !access.canReports) throw new ApiError(403, 'Permisos insuficientes', 'FORBIDDEN');
     const query = applyTenantFilter({}, tenantId);
     for (const key of ['estado', 'areaId', 'tipoRequisicionId', 'creadaPor']) {
       if (filters[key]) query[key] = filters[key];
@@ -331,7 +353,10 @@ export class RequisicionService {
       const rx = new RegExp(escapeRegex(filters.search), 'i');
       and.push({ $or: [{ consecutivo: rx }, { titulo: rx }] });
     }
-    if (filters.vista === 'mias') {
+    if (filters.alcance === 'tenant') {
+      // E5: tenant-wide list behind the dashboard's tenant counters (requires requisiciones:reports; lifts the self-scope).
+      if (filters.filtro) and.push(tenantFilterMatch(filters.filtro));
+    } else if (filters.vista === 'mias') {
       and.push({ $or: [{ creadaPor: userId }, { solicitanteId: userId }] });
     } else if (filters.vista === 'por-aprobar') {
       and.push(...await this._porAprobarFilter(tenantId, userId));
@@ -354,17 +379,7 @@ export class RequisicionService {
       and.push(await this._porConfirmarFilter(tenantId, userId, Boolean(access.canManageAll)));
     }
     if (and.length > 0) query.$and = and;
-
-    const [rows, total] = await Promise.all([
-      Requisicion.find(query)
-        .select('-timeline')
-        .sort({ [sortField]: dir, _id: dir })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-      Requisicion.countDocuments({ ...query, isDeleted: { $ne: true } }),
-    ]);
-    return { data: await toPublicPopulatedList(rows), pagination: buildPagination(page, limit, total) };
+    return query;
   }
 
   /**

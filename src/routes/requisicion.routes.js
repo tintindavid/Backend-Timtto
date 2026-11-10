@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requisicionController } from '../controllers/requisicion.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { redactLicitacionQuotes } from '../middlewares/redactLicitacionQuotes.middleware.js';
-import { authorize, authorizeAny } from '../middlewares/rbac.middleware.js';
+import { authorize, authorizeAny, authorizeWhen } from '../middlewares/rbac.middleware.js';
 import { authorizeReadOrParticipation, authorizeListOrMiHistorial } from '../middlewares/requisicionReadAccess.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { PERMISSIONS } from '../constants/permissions.js';
@@ -45,6 +45,9 @@ import {
   subirEntregablesDto,
 } from '../dtos/requisicionOrdenCompra.dto.js';
 import { objectIdParamDto } from '../dtos/objectIdParam.dto.js';
+import { requisicionReportesUserLimiter } from '../middlewares/rateLimiter.middleware.js';
+import { requisicionReporteController } from '../controllers/requisicionReporte.controller.js';
+import { queryTableroDto, queryMetricasDto, queryExportListadoDto, queryComparativoExportDto } from '../dtos/requisicionReporte.dto.js';
 
 const router = Router();
 router.use(authenticate);
@@ -53,8 +56,14 @@ router.use(redactLicitacionQuotes);
 
 // Gated by the usesRequisiciones capability (CAPABILITY_ROUTE_MAP '/api/v1/requisiciones', blockReads).
 // Mi historial / detail: also open to who participated (the service answers 404 for the rest); a plain list still needs read.
-router.get('/', authorizeListOrMiHistorial, validate(queryRequisicionDto, 'query'), requisicionController.list);
+router.get('/', authorizeListOrMiHistorial, authorizeWhen((req) => req.query?.alcance === 'tenant', PERMISSIONS.REQUISICIONES_REPORTS), validate(queryRequisicionDto, 'query'), requisicionController.list);
 router.post('/', authorize(PERMISSIONS.REQUISICIONES_CREATE), validate(createRequisicionDto, 'body'), requisicionController.create);
+
+// E5 reporting (requisiciones-e5-reporteria). These literal paths MUST be declared before every `/:id` route. The dashboard is
+// self-scoped (any module user); the tenant section of it, the metrics and the list export need `requisiciones:reports`.
+router.get('/tablero', requisicionReportesUserLimiter, validate(queryTableroDto, 'query'), requisicionReporteController.tablero);
+router.get('/metricas', authorize(PERMISSIONS.REQUISICIONES_REPORTS), requisicionReportesUserLimiter, validate(queryMetricasDto, 'query'), requisicionReporteController.metricas);
+router.get('/export/xlsx', authorize(PERMISSIONS.REQUISICIONES_REPORTS), requisicionReportesUserLimiter, validate(queryExportListadoDto, 'query'), requisicionReporteController.exportListado);
 
 router.get('/:id', authorizeReadOrParticipation(), validate(objectIdParamDto, 'params'), requisicionController.getById);
 router.patch('/:id', authorize(PERMISSIONS.REQUISICIONES_UPDATE), validate(objectIdParamDto, 'params'), validate(updateRequisicionDto, 'body'), requisicionController.update);
@@ -111,6 +120,13 @@ router.post('/:id/orden-compra/rechazar', decidePo, idParams, validate(rechazarO
 router.post('/:id/orden-compra/enviar', issuePo, idParams, validate(emptyBodyDto, 'body'), O.enviar);
 router.post('/:id/orden-compra/reenviar', issuePo, idParams, validate(reenviarOrdenCompraDto, 'body'), O.reenviar);
 router.get('/:id/orden-compra/pdf', authorizeReadOrParticipation(), idParams, O.pdf);
+
+// E5 exports of one requisition (requisiciones-e5-reporteria): open to who can read it (the service answers 404 otherwise and redacts prices
+// like the detail); the comparison needs the purchasing permissions. The list export is declared above, before the `/:id` routes.
+const R = requisicionReporteController;
+router.get('/:id/export/pdf', authorizeReadOrParticipation(), requisicionReportesUserLimiter, idParams, R.exportPdf);
+router.get('/:id/export/xlsx', authorizeReadOrParticipation(), requisicionReportesUserLimiter, idParams, R.exportXlsx);
+router.get('/:id/licitacion/comparativo/export', authorizeAny(PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS, PERMISSIONS.REQUISICIONES_SELECT_WINNER), requisicionReportesUserLimiter, idParams, validate(queryComparativoExportDto, 'query'), R.exportComparativo);
 
 router.post('/:id/entregables', deliverables, idParams, uploadEntregablesArchivos, handleMulterError, validate(subirEntregablesDto, 'body'), O.subirEntregables);
 router.patch('/:id/entregables/marcar-recibidos', deliverables, idParams, validate(emptyBodyDto, 'body'), O.marcarRecibidos);
