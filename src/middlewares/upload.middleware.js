@@ -152,6 +152,23 @@ const cotizacionArchivoUpload = multer({
 export const uploadCotizacionArchivo = cotizacionArchivoUpload.single('archivo');
 
 /**
+ * Multer instance for the deliverables of a purchase order (E4): up to 5 PDF/JPEG/PNG/WebP files of 5 MiB per request,
+ * field `archivos` (repeated). Same limits and magic-bytes check (later, in the Firebase service) as a quotation file. Used
+ * by the internal route AND by the public (unauthenticated) supplier portal, so the limits are deliberately tight.
+ */
+export const ENTREGABLES_MAX_FILES = 5;
+const entregablesUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (COTIZACION_ARCHIVO_MIME.includes(file.mimetype)) return cb(null, true);
+    return cb(new ApiError(400, 'Tipo de archivo no permitido. Usa PDF o imágenes JPG, PNG o WebP.', 'INVALID_FILE_TYPE'), false);
+  },
+  limits: { fileSize: REQUISICION_EVIDENCIA_MAX_BYTES, files: ENTREGABLES_MAX_FILES, fields: 4, parts: ENTREGABLES_MAX_FILES + 4 },
+});
+
+export const uploadEntregablesArchivos = entregablesUpload.array('archivos', ENTREGABLES_MAX_FILES);
+
+/**
  * Middleware para manejar errores de multer
  */
 export const handleMulterError = (err, req, res, next) => {
@@ -159,6 +176,9 @@ export const handleMulterError = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       const maxMb = req?.route?.path?.includes('documentos') ? 10 : 5;
       return next(new ApiError(400, `El archivo es demasiado grande. Máximo ${maxMb}MB.`, 'FILE_TOO_LARGE'));
+    }
+    if (err.code === 'LIMIT_FILE_COUNT' && req?.route?.path?.includes('entregables')) {
+      return next(new ApiError(400, `Máximo ${ENTREGABLES_MAX_FILES} archivos por envío`, 'ENTREGABLES_LIMIT_EXCEEDED'));
     }
     if (err.code === 'LIMIT_FILE_COUNT' && req?.route?.path?.includes('recepciones')) {
       return next(new ApiError(400, `Una recepción admite máximo ${REQUISICION_EVIDENCIA_MAX_FILES} evidencias`, 'EVIDENCE_LIMIT_EXCEEDED'));

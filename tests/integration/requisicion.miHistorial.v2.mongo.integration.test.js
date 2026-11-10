@@ -158,7 +158,7 @@ describe('Requisiciones Mi historial v2 (filters, self-scoped vistas, dedupe, qu
     assert.deepEqual(ids(await list(w.writer, `${h}&areaId=${oid()}`)), []);
     assert.deepEqual(ids(await list(w.writer, `${h}&tipoRequisicionId=${sid(w.tipo._id)}&areaId=${sid(w.area._id)}`)).length, 2);
     assert.deepEqual(ids(await list(w.writer, `${h}&fechaDesde=2999-01-01`)), []);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     assert.equal(ids(await list(w.writer, `${h}&fechaDesde=${today}&fechaHasta=${today}`)).length, 2);
     assert.equal((await list(w.writer, `${h}&sortBy=consecutivo&order=asc`)).status, 200);
     assert.deepEqual(ids(await list(w.writer, 'vista=mi-historial&accion=aprobe')), []);

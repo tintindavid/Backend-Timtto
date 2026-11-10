@@ -213,6 +213,10 @@ export const PERMISSIONS = {
   REQUISICIONES_MANAGE_SUPPLIERS: 'requisiciones:manage-suppliers',
   // E3: choose the winning supplier and register a justified direct purchase.
   REQUISICIONES_SELECT_WINNER: 'requisiciones:select-winner',
+  // E4: issue / send the purchase order; approve it (never its own issuer); review the supplier's deliverables.
+  REQUISICIONES_ISSUE_PO: 'requisiciones:issue-po',
+  REQUISICIONES_APPROVE_PO: 'requisiciones:approve-po',
+  REQUISICIONES_MANAGE_DELIVERABLES: 'requisiciones:manage-deliverables',
 
   // Areas (organizational structure of the requisitions module)
   AREAS_READ: 'areas:read',

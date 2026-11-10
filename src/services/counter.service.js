@@ -9,6 +9,9 @@ import {
   REQUISICION_CONSECUTIVO_PREFIX,
   REQUISICION_CONSECUTIVO_PAD,
   REQUISICION_COUNTER_KEY,
+  OC_CONSECUTIVO_PREFIX,
+  OC_CONSECUTIVO_PAD,
+  OC_COUNTER_KEY,
 } from '../constants/requisicion.constants.js';
 import { getYearInBogota } from '../utils/requisicionPeriod.util.js';
 import { requireTenant } from '../utils/tenant.util.js';
@@ -76,6 +79,18 @@ export async function getNextRequisicionConsecutivo(tenantId, yearOrDate = new D
   const seq = await getNextSequence(tenantId, REQUISICION_COUNTER_KEY(year));
   const consecutivo = `${REQUISICION_CONSECUTIVO_PREFIX}-${year}-${String(seq).padStart(REQUISICION_CONSECUTIVO_PAD, '0')}`;
   return { consecutivo, year, seq };
+}
+
+/**
+ * E4: next purchase order number (OC-{YYYY}-{NNNN}), yearly atomic counter `ordenes-compra:{YYYY}` (year in America/Bogota,
+ * same rule as the requisition consecutivo).
+ */
+export async function getNextOrdenCompraNumero(tenantId, yearOrDate = new Date()) {
+  requireTenant(tenantId);
+  const year = yearOrDate instanceof Date ? getYearInBogota(yearOrDate) : (Number(yearOrDate) || getYearInBogota());
+  const seq = await getNextSequence(tenantId, OC_COUNTER_KEY(year));
+  const numero = `${OC_CONSECUTIVO_PREFIX}-${year}-${String(seq).padStart(OC_CONSECUTIVO_PAD, '0')}`;
+  return { numero, year, seq };
 }
 
 // Re-exported for convenience (other modules can keep importing from here).

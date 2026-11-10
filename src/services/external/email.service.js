@@ -406,6 +406,37 @@ async function sendRequisicionAwardEmail({ to, proveedorNombre, tenantName, cons
 }
 
 /**
+ * E4 (requisiciones-e4-oc-recepcion): purchase order sent to the WINNING supplier with its personal portal link. The
+ * prices travel only inside the portal (never in the e-mail body). Every text is escaped by Handlebars. Never throws.
+ */
+async function sendRequisicionOrdenCompraEmail({ to, proveedorNombre, tenantName, consecutivo, titulo, ocNumero, fechaEntrega, requiereEntregables, portalUrl }) {
+  if (!env.NOTIFICATIONS_ENABLED) {
+    logger.debug('email-service: skipped (NOTIFICATIONS_ENABLED=false)', { to, templateName: 'requisicion-orden-compra' });
+    return { sent: false, skipped: true };
+  }
+  try {
+    const vars = {
+      proveedorNombre: proveedorNombre || '',
+      tenantName: tenantName || 'TIMTTO',
+      consecutivo: consecutivo || '',
+      titulo: titulo || '',
+      ocNumero: ocNumero || '',
+      fechaEntrega: fechaEntrega || '',
+      requiereEntregables: Boolean(requiereEntregables),
+      portalUrl,
+    };
+    const [html, text] = await Promise.all([
+      renderTemplate('requisicion-orden-compra.hbs', vars),
+      renderTemplate('requisicion-orden-compra.txt.hbs', vars),
+    ]);
+    return await _send({ to, subject: `Orden de compra ${ocNumero || ''} — ${consecutivo || 'solicitud'}`.replace(/\s+/g, ' '), html, text, templateName: 'requisicion-orden-compra' });
+  } catch (err) {
+    logger.error('email-service: purchase order render failed', { to, error: err.message });
+    return { sent: false, error: err.message };
+  }
+}
+
+/**
  * Generic notification email used by notificationService (channel `email`).
  * Renders `notification.hbs` / `notification.txt.hbs`. Never throws.
  *
@@ -463,4 +494,5 @@ export const emailService = {
   sendNotificationEmail,
   sendRequisicionRfqInvitationEmail,
   sendRequisicionAwardEmail,
+  sendRequisicionOrdenCompraEmail,
 };

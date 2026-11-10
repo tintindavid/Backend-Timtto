@@ -48,16 +48,31 @@ export class RequisicionApprovalService {
    * @returns {Promise<object[]>} frozen levels (`estado: Pendiente`) ready to be stored in `aprobacion.niveles`
    */
   async resolveLevels(tenantId, requisicion) {
+    return this.resolveLevelsFor(tenantId, requisicion, {
+      monto: Number(requisicion.montoEstimado) || 0,
+      excludedIds: [requisicion.creadaPor, requisicion.solicitanteId],
+    });
+  }
+
+  /**
+   * Level resolution for an arbitrary amount (E4: the purchase order re-approval reuses the engine with the REAL total).
+   * `excludedIds` never become approvers (requisition: creator + requester; purchase order: its issuer); `skipReglaIds`
+   * drops the rules whose level was already approved. 422 SIN_REGLAS_APROBACION when no active rule applies to `monto`.
+   * `allowEmpty` returns [] when the rules apply but every one of them is skipped (nothing left to approve).
+   */
+  async resolveLevelsFor(tenantId, requisicion, { monto, excludedIds = [], skipReglaIds = [], allowEmpty = false }) {
     requireTenant(tenantId);
     const reglas = await ReglaAprobacion.find({ tenantId, activo: true }).sort({ orden: 1 }).lean();
-    const monto = Number(requisicion.montoEstimado) || 0;
-    const aplicables = reglas
+    const todas = reglas
       .filter((r) => r.activo !== false && Number(r.montoDesde) <= monto)
       .sort((a, b) => a.orden - b.orden);
-    if (aplicables.length === 0) {
+    if (todas.length === 0) {
       throw new ApiError(422, 'No hay reglas de aprobación activas aplicables al monto de la requisición', 'SIN_REGLAS_APROBACION', { montoEstimado: monto, sinPrecios: monto === 0 });
     }
-    const excluded = new Set([sid(requisicion.creadaPor), sid(requisicion.solicitanteId)]);
+    const skip = new Set(skipReglaIds.map(sid));
+    const aplicables = todas.filter((r) => !skip.has(sid(r._id)));
+    if (aplicables.length === 0 && allowEmpty) return [];
+    const excluded = new Set(excludedIds.map(sid));
     const eligibles = [];
     for (const regla of aplicables) {
       const ids = (await this._eligibleIds(tenantId, regla, requisicion.areaId)).filter((id) => !excluded.has(id));
@@ -65,7 +80,7 @@ export class RequisicionApprovalService {
     }
     // Every level needs a DISTINCT eligible approver (a person decides only one level of a requisition), otherwise a
     // later level would be undecidable once he decided an earlier one (422 before any change).
-    assertLevelsFeasible(eligibles.map(({ regla, ids }) => ({ orden: regla.orden, nombre: regla.nombre, ids })), ', y no pueden ser el creador ni el solicitante');
+    assertLevelsFeasible(eligibles.map(({ regla, ids }) => ({ orden: regla.orden, nombre: regla.nombre, ids })), excludedIds.length > 1 ? ', y no pueden ser el creador ni el solicitante' : ', y no pueden ser quien emitió la orden de compra');
     const niveles = eligibles.map(({ regla, ids }) => ({
       orden: regla.orden,
       nombre: regla.nombre,

@@ -549,6 +549,44 @@ export class FirebaseStorageService {
   }
 
   /**
+   * E4: uploads ONE deliverable of a purchase order (PDF / JPEG / PNG / WebP, <= 5 MB), same validation as a quotation
+   * file (declared mimetype must match the real content). Returns { nombre, url, tipo, tamano, storagePath }.
+   * Path: tenants/<tenantId>/requisiciones/<requisicionId>/entregables/<timestamp>-<id>-<safe name>
+   */
+  async uploadRequisicionEntregable(fileBuffer, originalName, mimetype, { tenantId, requisicionId }) {
+    if (!REQUISICION_EVIDENCIA_MIME.includes(mimetype)) {
+      throw new ApiError(400, 'Tipo de archivo no permitido. Usa PDF o imágenes JPG, PNG o WebP.', 'INVALID_FILE_TYPE');
+    }
+    if (!fileBuffer || fileBuffer.length === 0) {
+      throw new ApiError(400, 'El archivo está vacío.', 'FILE_EMPTY');
+    }
+    if (fileBuffer.length > REQUISICION_EVIDENCIA_MAX_SIZE) {
+      throw new ApiError(400, 'El archivo es demasiado grande. Máximo 5MB.', 'FILE_TOO_LARGE');
+    }
+    const detected = await fileTypeFromBuffer(fileBuffer);
+    if (!detected || detected.mime !== mimetype) {
+      throw new ApiError(400, 'El contenido del archivo no coincide con su tipo declarado.', 'FILE_CONTENT_MISMATCH');
+    }
+    try {
+      const deps = this.storageDeps;
+      const storage = deps.getFirebaseStorage();
+      const safe = String(originalName || 'entregable').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '').slice(-80) || 'entregable';
+      const storagePath = `tenants/${tenantId}/requisiciones/${requisicionId}/entregables/${Date.now()}-${uuidv4().slice(0, 8)}-${safe}`;
+      const storageRef = deps.ref(storage, storagePath);
+      await deps.uploadBytes(storageRef, fileBuffer, {
+        contentType: mimetype,
+        customMetadata: { uploadedAt: new Date().toISOString() },
+      });
+      const url = await deps.getDownloadURL(storageRef);
+      return { nombre: safe, url, tipo: mimetype, tamano: fileBuffer.length, storagePath };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Error subiendo entregable de requisición:', error);
+      throw new ApiError(500, 'Error subiendo el archivo a storage', 'UPLOAD_ERROR');
+    }
+  }
+
+  /**
    * Elimina evidencia de actividad externa. Idempotente y best-effort (no lanza).
    * @param {string} storagePath
    */

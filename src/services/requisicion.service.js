@@ -22,6 +22,7 @@ import { requisicionApprovalService } from './requisicionApproval.service.js';
 import { atomicWrite, transition } from './requisicionTransition.service.js';
 import { notifyRequisicion, currentPendingLevel } from './requisicionNotify.service.js';
 import { syncRequisicionSolicitudesSafe, healStaleLinks } from './requisicionSolicitudSync.service.js';
+import { requisicionOrdenCompraService } from './requisicionOrdenCompra.service.js';
 import { lineGuard } from './requisicionRecepcion.service.js';
 import { listMiHistorial, isParticipant } from './requisicionHistorial.service.js';
 import { PERMISSIONS } from '../constants/permissions.js';
@@ -215,6 +216,54 @@ export class RequisicionService {
   }
 
   /**
+   * E4 `vista=oc-por-aprobar`: `OC_Emitida` of OTHER issuers that can be approved (no pending re-approval levels) plus the
+   * `OC_En_Reaprobacion` whose CURRENT level the user can decide (frozen ids or role, never the issuer nor a user that
+   * already decided another level). An explicit `estado` filter is AND-ed, never widens the inbox.
+   */
+  async _ocPorAprobarFilter(tenantId, userId, canApprovePo = true) {
+    const me = new mongoose.Types.ObjectId(String(userId));
+    const user = await User.findOne({ _id: userId, tenantId }).select('roleId').lean();
+    let roleOid = null;
+    if (user?.roleId) {
+      const role = await Role.findOne({ _id: user.roleId, tenantId }).lean();
+      if (role && (role.permissions || []).includes(PERMISSIONS.REQUISICIONES_APPROVE)) roleOid = new mongoose.Types.ObjectId(String(user.roleId));
+    }
+    const eligible = [{ $in: [me, { $ifNull: ['$$n.aprobadorIds', []] }] }];
+    if (roleOid) eligible.push({ $eq: ['$$n.rolId', roleOid] });
+    return [
+      { 'ordenCompra.emitidaPor': { $ne: me } },
+      { 'ordenCompra.editadaPor': { $ne: me } },
+      {
+        $or: [
+          // simple approval (approve-po): no level of a rejected re-approval is waiting to be restarted
+          ...(canApprovePo ? [{ estado: REQUISICION_ESTADO.OC_EMITIDA, 'ordenCompra.aprobacion.niveles': { $not: { $elemMatch: { estado: { $ne: NIVEL_ESTADO.APROBADO } } } } }] : []),
+          {
+            estado: REQUISICION_ESTADO.OC_EN_REAPROBACION,
+            'ordenCompra.aprobacion.niveles.decididoPor': { $ne: me },
+            $expr: {
+              $gt: [{
+                $size: {
+                  $filter: {
+                    input: { $ifNull: ['$ordenCompra.aprobacion.niveles', []] },
+                    as: 'n',
+                    cond: {
+                      $and: [
+                        { $eq: ['$$n.orden', '$ordenCompra.aprobacion.nivelActual'] },
+                        { $eq: ['$$n.estado', NIVEL_ESTADO.PENDIENTE] },
+                        { $or: eligible },
+                      ],
+                    },
+                  },
+                },
+              }, 0],
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  /**
    * `vista=por-confirmar`: requisitions with a reception item still unconfirmed that the user must confirm: the
    * responsible of the line's origin solicitud, else the requisition requester (free lines). `manage-all` sees every
    * unconfirmed item; anybody else never sees the receptions he registered himself (separation of duties).
@@ -292,9 +341,14 @@ export class RequisicionService {
       // Approved / in reception with at least one line still to receive; only for who can receive.
       if (!access.canReceive && !access.canManageAll) query.estado = '__none__';
       else {
-        and.push({ estado: { $in: [REQUISICION_ESTADO.APROBADA, REQUISICION_ESTADO.ADJUDICADA, REQUISICION_ESTADO.EN_RECEPCION] } });
+        // E4: an awarded requisition is receivable only once its purchase order was sent (OC_Enviada).
+        and.push({ estado: { $in: [REQUISICION_ESTADO.APROBADA, REQUISICION_ESTADO.OC_ENVIADA, REQUISICION_ESTADO.EN_RECEPCION] } });
         and.push({ lineas: { $elemMatch: { estadoLinea: { $in: [LINEA_ESTADO.PENDIENTE, LINEA_ESTADO.RECIBIDA_PARCIAL, LINEA_ESTADO.EN_DISPUTA] } } } });
       }
+    } else if (filters.vista === 'oc-por-aprobar') {
+      // E4: purchase orders the caller can decide now: OC_Emitida needs approve-po; a re-approval level needs only being its eligible approver.
+      and.push(...await this._ocPorAprobarFilter(tenantId, userId, Boolean(access.canApprovePo)));
+      if (filters.estado && ![REQUISICION_ESTADO.OC_EMITIDA, REQUISICION_ESTADO.OC_EN_REAPROBACION].includes(filters.estado)) query.estado = '__none__';
     } else if (filters.vista === 'por-confirmar') {
       and.push({ estado: REQUISICION_ESTADO.EN_RECEPCION });
       and.push(await this._porConfirmarFilter(tenantId, userId, Boolean(access.canManageAll)));
@@ -321,7 +375,8 @@ export class RequisicionService {
     requireTenant(tenantId);
     const doc = await Requisicion.findOne(applyTenantFilter({ _id: id }, tenantId));
     if (!doc) throw new ApiError(404, 'Requisición no encontrada', 'REQUISICION_NOT_FOUND', { id });
-    if (access.canRead === false && !isParticipant(doc, access.userId)) {
+    if (access.canRead === false && !isParticipant(doc, access.userId)
+      && !(await requisicionOrdenCompraService.puedeDecidir(tenantId, doc.toObject(), access.userId, access.canApprovePo))) {
       throw new ApiError(404, 'Requisición no encontrada', 'REQUISICION_NOT_FOUND', { id });
     }
     return toPublicPopulated(doc);
@@ -665,6 +720,12 @@ export class RequisicionService {
       }
       const arrayFilters = [];
       const guards = [];
+      // E4: cancelling a requisition whose purchase order is in re-approval closes its pending levels.
+      if (from === REQUISICION_ESTADO.OC_EN_REAPROBACION && doc.ordenCompra?.aprobacion) {
+        set['ordenCompra.aprobacion.niveles'] = requisicionApprovalService.cancelPendingLevels(doc.ordenCompra.aprobacion.niveles || []);
+        set['ordenCompra.aprobacion.nivelActual'] = null;
+        guards.push({ 'ordenCompra.version': doc.ordenCompra.version });
+      }
       // E3: cancelling expires every supplier link (what was quoted stays in the document and the history).
       const proveedoresN = (doc.licitacion?.proveedores || []).length;
       if (proveedoresN > 0) {

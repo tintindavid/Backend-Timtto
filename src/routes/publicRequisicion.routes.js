@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { requisicionPortalPublicoController as C, resolvePortalToken, precheckPortalCotizacion } from '../controllers/requisicionPortalPublico.controller.js';
+import { requisicionPortalPublicoController as C, resolvePortalToken, resolvePortalTokenGanador, precheckPortalCotizacion, precheckPortalEntregables } from '../controllers/requisicionPortalPublico.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { uploadCotizacionArchivo, handleMulterError } from '../middlewares/upload.middleware.js';
+import { uploadCotizacionArchivo, uploadEntregablesArchivos, handleMulterError } from '../middlewares/upload.middleware.js';
 import { requisicionPortalIpLimiter, requisicionPortalTokenLimiter } from '../middlewares/rateLimiter.middleware.js';
 import { portalRespuestaDto, portalRespuestaInvitacionDto } from '../dtos/requisicionLicitacion.dto.js';
+import { subirEntregablesDto } from '../dtos/requisicionOrdenCompra.dto.js';
 
 const router = Router({ mergeParams: true });
 
@@ -21,5 +22,8 @@ router.use(requisicionPortalIpLimiter, requisicionPortalTokenLimiter);
 router.get('/', resolvePortalToken, C.get);
 router.patch('/respuesta-invitacion', resolvePortalToken, validate(portalRespuestaInvitacionDto, 'body'), C.responderInvitacion);
 router.patch('/respuesta', resolvePortalToken, precheckPortalCotizacion, uploadCotizacionArchivo, handleMulterError, validate(portalRespuestaDto, 'body'), C.enviarCotizacion);
+// E4: only the WINNER, only from OC_Enviada (anybody else gets the same generic 404 as an unknown token).
+router.get('/orden-compra/pdf', resolvePortalTokenGanador, C.pdfOrdenCompra);
+router.post('/entregables', resolvePortalTokenGanador, precheckPortalEntregables, uploadEntregablesArchivos, handleMulterError, validate(subirEntregablesDto, 'body'), C.enviarEntregables);
 
 export default router;

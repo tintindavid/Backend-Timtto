@@ -1,6 +1,7 @@
 import { Requisicion } from '../models/requisicion.model.js';
 import '../models/repuestos.model.js';
 import { toLicitacionDto } from './requisicionLicitacionDto.util.js';
+import { toOrdenCompraDto } from './requisicionOrdenCompraDto.util.js';
 
 /**
  * Read-side shape of a requisition. Populate happens ONLY here (on plain objects built for the response); the
@@ -29,6 +30,12 @@ export const REQUISICION_POPULATE = Object.freeze([
   { path: 'timeline.actor.usuarioId', select: USER_NAME, model: 'User', options: WITH_DELETED },
   { path: 'recepciones.recibidaPor', select: USER_NAME, model: 'User', options: WITH_DELETED },
   { path: 'recepciones.items.confirmacion.por', select: USER_NAME, model: 'User', options: WITH_DELETED },
+  // E4: purchase order people (issuer, approver, level deciders / eligible approvers).
+  { path: 'ordenCompra.emitidaPor', select: USER_NAME, model: 'User', options: WITH_DELETED },
+  { path: 'ordenCompra.editadaPor', select: USER_NAME, model: 'User', options: WITH_DELETED },
+  { path: 'ordenCompra.aprobadaPor', select: USER_NAME, model: 'User', options: WITH_DELETED },
+  { path: 'ordenCompra.aprobacion.niveles.decididoPor', select: USER_NAME, model: 'User', options: WITH_DELETED },
+  { path: 'ordenCompra.aprobacion.niveles.aprobadorIds', select: USER_NAME, model: 'User', options: WITH_DELETED },
 ]);
 
 const stripPrivate = (obj) => {
@@ -39,6 +46,8 @@ const stripPrivate = (obj) => {
   delete out.solicitudesSyncPendiente; // internal reconcile marker
   // E3: allowlist DTO of the tendering block (never tokenHash / access log).
   out.licitacion = toLicitacionDto(out.licitacion);
+  // E4: allowlist DTO of the purchase order (never the storage path of a deliverable).
+  out.ordenCompra = toOrdenCompraDto(out.ordenCompra);
   if (Array.isArray(out.lineas)) {
     out.lineas = out.lineas.map((l) => (l && l._id === undefined && l.lineaId !== undefined ? { ...l, _id: l.lineaId } : l));
   }

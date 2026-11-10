@@ -54,6 +54,11 @@ const TenantSchema = new Schema(
     },
     // The single client of a tenant that does not execute services ("Mi información").
     organizationCustomerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
+    // Requisiciones settings (requisiciones-e4-oc-recepcion): re-approval margin of the purchase order, in percent
+    // (0-100). Absent = the default of 10 %. No screen in E4: adjusted through the superadmin API.
+    requisiciones: {
+      margenReaprobacionOcPct: { type: Number, min: 0, max: 100, default: undefined },
+    },
     // Soft delete
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },

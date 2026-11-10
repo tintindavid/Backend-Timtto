@@ -42,6 +42,11 @@ describe('route table', () => {
       'POST /:id/proveedores', 'DELETE /:id/proveedores/:paId', 'POST /:id/licitacion/abrir', 'POST /:id/proveedores/:paId/reenviar',
       'POST /:id/proveedores/:paId/cotizacion', 'POST /:id/licitacion/cerrar', 'GET /:id/licitacion/comparativo',
       'PATCH /:id/proveedores/:paId/seleccionar-ganador', 'POST /:id/compra-directa', 'PATCH /:id/licitacion/fecha-limite',
+      // E4 (purchase order and deliverables)
+      'POST /:id/orden-compra', 'PATCH /:id/orden-compra', 'POST /:id/orden-compra/aprobar', 'POST /:id/orden-compra/rechazar',
+      'POST /:id/orden-compra/enviar', 'POST /:id/orden-compra/reenviar', 'GET /:id/orden-compra/pdf',
+      'POST /:id/entregables', 'PATCH /:id/entregables/marcar-recibidos', 'POST /:id/entregables/revisar', 'POST /:id/entregables/aceptar',
+      'POST /:id/entregables/devolver',
     ].sort());
     for (const r of routes) assert.ok(r.route.stack.length >= 3, `${r.method} ${r.path}`);
   });
@@ -49,7 +54,7 @@ describe('route table', () => {
   it('permissions: each guard denies a user with only an unrelated permission', () => {
     const user = { userId: 'u', tenantId: 'acme', role: 'user', permissions: [PERMISSIONS.AREAS_READ] };
     // E2: confirming a delivery has no role permission by design (the service checks the responsible / manage-all).
-    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar') && !(x.method === 'get' && x.path === '/:id'))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
+    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar') && !(x.method === 'get' && (x.path === '/:id' || x.path === '/:id/orden-compra/pdf')))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
     // GET /:id is wired with the participation gate: a user without participation gets past it (service answers 404), never a 403.
     const detail = routes.find((r) => r.method === 'get' && r.path === '/:id');
     const detailReq = { user };

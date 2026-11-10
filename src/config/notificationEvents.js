@@ -41,4 +41,15 @@ export const NOTIFICATION_EVENTS = ['system.test', 'sheet.signed', 'ot.responsib
   // requisiciones-e3-compras-portal — tendering
   'requisicion.rfq.sent',
   'requisicion.quote.received',
-  'requisicion.winner.selected'];
+  'requisicion.winner.selected',
+  // requisiciones-e4-oc-recepcion — purchase order and supplier deliverables
+  'requisicion.po.issued',
+  'requisicion.po.approval.requested',
+  'requisicion.po.approved',
+  'requisicion.po.rejected',
+  'requisicion.po.sent',
+  'requisicion.deliverables.received',
+  'requisicion.deliverables.returned',
+  'requisicion.deliverables.accepted',
+  'requisicion.reminder.deliverables',
+  'requisicion.reminder.confirmation'];

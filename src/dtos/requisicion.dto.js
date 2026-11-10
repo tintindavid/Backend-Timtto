@@ -94,7 +94,7 @@ export const reasignarAprobadoresDto = Joi.object({
   observacion: Joi.string().trim().min(1).max(2000).optional().label('observacion'),
 }).unknown(false);
 
-export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar', 'por-recibir', 'por-confirmar', 'mi-historial']);
+export const REQUISICION_VISTAS = Object.freeze(['mias', 'por-aprobar', 'por-recibir', 'por-confirmar', 'mi-historial', 'oc-por-aprobar']);
 
 export const queryRequisicionDto = Joi.object({
   page: Joi.number().integer().min(1).default(1),

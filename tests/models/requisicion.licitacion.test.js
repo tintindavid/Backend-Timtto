@@ -27,7 +27,9 @@ describe('E3 constants', () => {
     assert.deepEqual([...T[E.APROBADA]].sort(), [E.ADJUDICADA, E.CANCELADA, E.CERRADA, E.EN_LICITACION, E.EN_RECEPCION].sort());
     assert.deepEqual([...T[E.EN_LICITACION]].sort(), [E.CANCELADA, E.COTIZACION_RECIBIDA].sort());
     assert.deepEqual([...T[E.COTIZACION_RECIBIDA]].sort(), [E.ADJUDICADA, E.CANCELADA].sort());
-    assert.deepEqual([...T[E.ADJUDICADA]].sort(), [E.CANCELADA, E.CERRADA, E.EN_RECEPCION].sort());
+    // E4: the awarded goods are received only after the purchase order was sent (no more Adjudicada -> En_Recepcion).
+    assert.deepEqual([...T[E.ADJUDICADA]].sort(), [E.CANCELADA, E.CERRADA, E.OC_EMITIDA].sort());
+    assert.equal(T[E.ADJUDICADA].includes(E.EN_RECEPCION), false);
     assert.equal(LICITACION_MAX_PROVEEDORES, 25);
     assert.equal(LICITACION_MAX_VISTAS, 200);
     assert.equal(LICITACION_MAX_DIAS_LIMITE, 90);

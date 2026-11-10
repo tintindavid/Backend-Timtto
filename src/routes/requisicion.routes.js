@@ -22,7 +22,7 @@ import {
   recepcionParamsDto,
   lineaParamsDto,
 } from '../dtos/requisicion.dto.js';
-import { uploadRequisicionEvidencias, uploadCotizacionArchivo, handleMulterError } from '../middlewares/upload.middleware.js';
+import { uploadRequisicionEvidencias, uploadCotizacionArchivo, uploadEntregablesArchivos, handleMulterError } from '../middlewares/upload.middleware.js';
 import { requisicionLicitacionController } from '../controllers/requisicionLicitacion.controller.js';
 import {
   proveedorParamsDto,
@@ -34,6 +34,16 @@ import {
   compraDirectaDto,
   emptyBodyDto,
 } from '../dtos/requisicionLicitacion.dto.js';
+import { requisicionOrdenCompraController } from '../controllers/requisicionOrdenCompra.controller.js';
+import {
+  emitirOrdenCompraDto,
+  editarOrdenCompraDto,
+  aprobarOrdenCompraDto,
+  rechazarOrdenCompraDto,
+  reenviarOrdenCompraDto,
+  devolverEntregablesDto,
+  subirEntregablesDto,
+} from '../dtos/requisicionOrdenCompra.dto.js';
 import { objectIdParamDto } from '../dtos/objectIdParam.dto.js';
 
 const router = Router();
@@ -84,5 +94,28 @@ router.post('/:id/licitacion/cerrar', buyer, idParams, validate(emptyBodyDto, 'b
 router.get('/:id/licitacion/comparativo', authorizeAny(PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS, PERMISSIONS.REQUISICIONES_SELECT_WINNER), idParams, L.comparativo);
 router.patch('/:id/proveedores/:paId/seleccionar-ganador', winner, paParams, validate(emptyBodyDto, 'body'), L.seleccionarGanador);
 router.post('/:id/compra-directa', winner, idParams, validate(compraDirectaDto, 'body'), L.compraDirecta);
+
+// E4 purchase order and deliverables (requisiciones-e4-oc-recepcion). issue-po: issue / edit / send / resend. approve-po: approve
+// / reject (the issuer is refused by the service: SEPARACION_DE_FUNCIONES). manage-deliverables: attach on behalf of the
+// supplier, mark received, review, accept, return. The PDF is open to who can read the requisition (the service decides prices).
+const issuePo = authorize(PERMISSIONS.REQUISICIONES_ISSUE_PO);
+// approve-po OR approve at route level; the service enforces approve-po for the simple path and level eligibility for re-approval.
+const decidePo = authorizeAny(PERMISSIONS.REQUISICIONES_APPROVE_PO, PERMISSIONS.REQUISICIONES_APPROVE);
+const deliverables = authorize(PERMISSIONS.REQUISICIONES_MANAGE_DELIVERABLES);
+const O = requisicionOrdenCompraController;
+
+router.post('/:id/orden-compra', issuePo, idParams, validate(emitirOrdenCompraDto, 'body'), O.emitir);
+router.patch('/:id/orden-compra', authorizeAny(PERMISSIONS.REQUISICIONES_ISSUE_PO, PERMISSIONS.REQUISICIONES_MANAGE_ALL), idParams, validate(editarOrdenCompraDto, 'body'), O.editar);
+router.post('/:id/orden-compra/aprobar', decidePo, idParams, validate(aprobarOrdenCompraDto, 'body'), O.aprobar);
+router.post('/:id/orden-compra/rechazar', decidePo, idParams, validate(rechazarOrdenCompraDto, 'body'), O.rechazar);
+router.post('/:id/orden-compra/enviar', issuePo, idParams, validate(emptyBodyDto, 'body'), O.enviar);
+router.post('/:id/orden-compra/reenviar', issuePo, idParams, validate(reenviarOrdenCompraDto, 'body'), O.reenviar);
+router.get('/:id/orden-compra/pdf', authorizeReadOrParticipation(), idParams, O.pdf);
+
+router.post('/:id/entregables', deliverables, idParams, uploadEntregablesArchivos, handleMulterError, validate(subirEntregablesDto, 'body'), O.subirEntregables);
+router.patch('/:id/entregables/marcar-recibidos', deliverables, idParams, validate(emptyBodyDto, 'body'), O.marcarRecibidos);
+router.post('/:id/entregables/revisar', deliverables, idParams, validate(emptyBodyDto, 'body'), O.revisarEntregables);
+router.post('/:id/entregables/aceptar', deliverables, idParams, validate(emptyBodyDto, 'body'), O.aceptarEntregables);
+router.post('/:id/entregables/devolver', deliverables, idParams, validate(devolverEntregablesDto, 'body'), O.devolverEntregables);
 
 export default router;
