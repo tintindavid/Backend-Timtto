@@ -1,3 +1,10 @@
+# [2.32.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.31.0...v2.32.0) (2026-11-10)
+
+
+### Features
+
+* **requisiciones:** add purchase orders, over-budget reapproval and supplier deliverables (E4) ([#53](https://github.com/tintindavid/Backend-Timtto/issues/53)) ([4360977](https://github.com/tintindavid/Backend-Timtto/commit/436097784e7ba91664061293a2d48790a63b094f))
+
 # [2.31.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.30.0...v2.31.0) (2026-11-04)
 
 
