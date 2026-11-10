@@ -217,6 +217,8 @@ export const PERMISSIONS = {
   REQUISICIONES_ISSUE_PO: 'requisiciones:issue-po',
   REQUISICIONES_APPROVE_PO: 'requisiciones:approve-po',
   REQUISICIONES_MANAGE_DELIVERABLES: 'requisiciones:manage-deliverables',
+  // E5: tenant-wide dashboard, metrics and the list Excel export.
+  REQUISICIONES_REPORTS: 'requisiciones:reports',
 
   // Areas (organizational structure of the requisitions module)
   AREAS_READ: 'areas:read',

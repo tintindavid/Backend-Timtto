@@ -8,6 +8,7 @@ import {
   REQUISICION_PRIORIDAD_VALUES,
   REQUISICION_SORT_FIELDS,
 } from '../constants/requisicion.constants.js';
+import { FILTROS_TENANT } from '../utils/requisicionTenantFilters.util.js';
 
 /**
  * DTOs of the requisitions module (change: requisiciones-e1-base-aprobacion, design D13). Strict allowlists with
@@ -17,7 +18,9 @@ import {
  */
 
 const objectId = Joi.string().hex().length(24);
-const dateOnly = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).messages({ 'string.pattern.base': '{{#label}} debe tener formato YYYY-MM-DD' });
+const dateOnly = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).messages({ 'string.pattern.base': '{{#label}} debe tener formato YYYY-MM-DD' })
+  // 2026-02-31 matches the format but is not a calendar date (Invalid Date would reach Mongo): 400, never 500.
+  .custom((value, helpers) => (!Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value ? value : helpers.message('{{#label}} no es una fecha válida')), 'calendar date');
 
 // A line either references a stock item (description/unit/price default from it) or is free text.
 const lineaDto = Joi.object({
@@ -108,9 +111,12 @@ export const queryRequisicionDto = Joi.object({
   search: Joi.string().trim().max(100).optional(),
   vista: Joi.string().valid(...REQUISICION_VISTAS).optional(),
   accion: Joi.string().valid(...REQUISICION_ACCIONES_HISTORIAL_VALUES).optional(),
+  // E5: tenant-wide list behind the dashboard's tenant counters (needs requisiciones:reports; incompatible with `vista`).
+  alcance: Joi.string().valid('tenant').optional(),
+  filtro: Joi.string().valid(...FILTROS_TENANT).when('alcance', { is: Joi.exist(), then: Joi.optional(), otherwise: Joi.forbidden() }),
   sortBy: Joi.string().valid(...REQUISICION_SORT_FIELDS).default('createdAt'),
   order: Joi.string().valid('asc', 'desc').default('desc'),
-}).unknown(false);
+}).unknown(false).oxor('alcance', 'vista');
 
 // --- Reception (E2: requisiciones-e2-solicitudes-recepcion) ---------------------------------------------------
 

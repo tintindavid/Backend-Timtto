@@ -413,6 +413,8 @@ RequisicionSchema.index({ tenantId: 1, 'timeline.actor.usuarioId': 1, createdAt:
 // Second defence of the atomic counter: a consecutivo is never reused inside a tenant.
 RequisicionSchema.index({ tenantId: 1, consecutivo: 1 }, { unique: true });
 RequisicionSchema.index({ tenantId: 1, estado: 1, createdAt: -1 });
+// E5: metrics range scan (requisitions created in a window) and the list Excel export.
+RequisicionSchema.index({ tenantId: 1, createdAt: -1 });
 RequisicionSchema.index({ tenantId: 1, areaId: 1, estado: 1 });
 RequisicionSchema.index({ tenantId: 1, creadaPor: 1, createdAt: -1 });
 RequisicionSchema.index({ tenantId: 1, estado: 1, 'aprobacion.nivelActual': 1 });

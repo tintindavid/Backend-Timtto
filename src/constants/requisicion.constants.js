@@ -162,6 +162,9 @@ export const REQUISICION_ACCIONES_HISTORIAL = Object.freeze({
   confirme: Object.freeze([REQUISICION_EVENTO.ENTREGA_CONFIRMADA, REQUISICION_EVENTO.ENTREGA_DISPUTADA]),
   cree: Object.freeze([REQUISICION_EVENTO.CREADA]),
   adjudique: Object.freeze([REQUISICION_EVENTO.PROVEEDOR_SELECCIONADO, REQUISICION_EVENTO.COMPRA_DIRECTA_JUSTIFICADA]),
+  // E5: purchase order events.
+  emiti: Object.freeze([REQUISICION_EVENTO.OC_EMITIDA, REQUISICION_EVENTO.OC_EDITADA]),
+  'aprobe-oc': Object.freeze([REQUISICION_EVENTO.OC_APROBADA, REQUISICION_EVENTO.OC_RECHAZADA]),
 });
 export const REQUISICION_ACCIONES_HISTORIAL_VALUES = Object.freeze(['todo', ...Object.keys(REQUISICION_ACCIONES_HISTORIAL)]);
 /** Max own events returned per row in `miActividad`. */
@@ -335,6 +338,21 @@ export const DEFAULT_CURRENCY = 'COP';
 
 /** Whitelisted sort keys of GET /requisiciones. */
 export const REQUISICION_SORT_FIELDS = Object.freeze(['createdAt', 'consecutivo', 'montoEstimado', 'estado', 'titulo']);
+
+// --- E5: reporting and exports ----------------------------------------------------------------------------------
+
+/** Max rows of the list Excel export (more -> 413 EXPORT_DEMASIADAS_FILAS). */
+export const EXPORT_MAX_FILAS = 5000;
+/** A tender whose deadline is within this many days counts as "about to expire". */
+export const DIAS_ALERTA_LICITACION = 2;
+/** A non-terminal requisition with no timeline event for more than this many days counts as "no movement". */
+export const DIAS_SIN_MOVIMIENTO = 7;
+/** Metrics range: default and maximum window in days. */
+export const METRICAS_RANGO_DEFAULT_DIAS = 90;
+export const METRICAS_RANGO_MAX_DIAS = 366;
+/** Aggregations stop after this long (503 REPORTE_LENTO instead of hanging). */
+export const REPORTE_MAX_TIME_MS = 10000;
+export const METRICAS_TOP_N = 10;
 
 export const REQUISICION_MAX_LINEAS = 100;
 export const AREA_MAX_JEFES = 10;

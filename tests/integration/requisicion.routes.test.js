@@ -23,6 +23,7 @@ import { Repuestos } from '../../src/models/repuestos.model.js';
 import { PERMISSIONS } from '../../src/constants/permissions.js';
 
 const oid = '507f1f77bcf86cd799439011';
+const P_REPORTS = PERMISSIONS.REQUISICIONES_REPORTS;
 const res = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 const run = (mw, req) => { let err; mw(req, res(), (e) => { err = e; }); return err; };
 const linea = { descripcion: 'Guantes', unidad: 'caja', cantidadSolicitada: 2, precioEstimado: 10 };
@@ -47,14 +48,16 @@ describe('route table', () => {
       'POST /:id/orden-compra/enviar', 'POST /:id/orden-compra/reenviar', 'GET /:id/orden-compra/pdf',
       'POST /:id/entregables', 'PATCH /:id/entregables/marcar-recibidos', 'POST /:id/entregables/revisar', 'POST /:id/entregables/aceptar',
       'POST /:id/entregables/devolver',
+      // E5 (reporting and exports)
+      'GET /tablero', 'GET /metricas', 'GET /export/xlsx', 'GET /:id/export/pdf', 'GET /:id/export/xlsx', 'GET /:id/licitacion/comparativo/export',
     ].sort());
-    for (const r of routes) assert.ok(r.route.stack.length >= 3, `${r.method} ${r.path}`);
+    for (const r of routes) assert.ok(r.route.stack.length >= (r.path === '/tablero' ? 2 : 3), `${r.method} ${r.path}`);
   });
 
   it('permissions: each guard denies a user with only an unrelated permission', () => {
     const user = { userId: 'u', tenantId: 'acme', role: 'user', permissions: [PERMISSIONS.AREAS_READ] };
     // E2: confirming a delivery has no role permission by design (the service checks the responsible / manage-all).
-    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar') && !(x.method === 'get' && (x.path === '/:id' || x.path === '/:id/orden-compra/pdf')))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
+    for (const r of routes.filter((x) => !x.path.endsWith('/confirmar') && !(x.method === 'get' && (x.path === '/:id' || x.path === '/:id/orden-compra/pdf' || x.path === '/tablero' || x.path.startsWith('/:id/export/'))))) assert.equal(run(r.route.stack[0].handle, { user })?.statusCode, 403, `${r.method} ${r.path}`);
     // GET /:id is wired with the participation gate: a user without participation gets past it (service answers 404), never a 403.
     const detail = routes.find((r) => r.method === 'get' && r.path === '/:id');
     const detailReq = { user };
@@ -63,6 +66,18 @@ describe('route table', () => {
     const detailRead = { user: { ...user, permissions: [PERMISSIONS.REQUISICIONES_READ] } };
     run(detail.route.stack[0].handle, detailRead);
     assert.equal(detailRead.canRead, true);
+    // E5: the dashboard is open to any module user (self-scoped); the exports of a requisition use the participation gate (service: 404).
+    const exp = routes.find((r) => r.method === 'get' && r.path === '/:id/export/pdf');
+    assert.equal(run(exp.route.stack[0].handle, { user }), undefined);
+    // E5: metrics, list export need requisiciones:reports; the comparison export needs purchasing permissions.
+    for (const [path, ok] of [['/metricas', P_REPORTS], ['/export/xlsx', P_REPORTS], ['/:id/licitacion/comparativo/export', PERMISSIONS.REQUISICIONES_SELECT_WINNER]]) {
+      const route = routes.find((r) => r.method === 'get' && r.path === path);
+      assert.equal(run(route.route.stack[0].handle, { user })?.statusCode, 403, path);
+      assert.equal(run(route.route.stack[0].handle, { user: { ...user, permissions: [ok] } }), undefined, path);
+    }
+    // E5: the literal GET paths are declared before every `/:id` route.
+    const order = routes.filter((r) => r.method === 'get').map((r) => r.path);
+    for (const literal of ['/tablero', '/metricas', '/export/xlsx']) assert.ok(order.indexOf(literal) < order.indexOf('/:id'), literal);
     const list = routes.find((r) => r.method === 'get' && r.path === '/');
     assert.equal(run(list.route.stack[0].handle, { user, query: { vista: 'mias' } }), undefined);
     assert.equal(run(list.route.stack[0].handle, { user, query: {} })?.statusCode, 403);

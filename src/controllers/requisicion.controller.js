@@ -34,7 +34,7 @@ export class RequisicionController {
   async list(req, res, next) {
     try {
       const { page, limit, sortBy, order, ...filters } = req.query;
-      const result = await requisicionService.list(req.tenantId, req.user.userId, filters, { page, limit, sortBy, order }, { canReceive: canReceive(req), canManageAll: canManageAll(req), canApprovePo: canApprovePo(req) });
+      const result = await requisicionService.list(req.tenantId, req.user.userId, filters, { page, limit, sortBy, order }, { canReceive: canReceive(req), canManageAll: canManageAll(req), canApprovePo: canApprovePo(req), canReports: req.user?.role === 'superadmin' || (Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.REQUISICIONES_REPORTS)) });
       res.json(successResponse(result.data, 'Requisiciones recuperadas exitosamente', 200, result.pagination));
     } catch (err) { next(err); }
   }
