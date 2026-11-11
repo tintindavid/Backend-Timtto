@@ -1,3 +1,10 @@
+# [2.34.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.33.0...v2.34.0) (2026-11-11)
+
+
+### Features
+
+* **informes:** add photos, rich-text notes and Excel export to the by-OT report ([#55](https://github.com/tintindavid/Backend-Timtto/issues/55)) ([ccc7af7](https://github.com/tintindavid/Backend-Timtto/commit/ccc7af753f32cf5a8207d54139d0c9d7fa99b4a3))
+
 # [2.33.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.32.0...v2.33.0) (2026-11-10)
 
 
