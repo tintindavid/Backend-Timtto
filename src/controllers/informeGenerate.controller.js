@@ -3,6 +3,7 @@ import { informeGenerateService } from '../services/informeGenerate.service.js';
 import { informeGenerateByOtService } from '../services/informeGenerateByOt.service.js';
 import { buildInformeHtml } from '../services/informeHtml.service.js';
 import { buildInformeHtmlByOt } from '../services/informeHtmlByOt.service.js';
+import { buildInformePorOtXlsx } from '../services/informeXlsxByOt.service.js';
 import PDFMicroserviceClient from '../services/pdfMicroserviceClient.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
@@ -100,7 +101,7 @@ export class InformeGenerateController {
    */
   async generateByOt(req, res, next) {
     try {
-      const { clienteId, otIds, observacionGeneral } = req.body;
+      const { clienteId, otIds, observacionGeneral, fotoIds, observacionesAdicionalesHtml } = req.body;
       const tenantId = req.tenantId;
 
       if (!tenantId) {
@@ -108,7 +109,7 @@ export class InformeGenerateController {
       }
 
       const payload = await informeGenerateByOtService.generateByOt(
-        { clienteId, otIds, observacionGeneral },
+        { clienteId, otIds, observacionGeneral, fotoIds, observacionesAdicionalesHtml },
         tenantId,
         req.user || {},
       );
@@ -125,7 +126,7 @@ export class InformeGenerateController {
    */
   async downloadPdfByOt(req, res, next) {
     try {
-      const { clienteId, otIds, observacionGeneral } = req.body;
+      const { clienteId, otIds, observacionGeneral, fotoIds, observacionesAdicionalesHtml } = req.body;
       const tenantId = req.tenantId;
 
       if (!tenantId) {
@@ -133,7 +134,7 @@ export class InformeGenerateController {
       }
 
       const payload = await informeGenerateByOtService.generateByOt(
-        { clienteId, otIds, observacionGeneral },
+        { clienteId, otIds, observacionGeneral, fotoIds, observacionesAdicionalesHtml },
         tenantId,
         req.user || {},
       );
@@ -147,7 +148,7 @@ export class InformeGenerateController {
         margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' },
       });
 
-      const clienteNombre = sanitizeFilename(payload.meta.clienteNombre);
+      const clienteNombre = sanitizeFilename(payload.meta.clienteNombre) || 'cliente';
       const fecha = new Date().toISOString().slice(0, 10);
       const filename = `informe_por_ot_${clienteNombre}_${fecha}.pdf`;
 
@@ -159,6 +160,60 @@ export class InformeGenerateController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Content-Length', pdfBuffer.length);
       return res.send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/v1/informes/por-ot/evidencias
+   * Paginated list of candidate photos from the reports in scope.
+   */
+  async listEvidenciasByOt(req, res, next) {
+    try {
+      const tenantId = req.tenantId;
+      if (!tenantId) {
+        throw new ApiError(400, 'Falta el header x-tenant-id', 'MISSING_TENANT_HEADER');
+      }
+      const result = await informeGenerateByOtService.listEvidenciasByOt(req.body, tenantId);
+      res.json(successResponse(result, 'Evidencias obtenidas exitosamente'));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/v1/informes/por-ot/xlsx
+   * Streams the flat equipment listing of the by-OT report as an .xlsx attachment.
+   */
+  async downloadXlsxByOt(req, res, next) {
+    try {
+      const { clienteId, otIds } = req.body;
+      const tenantId = req.tenantId;
+
+      if (!tenantId) {
+        throw new ApiError(400, 'Falta el header x-tenant-id', 'MISSING_TENANT_HEADER');
+      }
+
+      const payload = await informeGenerateByOtService.generateByOt(
+        { clienteId, otIds },
+        tenantId,
+        req.user || {},
+      );
+
+      const buffer = await buildInformePorOtXlsx(payload);
+      const clienteNombre = sanitizeFilename(payload.meta.clienteNombre) || 'cliente';
+      const fecha = new Date().toISOString().slice(0, 10);
+      const filename = `informe_por_ot_${clienteNombre}_${fecha}.xlsx`;
+
+      logger.info('Informe por OT Excel generado', {
+        tenantId, clienteId, otIds: otIds.length, filename, size: buffer.length,
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      return res.send(buffer);
     } catch (err) {
       next(err);
     }
