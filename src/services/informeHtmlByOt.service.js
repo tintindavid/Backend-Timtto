@@ -67,23 +67,14 @@ function pctBadge(pct) {
 
 // ─── Section builders ─────────────────────────────────────────────────────────
 
-function buildHeader(meta) {
+/** Logos + tenant name banner. Rendered inside <thead> so it repeats on every printed page. */
+function buildTenantHeader(meta) {
   const tenantLogoHtml = meta.tenantLogo
     ? `<img src="${esc(meta.tenantLogo)}" alt="${esc(meta.tenantNombre)}" style="max-height:60px;max-width:150px;" />`
     : '';
   const clienteLogoHtml = meta.clienteLogo
     ? `<img src="${esc(meta.clienteLogo)}" alt="${esc(meta.clienteNombre)}" style="max-height:60px;max-width:150px;" />`
     : '';
-
-  const otsRows = (meta.otsSeleccionadas || []).length
-    ? meta.otsSeleccionadas.map(ot => `
-        <tr>
-          <td>${esc(ot.consecutivo)}</td>
-          <td>${esc(ot.tipoServicio)}</td>
-          <td>${esc(ot.fechaCreacion || '—')}</td>
-          <td>${esc(ot.estadoOt)}</td>
-        </tr>`).join('')
-    : `<tr><td colspan="4" class="no-data">Sin OTs seleccionadas</td></tr>`;
 
   return `
     <div class="tenant-header">
@@ -95,8 +86,21 @@ function buildHeader(meta) {
         <div class="th-doc">INFORME DE CUMPLIMIENTO POR ORDEN DE TRABAJO</div>
       </div>
       <div class="th-side th-right">${clienteLogoHtml}</div>
-    </div>
+    </div>`;
+}
 
+function buildHeader(meta) {
+  const otsRows = (meta.otsSeleccionadas || []).length
+    ? meta.otsSeleccionadas.map(ot => `
+        <tr>
+          <td>${esc(ot.consecutivo)}</td>
+          <td>${esc(ot.tipoServicio)}</td>
+          <td>${esc(ot.fechaCreacion || '—')}</td>
+          <td>${esc(ot.estadoOt)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" class="no-data">Sin OTs seleccionadas</td></tr>`;
+
+  return `
     <div class="section">
       <h2 class="section-title">Información del Cliente</h2>
       <div class="cliente-grid">
@@ -107,7 +111,7 @@ function buildHeader(meta) {
         <div><span class="cg-label">Teléfono:</span> <span class="cg-value">${esc(meta.clienteTelefono || '—')}</span></div>
         <div><span class="cg-label">Email:</span> <span class="cg-value">${esc(meta.clienteEmail || '—')}</span></div>
         <div><span class="cg-label">Contacto:</span> <span class="cg-value">${esc(meta.clienteContacto || '—')}</span></div>
-        <div><span class="cg-label">Generado:</span> <span class="cg-value">${new Date(meta.fechaGeneracion).toLocaleDateString('es-CO')}</span></div>
+        <div><span class="cg-label">Generado:</span> <span class="cg-value">${new Date(meta.fechaGeneracion).toLocaleString('es-CO')}</span></div>
       </div>
     </div>
 
@@ -221,6 +225,38 @@ function buildSecciones(secciones) {
     </div>`).join('');
 }
 
+function buildFotos(fotos) {
+  if (!fotos || !fotos.length) return '';
+  const cells = fotos.map(f => `
+    <figure class="foto-item">
+      <img src="${esc(f.url)}" alt="${esc(f.nombre || 'Evidencia')}" />
+      <figcaption>${esc([f.reporteConsecutivo, f.equipoNombre].filter(Boolean).join(' · '))}${f.descripcion ? `<br/><span class="foto-desc">${esc(f.descripcion)}</span>` : ''}</figcaption>
+    </figure>`).join('');
+  return `
+    <div class="section">
+      <h2 class="section-title">Evidencia fotográfica</h2>
+      <style>
+        .fotos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .foto-item { margin: 0; page-break-inside: avoid; break-inside: avoid; }
+        .foto-item img { width: 100%; max-height: 220px; object-fit: contain; border: 1px solid #ddd; }
+        .foto-item figcaption { font-size: 10px; color: #444; margin-top: 3px; }
+        .foto-desc { color: #666; }
+        .obs-adicionales { font-size: 12px; }
+      </style>
+      <div class="fotos-grid">${cells}</div>
+    </div>`;
+}
+
+function buildObservacionesAdicionales(html) {
+  // `html` is already sanitized by sanitizeRichText in the payload builder — inserted as-is.
+  if (!html || !String(html).trim()) return '';
+  return `
+    <div class="section">
+      <h2 class="section-title">Observaciones adicionales</h2>
+      <div class="obs-adicionales">${html}</div>
+    </div>`;
+}
+
 function buildObservaciones(observacionesReportes, observacionGeneral = '') {
   const lines = (observacionesReportes || [])
     .map(o => `<p class="obs-line"><strong>${esc(o.consecutivo)}</strong> <em>"${esc(o.estadoOperativo)}"</em>: ${esc(o.observacion)}</p>`)
@@ -244,9 +280,6 @@ function buildFooter(meta) {
     : '';
   return `
     <div class="report-footer">
-      <p style="text-align:center;color:var(--text-secondary);font-size:13px;">
-        Informe generado el ${new Date(meta.fechaGeneracion).toLocaleString('es-CO')} — ${esc(meta.tenantNombre)}
-      </p>
       <div class="signature-section">
         <div class="signature-box">
           ${firmaImg}
@@ -273,7 +306,7 @@ function buildFooter(meta) {
  * @returns {string} Full HTML document
  */
 export function buildInformeHtmlByOt(payload) {
-  const { meta, kpis, secciones, observacionesReportes, observacionGeneral = '' } = payload;
+  const { meta, kpis, secciones, observacionesReportes, observacionGeneral = '', fotos = [], observacionesAdicionalesHtml = '' } = payload;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -304,8 +337,8 @@ export function buildInformeHtmlByOt(payload) {
     .equipos-table .eq-name { font-size:10px; font-weight:600; }
     .equipos-table .eq-meta { font-size:9px; color:#6c757d; }
     .equipos-table .status-badge { font-size:9px; padding:2px 5px; }
-    /* Per-page footer — table trick (same as reporte PDF): the browser/
-       Puppeteer repeats <tfoot> on every printed page. */
+    /* Per-page header/footer — table trick (same as reporte PDF): the browser/
+       Puppeteer repeats <thead> and <tfoot> on every printed page. */
     @page { size: A4 portrait; margin: 10mm 8mm 18mm 8mm; }
     @media print {
       .page-wrapper thead { display: table-header-group; }
@@ -314,11 +347,28 @@ export function buildInformeHtmlByOt(payload) {
     }
     .page-wrapper { width:100%; border-collapse:collapse; }
     .page-wrapper td { padding:0; border:none; }
+    .page-header.container { padding-bottom:0; }
+    /* Signature block: compact and never split across pages (signature image, line, name and
+       role stay together). Tighter spacing than the shared style so it fits the space left
+       after the last content block instead of falling alone onto a new sheet. */
+    .report-footer { margin-top:0; padding:4px 12px; break-inside:avoid; page-break-inside:avoid; }
+    .report-footer .signature-section { margin-top:0; gap:20px; break-inside:avoid; page-break-inside:avoid; }
+    .report-footer .signature-box { padding:2px 8px; break-inside:avoid; page-break-inside:avoid; }
+    .report-footer .signature-line { margin:20px 16px 4px 16px; }
     .tenant-page-footer { text-align:center; font-size:9.5px; color:#6c757d; padding:6px 0; border-top:1px solid #dee2e6; }
   </style>
 </head>
 <body>
   <table class="page-wrapper">
+    <thead>
+      <tr>
+        <td>
+          <div class="container page-header">
+            ${buildTenantHeader(meta)}
+          </div>
+        </td>
+      </tr>
+    </thead>
     <tbody>
       <tr>
         <td>
@@ -327,6 +377,8 @@ export function buildInformeHtmlByOt(payload) {
             ${buildKPIs(kpis)}
             ${buildSecciones(secciones)}
             ${buildObservaciones(observacionesReportes, observacionGeneral)}
+            ${buildObservacionesAdicionales(observacionesAdicionalesHtml)}
+            ${buildFotos(fotos)}
             ${buildFooter(meta)}
           </div>
         </td>

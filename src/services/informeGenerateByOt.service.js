@@ -9,6 +9,7 @@ import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
 import { classifyReportForOt, formatDate, toRepuestoRow } from './informeReport.helpers.js';
+import { sanitizeRichText } from '../utils/sanitizeRichText.util.js';
 
 const SIN_SEDE = '(Sin sede)';
 const SIN_SERVICIO = '(Sin servicio)';
@@ -49,6 +50,24 @@ function toOtReportRow(report, equipo) {
   };
 }
 
+// Only plain http(s) URLs are ever offered / rendered as photos (no data:, javascript:, file:, relative)
+const isHttpUrl = (u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim());
+
+const resolveEquipoNombre = (report, equipo) =>
+  report.equipoSnapshot?.ItemText || equipo?.item || equipo?.ItemId?.Nombre || '';
+
+function toFotoItem(report, evidencia, equipoNombre) {
+  return {
+    evidenciaId: evidencia._id?.toString() || '',
+    url: evidencia.url || '',
+    nombre: evidencia.nombre || '',
+    descripcion: evidencia.descripcion || '',
+    reporteId: report._id?.toString() || '',
+    reporteConsecutivo: report.consecutivo || report._id?.toString() || '',
+    equipoNombre: equipoNombre || '',
+  };
+}
+
 function computeCumplimiento(reports) {
   const totalReportes = reports.length;
   const totalCancelados = reports.filter(r => classifyReportForOt(r) === 'Cancelado').length;
@@ -72,7 +91,7 @@ export class InformeGenerateByOtService {
    * @param {object} tenant      - { name }
    * @returns {Promise<object>} InformePorOtPayload
    */
-  async generateByOt({ clienteId, otIds, observacionGeneral = '' }, tenantId, currentUser = {}, tenant = {}) {
+  async generateByOt({ clienteId, otIds, observacionGeneral = '', fotoIds = [], observacionesAdicionalesHtml = '' }, tenantId, currentUser = {}, tenant = {}) {
     logger.info('InformeGenerateByOt.generateByOt', { clienteId, otIds: otIds.length, tenantId });
 
     // 1. Parallel queries
@@ -125,6 +144,30 @@ export class InformeGenerateByOtService {
 
     const equipoMap = new Map(equipos.map(eq => [eq._id.toString(), eq]));
 
+    // 2b. Photos: resolve each requested evidencia id ONLY against the reports already in scope.
+    // The client never supplies a URL; an unknown / out-of-scope id aborts the whole report.
+    const fotos = [];
+    if (fotoIds.length) {
+      const evidenciaIndex = new Map();
+      for (const report of reports) {
+        const equipo = equipoMap.get(report.Equipo?.toString());
+        const equipoNombre = resolveEquipoNombre(report, equipo);
+        for (const ev of report.evidencias || []) {
+          if (ev?._id && isHttpUrl(ev.url)) evidenciaIndex.set(ev._id.toString(), toFotoItem(report, ev, equipoNombre));
+        }
+      }
+      for (const id of fotoIds) {
+        const foto = evidenciaIndex.get(String(id));
+        if (!foto) {
+          throw new ApiError(400, 'Alguna foto no pertenece a los reportes del informe', 'INVALID_FOTO_SCOPE', {
+            clienteId, requested: fotoIds.length,
+          });
+        }
+        fotos.push(foto);
+      }
+    }
+    const observacionesAdicionales = sanitizeRichText(observacionesAdicionalesHtml);
+
     const reportIds = reports.map(r => r._id);
 
     // 3. Repuestos of the reports in scope
@@ -174,7 +217,8 @@ export class InformeGenerateByOtService {
             const qty = rep.Cantidad || rep.CantidadInstalacion || 0;
             const unit = rep.PrecioRepuesto || 0;
             repuestos.push({
-              reporteConsecutivo: report.consecutivo || report._id?.toString() || '',
+              reporteId: report._id?.toString() || '',
+    reporteConsecutivo: report.consecutivo || report._id?.toString() || '',
               equipo: rep.EquipoId?.item || rep.EquipoId?.Marca || '',
               repuesto: rep.nombre || '',
               cantidad: qty,
@@ -276,6 +320,76 @@ export class InformeGenerateByOtService {
       secciones,
       observacionesReportes,
       observacionGeneral,
+      fotos,
+      ...(observacionesAdicionales ? { observacionesAdicionalesHtml: observacionesAdicionales } : {}),
+    };
+  }
+
+  /**
+   * Paginated list of candidate photos (Report.evidencias) of the reports in scope. Same scope
+   * guard as the informe: customer must exist and every otId must belong to the tenant AND the client.
+   * Also returns `reportes`: ALL reports in scope with at least one usable photo (for the filter dropdown).
+   *
+   * @param {{clienteId: string, otIds: string[], reporteId?: string, search?: string, page?: number, limit?: number}} params
+   * @param {string} tenantId
+   * @returns {Promise<{items: object[], reportes: object[], total: number, page: number, limit: number, hasMore: boolean}>}
+   */
+  async listEvidenciasByOt({ clienteId, otIds, reporteId, search = '', page = 1, limit = 24 }, tenantId) {
+    const [customer, ots, reports, equipos] = await Promise.all([
+      Customer.findOne(applyTenantFilter({ _id: clienteId }, tenantId)).lean(),
+      OT.find(applyTenantFilter({ _id: { $in: otIds }, ClienteId: clienteId }, tenantId)).select('_id').lean(),
+      Report.find(applyTenantFilter({ ClienteId: clienteId, orden: { $in: otIds } }, tenantId))
+        .select('consecutivo Equipo equipoSnapshot.ItemText evidencias._id evidencias.url evidencias.nombre evidencias.descripcion')
+        .lean(),
+      EquipoItem.find(applyTenantFilter({ ClienteId: clienteId }, tenantId))
+        .select('item ItemId')
+        .populate('ItemId', 'Nombre')
+        .lean(),
+    ]);
+
+    if (!customer) {
+      throw new ApiError(404, 'Cliente no encontrado', 'CUSTOMER_NOT_FOUND', { clienteId });
+    }
+    if (ots.length !== otIds.length) {
+      throw new ApiError(400, 'Alguna OT no pertenece al cliente/tenant', 'INVALID_OT_SCOPE', {
+        clienteId, requested: otIds.length, found: ots.length,
+      });
+    }
+
+    const equipoMap = new Map(equipos.map(eq => [eq._id.toString(), eq]));
+    const label = (r) => String(r.consecutivo || r._id?.toString() || '');
+    const sorted = [...reports].sort((a, b) => label(a).localeCompare(label(b), 'es', { numeric: true }));
+
+    // Reports in scope with at least one usable photo (full list, independent of filters/pagination)
+    const withPhotos = sorted
+      .map(r => ({ report: r, evidencias: (r.evidencias || []).filter(ev => ev?._id && isHttpUrl(ev.url)) }))
+      .filter(x => x.evidencias.length);
+
+    const reportes = withPhotos.map(({ report }) => ({
+      reporteId: report._id?.toString() || '',
+      consecutivo: label(report),
+      equipoNombre: resolveEquipoNombre(report, equipoMap.get(report.Equipo?.toString())),
+    }));
+
+    // reporteId outside scope simply yields no rows (compared against reports already in scope)
+    const needle = String(search || '').trim().toLowerCase();
+    const items = [];
+    for (const { report, evidencias } of withPhotos) {
+      if (reporteId && report._id?.toString() !== String(reporteId)) continue;
+      const equipoNombre = resolveEquipoNombre(report, equipoMap.get(report.Equipo?.toString()));
+      if (needle && !equipoNombre.toLowerCase().includes(needle) && !label(report).toLowerCase().includes(needle)) continue;
+      for (const ev of evidencias) items.push(toFotoItem(report, ev, equipoNombre));
+    }
+
+    const total = items.length;
+    const start = (page - 1) * limit;
+    return {
+      items: items.slice(start, start + limit),
+      reportes,
+      total,
+      page,
+      limit,
+      hasMore: start + limit < total,
     };
   }
 }
