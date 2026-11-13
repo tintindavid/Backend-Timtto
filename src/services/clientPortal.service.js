@@ -23,6 +23,7 @@ import { logger } from '../config/logger.config.js';
 import { SIGN_BATCH_ID_LENGTH } from '../constants/clientPortal.constants.js';
 import { notificationService } from './notification.service.js';
 import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
+import { REPORT_RESOLVED_STATES, CLOSE_UNLESS_CANCELLED_EXPR } from '../constants/report.constants.js';
 
 /**
  * ClientPortalService — read-only data shaping for the public client portal.
@@ -733,7 +734,7 @@ export class ClientPortalService {
         [
           {
             $set: {
-              estado: 'Cerrado',
+              estado: CLOSE_UNLESS_CANCELLED_EXPR,
               fechaFinalizdo: { $ifNull: ['$fechaFinalizdo', signedAt] },
             },
           },
@@ -754,7 +755,7 @@ export class ClientPortalService {
         try {
           const total = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, tenantId));
           const closed = await Report.countDocuments(
-            applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, tenantId)
+            applyTenantFilter({ orden: otId, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, tenantId)
           );
           const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
           let nuevoEstado = 'Pendiente';
