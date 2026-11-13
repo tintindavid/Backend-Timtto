@@ -19,6 +19,7 @@ import { TICKET_STATUS } from '../../src/constants/ticket.constants.js';
 import { clientPortalController } from '../../src/controllers/clientPortal.controller.js';
 import { firebaseStorageService } from '../../src/services/external/firebase.service.js';
 import { notificationService } from '../../src/services/notification.service.js';
+import { CLOSE_UNLESS_CANCELLED_EXPR } from '../../src/constants/report.constants.js';
 
 function buildRes() {
   return {
@@ -228,7 +229,8 @@ describe('POST /public/client-view/:token/sign', () => {
     assert.ok(Array.isArray(updateManyCalls[0].update), 'estado bump must be a pipeline update');
     // Design D1 (portal-signature-flow): reports close (not `Procesado`) so
     // they reach feature parity with the admin sheet-creation flow.
-    assert.equal(updateManyCalls[0].update[0].$set.estado, 'Cerrado');
+    // A Cancelado report linked to the sheet must stay Cancelado (not rewritten to Cerrado).
+    assert.deepEqual(updateManyCalls[0].update[0].$set.estado, CLOSE_UNLESS_CANCELLED_EXPR);
     assert.ok(
       updateManyCalls[0].update[0].$set.fechaFinalizdo?.$ifNull,
       'fechaFinalizdo must be set via $ifNull so existing dates survive'

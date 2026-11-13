@@ -22,6 +22,7 @@ import { emailService } from './external/email.service.js';
 import { env } from '../config/env.js';
 import { notificationService } from './notification.service.js';
 import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
+import { REPORT_RESOLVED_STATES, CLOSE_UNLESS_CANCELLED_EXPR } from '../constants/report.constants.js';
 import { assertUserCanWork } from '../utils/otResponsibility.util.js';
 export class SheetWorkService {
 
@@ -123,11 +124,11 @@ export class SheetWorkService {
           try {
             const updated = await Report.findOneAndUpdate(
               applyTenantFilter({ _id: rId }, t),
-              { $set: { 
-                estado: 'Cerrado', 
-                fechaFinalizdo: fechaFin, 
-                hojaDeTrabajo: entity._id 
-              } },
+              [{ $set: {
+                estado: CLOSE_UNLESS_CANCELLED_EXPR,
+                fechaFinalizdo: fechaFin,
+                hojaDeTrabajo: entity._id
+              } }],
               { new: true }
             );
             if (updated) updatedReports.push(updated);
@@ -152,7 +153,7 @@ export class SheetWorkService {
         const otId = data.otId || data.ot || entity.otId;
         if (otId) {
           const total = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, t));
-          const closed = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, t));
+          const closed = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, t));
           const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
           let nuevoEstado = 'Pendiente';
           if (closed === total && total > 0) nuevoEstado = 'Cerrado';
@@ -330,7 +331,7 @@ export class SheetWorkService {
         try {
           const total = await Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, tenantId));
           const closed = await Report.countDocuments(
-            applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, tenantId)
+            applyTenantFilter({ orden: otId, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, tenantId)
           );
           const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
           let nuevoEstado = 'Pendiente';
@@ -458,7 +459,7 @@ export class SheetWorkService {
         [
           {
             $set: {
-              estado: 'Cerrado',
+              estado: CLOSE_UNLESS_CANCELLED_EXPR,
               fechaFinalizdo: { $ifNull: ['$fechaFinalizdo', signedAt] },
               hojaDeTrabajo: sheetId,
             },
@@ -473,7 +474,7 @@ export class SheetWorkService {
       try {
         const [total, closed] = await Promise.all([
           Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false }, tenantId)),
-          Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false, estado: 'Cerrado' }, tenantId)),
+          Report.countDocuments(applyTenantFilter({ orden: otId, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, tenantId)),
         ]);
         const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
         let nuevoEstado = 'Pendiente';

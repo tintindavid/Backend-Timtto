@@ -22,6 +22,7 @@ import {
   EVIDENCE_STORAGE_FOLDER,
   MAX_EVIDENCE_DESCRIPTION_LENGTH,
 } from '../constants/evidence.constants.js';
+import { REPORT_RESOLVED_STATES } from '../constants/report.constants.js';
 
 /**
  * Calcula el próximo mes de mantenimiento basado en el mes actual y los meses programados
@@ -258,6 +259,13 @@ export class ReportService {
 
   async update(id, data, tenantId, panelUser = null, tenantCtx = undefined) {
     try {
+      // The panel PUTs back the whole report it loaded, where `ClienteId` is
+      // populated ({ _id, Razonsocial, ... }). Reduce it to the id before the
+      // customer guards, otherwise String(obj) === '[object Object]' and every
+      // update (e.g. cancelling a report) fails with CUSTOMER_NOT_FOUND.
+      if (data && data.ClienteId && typeof data.ClienteId === 'object' && data.ClienteId._id) {
+        data = { ...data, ClienteId: data.ClienteId._id };
+      }
       // Sub-doc origin invariant (report-actividades-extra, spec: "Report
       // sub-document integrity for activities"). The DTO's Joi .custom()
       // already runs this on the request payload, but the service enforces
@@ -508,7 +516,7 @@ export class ReportService {
       if (ordenId) {
         const baseQuery = applyTenantFilter({ orden: ordenId, isDeleted: false }, t);
         const total = await Report.countDocuments(baseQuery);
-        const closedQuery = applyTenantFilter({ orden: ordenId, isDeleted: false, estado: 'Cerrado' }, t);
+        const closedQuery = applyTenantFilter({ orden: ordenId, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, t);
         const closed = await Report.countDocuments(closedQuery);
 
         const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
@@ -642,7 +650,7 @@ export class ReportService {
       if (updated?.orden) {
         try {
           const total = await Report.countDocuments(applyTenantFilter({ orden: updated.orden, isDeleted: false }, tenantId));
-          const closed = await Report.countDocuments(applyTenantFilter({ orden: updated.orden, isDeleted: false, estado: 'Cerrado' }, tenantId));
+          const closed = await Report.countDocuments(applyTenantFilter({ orden: updated.orden, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, tenantId));
           const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
           let nuevoEstado = 'Pendiente';
           if (closed === total && total > 0) nuevoEstado = 'Cerrado';

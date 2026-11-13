@@ -23,6 +23,7 @@ import { notificationService } from './notification.service.js';
 import { buildOtResponsibleAssignedPayload } from './notifications/otResponsibleAssignedPayload.util.js';
 import { buildOtNoteAddedPayload } from './notifications/otNoteAddedPayload.util.js';
 import { PERMISSIONS } from '../constants/permissions.js';
+import { REPORT_RESOLVED_STATES } from '../constants/report.constants.js';
 
 export class OTService {
   /**
@@ -746,7 +747,7 @@ export class OTService {
       // Recompute OT progress
       const baseQuery = applyTenantFilter({ orden: ot._id, isDeleted: false }, t);
       const total = await Report.countDocuments(baseQuery);
-      const closed = await Report.countDocuments(applyTenantFilter({ orden: ot._id, isDeleted: false, estado: 'Cerrado' }, t));
+      const closed = await Report.countDocuments(applyTenantFilter({ orden: ot._id, isDeleted: false, estado: { $in: REPORT_RESOLVED_STATES } }, t));
       const avance = total > 0 ? Math.round((closed / total) * 100) : 0;
       // Same recompute rule as report.service.js: Pendiente is only the
       // baseline when there is no active programación; otherwise the waiting
