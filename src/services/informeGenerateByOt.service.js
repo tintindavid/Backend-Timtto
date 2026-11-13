@@ -23,6 +23,16 @@ function resolveSedeServicio(report, equipo) {
   return { sede, servicio };
 }
 
+/** Observation text of a report; a cancelled one leads with its cancellation reason. */
+function buildObservacionTexto(report) {
+  const obs = (report.observacion || '').trim();
+  if (report.estado !== 'Cancelado') return obs;
+  const motivo = (report.motivoCancelacion || '').trim();
+  const parts = [`Cancelado${motivo ? `. Motivo: ${motivo}` : ''}`];
+  if (obs) parts.push(obs);
+  return parts.join('. ');
+}
+
 function toOtReportRow(report, equipo) {
   const snap = report.equipoSnapshot || {};
   const { sede, servicio } = resolveSedeServicio(report, equipo);
@@ -244,15 +254,17 @@ export class InformeGenerateByOtService {
       }
     }
 
-    // 5. Observaciones — one per report with non-empty observacion
+    // 5. Observaciones — one per report with a non-empty observacion or, when
+    // the report was cancelled, its cancellation reason (so the reader can see why).
     const observacionesReportes = reports
-      .filter(r => (r.observacion || '').trim())
-      .map(r => {
+      .map(r => ({ r, texto: buildObservacionTexto(r) }))
+      .filter(({ texto }) => texto)
+      .map(({ r, texto }) => {
         const equipo = equipoMap.get(r.Equipo?.toString());
         return {
           consecutivo: r.consecutivo || r._id?.toString() || '',
           estadoOperativo: r.EstadoOperativo ?? equipo?.EstadoOperativo ?? 'Operativo',
-          observacion: r.observacion,
+          observacion: texto,
         };
       });
 

@@ -164,3 +164,25 @@ describe('informeGenerateByOtService.generateByOt — observacionesReportes', ()
     assert.equal(payload.observacionesReportes[0].observacion, 'Se recomienda cambio de pera');
   });
 });
+
+describe('informeGenerateByOtService.generateByOt — cancelled reports in observaciones', () => {
+  afterEach(cleanupMocks);
+
+  it('lists the cancellation reason (with or without an observacion) and leaves other reports alone', async () => {
+    setupMocks({
+      ots: [{ _id: OT_ID, Consecutivo: 'OT-001', ClienteId: CLIENTE_ID }],
+      reports: [
+        baseReport({ consecutivo: 'R1', estado: 'Cancelado', motivoCancelacion: 'Equipo dado de baja', observacion: '' }),
+        baseReport({ consecutivo: 'R2', estado: 'Cancelado', motivoCancelacion: 'No hubo acceso', observacion: 'Se reprograma' }),
+        baseReport({ consecutivo: 'R3', estado: 'Cerrado', motivoCancelacion: 'ignorado', observacion: 'Todo ok' }),
+        baseReport({ consecutivo: 'R4', estado: 'Cerrado', observacion: '' }),
+      ],
+    });
+    const result = await informeGenerateByOtService.generateByOt({ clienteId: CLIENTE_ID, otIds: [OT_ID] }, TENANT_A);
+    const byCons = Object.fromEntries(result.observacionesReportes.map((o) => [o.consecutivo, o.observacion]));
+    assert.equal(byCons.R1, 'Cancelado. Motivo: Equipo dado de baja');
+    assert.equal(byCons.R2, 'Cancelado. Motivo: No hubo acceso. Se reprograma');
+    assert.equal(byCons.R3, 'Todo ok');
+    assert.equal('R4' in byCons, false);
+  });
+});
