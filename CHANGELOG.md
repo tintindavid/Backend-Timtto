@@ -1,3 +1,10 @@
+## [2.34.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.34.0...v2.34.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **reports:** keep cancelled reports cancelled, accept populated ClienteId, show cancel reason in by-OT report ([#56](https://github.com/tintindavid/Backend-Timtto/issues/56)) ([10e9140](https://github.com/tintindavid/Backend-Timtto/commit/10e9140c131cd2c6ae23e95a314474a7eaa59b4d))
+
 # [2.34.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.33.0...v2.34.0) (2026-11-11)
 
 
