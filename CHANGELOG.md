@@ -1,3 +1,10 @@
+# [2.36.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.35.0...v2.36.0) (2026-11-26)
+
+
+### Features
+
+* **search:** navbar equipment search with consolidated equipment summary ([#58](https://github.com/tintindavid/Backend-Timtto/issues/58)) ([8021345](https://github.com/tintindavid/Backend-Timtto/commit/8021345e2664f9c78ac69e1e5ee488fd55324d84))
+
 # [2.35.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.34.1...v2.35.0) (2026-11-26)
 
 
