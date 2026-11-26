@@ -109,13 +109,10 @@ describe('equipoItemService.update — EstadoOperativo + motivo', () => {
     EquipoItem.findOne = () => ({ lean: () => Promise.resolve({ _id: EQUIPO_ID, tenantId: TENANT, EstadoOperativo: 'Operativo' }) });
     let pushedEntry = null;
     let genericSet = null;
-    EquipoItem.findByIdAndUpdate = (id, update) => {
-      genericSet = update.$set;
-      return Promise.resolve({ _id: EQUIPO_ID, ...update.$set });
-    };
     // The helper itself calls EquipoItem.findOneAndUpdate (atomic push+set) —
     // route it separately from the generic findByIdAndUpdate above.
     EquipoItem.findOneAndUpdate = (query, update) => {
+      if (!update.$push) { genericSet = update.$set; return Promise.resolve({ _id: EQUIPO_ID, ...update.$set }); }
       pushedEntry = update.$push.estadoOperativoHistory;
       return Promise.resolve({ _id: EQUIPO_ID, EstadoOperativo: update.$set.EstadoOperativo });
     };
@@ -151,13 +148,10 @@ describe('equipoItemService.updateAndSnapshot — EstadoOperativo', () => {
     EquipoItem.findOne = () => ({ lean: () => Promise.resolve({ _id: EQUIPO_ID, tenantId: TENANT, EstadoOperativo: 'Operativo' }) });
     let pushedEntry = null;
     EquipoItem.findOneAndUpdate = (query, update) => {
+      if (!update.$push) return { populate() { return this; }, lean: () => Promise.resolve({ _id: EQUIPO_ID, Marca: 'Philips', Ubicacion: 'Piso 3' }) };
       pushedEntry = update.$push.estadoOperativoHistory;
       return Promise.resolve({ _id: EQUIPO_ID, EstadoOperativo: update.$set.EstadoOperativo });
     };
-    EquipoItem.findByIdAndUpdate = () => ({
-      populate() { return this; },
-      lean: () => Promise.resolve({ _id: EQUIPO_ID, Marca: 'Philips', Ubicacion: 'Piso 3' }),
-    });
 
     const result = await equipoItemService.updateAndSnapshot(
       EQUIPO_ID,

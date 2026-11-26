@@ -211,6 +211,8 @@ ReportSchema.index({ tenantId: 1, isDeleted: 1 });
 ReportSchema.index({ tenantId: 1, createdAt: -1 });
 ReportSchema.index({ tenantId: 1, isFromTicket: 1, ticket: 1 });
 ReportSchema.index({ tenantId: 1, Equipo: 1, origen: 1 });
+// Dashboard (dashboard-por-tenant-indicadores): reports done in a period.
+ReportSchema.index({ tenantId: 1, estado: 1, fechaProcesado: 1 });
 
 // Exclude sensitive fields
 ReportSchema.set('toJSON', {

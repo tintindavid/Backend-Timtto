@@ -11,6 +11,7 @@ import { ticketService } from './ticket.service.js';
 import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
 import { EstadoOperativoValues, EstadoOperativoDefault } from '../constants/estadoOperativo.js';
 import { nameShort } from '../utils/nameShort.util.js';
+import { escapeRegex } from '../utils/escapeRegex.util.js';
 
 const DUPLICATE_CHECK_BULK_LIMIT = 500;
 
@@ -251,13 +252,16 @@ export class EquipoItemService {
    * @param {object} [capabilities] req.tenant.capabilities; `UltimaActividadExterna` is only added when the tenant
    *   has the premium module "Servicios de terceros" (registersExternal), or when the rollout switch is not `on`.
    */
-  async list(filters = {}, pagination = {}, _tenantId = undefined, capabilities = undefined) {
+  async list(filters = {}, pagination = {}, tenantId = undefined, capabilities = undefined) {
+    // Tenant isolation: the listing and its total are ALWAYS scoped to the request tenant (a `tenantId` sent in
+    // the filters is overridden by applyTenantFilter). Thrown before the try so it is not remapped to a 500.
+    if (!tenantId) throw new ApiError(400, 'Tenant requerido', 'TENANT_REQUIRED');
     try {
       const { page = 1, limit = 500, sortBy = 'createdAt', order = 'desc', search } = pagination;
       const skip = (page - 1) * limit;
-      const query = { ...filters, isDeleted: false };
+      const query = applyTenantFilter({ ...filters, isDeleted: false }, tenantId);
       if (search) {
-        const rx = new RegExp(search, 'i');
+        const rx = new RegExp(escapeRegex(search), 'i');
         query.$or = [{ name: rx }, { description: rx }, { title: rx }, { email: rx }];
       }
       const sort = { [sortBy]: order === 'asc' ? 1 : -1 };
@@ -306,9 +310,10 @@ export class EquipoItemService {
     }
   }
 
-  async getById(id) {
+  async getById(id, tenantId) {
+    if (!tenantId) throw new ApiError(400, 'Tenant requerido', 'TENANT_REQUIRED');
     try {
-      const e = await EquipoItem.findById(id);
+      const e = await EquipoItem.findOne(applyTenantFilter({ _id: id }, tenantId));
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       return e;
     } catch (err) {
@@ -344,10 +349,14 @@ export class EquipoItemService {
   }
 
   async update(id, data, tenantId, panelUser = null) {
+    // Tenant isolation: every read/write below is filtered by the request tenant; an id of another tenant is a 404.
+    if (!tenantId) throw new ApiError(400, 'Tenant requerido', 'TENANT_REQUIRED');
+    const byId = () => applyTenantFilter({ _id: id }, tenantId);
     try {
       if (data.ClienteId) {
-        const cur = await EquipoItem.findById(id).select('tenantId ClienteId').lean();
-        await assertCustomerKindIfChanged(data.ClienteId, cur?.ClienteId, tenantId || cur?.tenantId);
+        const cur = await EquipoItem.findOne(byId()).select('tenantId ClienteId').lean();
+        if (!cur) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
+        await assertCustomerKindIfChanged(data.ClienteId, cur?.ClienteId, tenantId);
       }
       const tupleKeys = ['ItemId', 'Marca', 'Serie'];
       const touchesTuple = tupleKeys.some((k) => typeof data[k] !== 'undefined');
@@ -357,9 +366,9 @@ export class EquipoItemService {
       let effectiveData = data;
 
       if (touchesTuple) {
-        current = await EquipoItem.findById(id).lean();
+        current = await EquipoItem.findOne(byId()).lean();
         if (!current) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
-        t = tenantId || current.tenantId;
+        t = tenantId;
 
         const changedKeys = tupleKeys.filter((k) => (
           typeof data[k] !== 'undefined' && String(current[k]) !== String(data[k])
@@ -396,6 +405,7 @@ export class EquipoItemService {
       // — strip both keys from the generic $set so it never races with the
       // atomic push+set performed by the helper.
       const { EstadoOperativo: nextEstadoOperativo, estadoOperativoMotivo, ...rest } = effectiveData;
+      delete rest.tenantId; // a body can never move an equipment to another tenant
 
       if (typeof nextEstadoOperativo !== 'undefined') {
         await this._appendEstadoOperativoHistory(id, nextEstadoOperativo, {
@@ -408,13 +418,13 @@ export class EquipoItemService {
 
       let e;
       try {
-        e = await EquipoItem.findByIdAndUpdate(id, { $set: rest }, { new: true, runValidators: true });
+        e = await EquipoItem.findOneAndUpdate(byId(), { $set: rest }, { new: true, runValidators: true });
       } catch (writeErr) {
         if (writeErr && writeErr.code === 11000) {
           // Only reachable when a tuple field actually changed and a
           // concurrent writer won the race between our guard and the write.
           // Translate to the standard 409 shape (parity with `create()`).
-          const base = current || await EquipoItem.findById(id).lean();
+          const base = current || await EquipoItem.findOne(byId()).lean();
           const race = await this.checkDuplicate({
             ClienteId: base?.ClienteId,
             ItemId: typeof data.ItemId !== 'undefined' ? data.ItemId : base?.ItemId,
@@ -446,11 +456,11 @@ export class EquipoItemService {
   }
 
   async delete(id, tenantId = null, panelUser = null) {
+    if (!tenantId) throw new ApiError(400, 'Tenant requerido', 'TENANT_REQUIRED');
     try {
-      // Resolve tenantId from the equipo if not supplied (backwards compat).
-      const existing = await EquipoItem.findById(id).lean();
+      const existing = await EquipoItem.findOne(applyTenantFilter({ _id: id }, tenantId)).lean();
       if (!existing) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
-      const t = tenantId || existing.tenantId;
+      const t = tenantId;
 
       // Ticket cascade (design D20): cancel pendiente tickets referencing
       // this equipo BEFORE the soft-delete is persisted, so the operation
@@ -461,7 +471,7 @@ export class EquipoItemService {
         logger.error('Ticket cascade (equipo soft-delete) failed', { err: String(cascadeErr) });
       }
 
-      const e = await EquipoItem.findByIdAndUpdate(id, { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
+      const e = await EquipoItem.findOneAndUpdate(applyTenantFilter({ _id: id }, tenantId), { $set: { isDeleted: true, deletedAt: new Date() } }, { new: true });
       if (!e) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id });
       logger.info('EquipoItem eliminado (soft): ' + id);
     } catch (err) {
@@ -473,8 +483,9 @@ export class EquipoItemService {
 
   async updateAndSnapshot(equipoId, payload, tenantId, panelUser = null) {
     try {
-      const t = tenantId || payload.tenantId;
-      requireTenant(t);
+      // The tenant is only the request one (never a body value); an id of another tenant is a 404.
+      const t = tenantId;
+      if (!t) throw new ApiError(400, 'Tenant requerido', 'TENANT_REQUIRED');
 
       logger.info('Updating EquipoItem and snapshot for Report', { equipoId, tenantId: t });
       // Update equipo fields (only fields provided in payload)
@@ -496,7 +507,7 @@ export class EquipoItemService {
 
       const touchesTuple = ['ItemId', 'Marca', 'Serie'].some((k) => typeof updateFields[k] !== 'undefined');
       if (touchesTuple) {
-        const current = await EquipoItem.findById(equipoId).lean();
+        const current = await EquipoItem.findOne(applyTenantFilter({ _id: equipoId }, t)).lean();
         if (!current) throw new ApiError(404, 'EquipoItem no encontrado', 'NOT_FOUND', { id: equipoId });
 
         const changed = ['ItemId', 'Marca', 'Serie'].some((k) => {
@@ -517,7 +528,7 @@ export class EquipoItemService {
 
       logger.info('Updating EquipoItem with fields: ',updateFields);
       logger.info(equipoId);
-      const equipo = await EquipoItem.findByIdAndUpdate(equipoId, { $set: updateFields }, { new: true, runValidators: true })
+      const equipo = await EquipoItem.findOneAndUpdate(applyTenantFilter({ _id: equipoId }, t), { $set: updateFields }, { new: true, runValidators: true })
         .populate('ItemId', 'Nombre ProtocoloId')
         .populate('SedeId', 'nombreSede')
         .populate('Servicio', 'nombre')
