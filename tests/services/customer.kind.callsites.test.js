@@ -78,7 +78,7 @@ describe('assertCustomerKind call sites', () => {
   it('equipoItem.update when ClienteId is part of the payload', async () => {
     stubCustomers();
     // update() loads the current document to compare the client (guard only runs on change).
-    EquipoItem.findById = () => ({ select() { return this; }, lean: () => Promise.resolve({ tenantId: TENANT_A, ClienteId: '507f1f77bcf86cd7994390ff' }) });
+    EquipoItem.findOne = () => ({ select() { return this; }, lean: () => Promise.resolve({ tenantId: TENANT_A, ClienteId: '507f1f77bcf86cd7994390ff' }) });
     EquipoItem.findByIdAndUpdate = async () => { throw SENTINEL; };
     EquipoItem.findOneAndUpdate = async () => { throw SENTINEL; };
     await expectGuard((ClienteId) => equipoItemService.update('507f1f77bcf86cd799439010', { ClienteId }, TENANT_A));

@@ -101,6 +101,8 @@ const OTSchema = new Schema({
 OTSchema.index({ tenantId: 1, isDeleted: 1 });
 OTSchema.index({ tenantId: 1, createdAt: -1 });
 OTSchema.index({ tenantId: 1, isFromTicket: 1 });
+// Dashboard (dashboard-por-tenant-indicadores): work orders by state in a period, overdue alerts.
+OTSchema.index({ tenantId: 1, EstadoOt: 1, FechaCreacion: 1 });
 // "Mis OTs" filter (?mine=true) — active roster membership lookup (design D2).
 OTSchema.index({ tenantId: 1, 'programaciones.isActive': 1, 'programaciones.responsables.userId': 1 });
 

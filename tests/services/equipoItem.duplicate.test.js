@@ -195,14 +195,24 @@ describe('equipoItemService.create — duplicate guard', () => {
   });
 });
 
+// findOne serves both the tenant-scoped lookup of the edited equipment (query without ClienteId) and the
+// duplicate guard (query with the tuple).
+function stubCurrentAndDocs(docs) {
+  stubFindOne(docs);
+  const guard = EquipoItem.findOne;
+  const current = { _id: EQUIPO_ID, tenantId: TENANT_A, ClienteId: CLIENTE_ID, ItemId: ITEM_ID, Marca: 'Philips', Serie: 'A999' };
+  EquipoItem.findOne = (q) => (q.ClienteId === undefined
+    ? { select() { return this; }, lean: () => Promise.resolve(q.tenantId === TENANT_A ? current : null) }
+    : guard(q));
+}
+
 describe('equipoItemService.update — duplicate guard', () => {
   afterEach(() => { delete EquipoItem.findOne; delete EquipoItem.findById; delete EquipoItem.findByIdAndUpdate; });
 
   it('editing into a conflicting tuple is rejected with 409', async () => {
-    EquipoItem.findById = () => ({ lean: () => Promise.resolve({ _id: EQUIPO_ID, tenantId: TENANT_A, ClienteId: CLIENTE_ID, ItemId: ITEM_ID, Marca: 'Philips', Serie: 'A999' }) });
-    stubFindOne([existingDoc({ _id: OTHER_EQUIPO_ID })]);
+    stubCurrentAndDocs([existingDoc({ _id: OTHER_EQUIPO_ID })]);
     let updateCalled = false;
-    EquipoItem.findByIdAndUpdate = async () => { updateCalled = true; return {}; };
+    EquipoItem.findOneAndUpdate = async () => { updateCalled = true; return {}; };
 
     await assert.rejects(
       () => equipoItemService.update(EQUIPO_ID, { Serie: 'A123' }, TENANT_A),
@@ -217,9 +227,9 @@ describe('equipoItemService.update — duplicate guard', () => {
   });
 
   it('editing a field outside the tuple does not run the guard', async () => {
-    EquipoItem.findByIdAndUpdate = async () => ({ _id: EQUIPO_ID, Ubicacion: 'Piso 3' });
+    EquipoItem.findOneAndUpdate = async () => ({ _id: EQUIPO_ID, Ubicacion: 'Piso 3' });
     let findByIdCalled = false;
-    EquipoItem.findById = () => { findByIdCalled = true; return { lean: () => Promise.resolve(null) }; };
+    EquipoItem.findOne = () => { findByIdCalled = true; return { lean: () => Promise.resolve(null) }; };
 
     const result = await equipoItemService.update(EQUIPO_ID, { Ubicacion: 'Piso 3' }, TENANT_A);
     assert.equal(result.Ubicacion, 'Piso 3');
@@ -231,10 +241,9 @@ describe('equipoItemService.updateAndSnapshot — duplicate guard', () => {
   afterEach(() => { delete EquipoItem.findOne; delete EquipoItem.findById; delete EquipoItem.findByIdAndUpdate; });
 
   it('a conflicting field change is rejected with 409', async () => {
-    EquipoItem.findById = () => ({ lean: () => Promise.resolve({ _id: EQUIPO_ID, tenantId: TENANT_A, ClienteId: CLIENTE_ID, ItemId: ITEM_ID, Marca: 'Philips', Serie: 'A999' }) });
-    stubFindOne([existingDoc({ _id: OTHER_EQUIPO_ID })]);
+    stubCurrentAndDocs([existingDoc({ _id: OTHER_EQUIPO_ID })]);
     let updateCalled = false;
-    EquipoItem.findByIdAndUpdate = () => { updateCalled = true; return { populate() { return this; }, lean: () => Promise.resolve({}) }; };
+    EquipoItem.findOneAndUpdate = () => { updateCalled = true; return { populate() { return this; }, lean: () => Promise.resolve({}) }; };
 
     await assert.rejects(
       () => equipoItemService.updateAndSnapshot(EQUIPO_ID, { Serie: 'A123' }, TENANT_A),
