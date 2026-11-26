@@ -227,6 +227,20 @@ export function presetToCapabilities(type) {
 }
 
 /**
+ * Flags of a demo account: those of its organization type with every premium module on, except the ones that depend on a
+ * flag the type does not have. Default: hybrid (everything).
+ */
+export function demoCapabilities(type = 'hybrid') {
+  const preset = presetToCapabilities(type);
+  return {
+    ...ALL_CAPABILITIES_ENABLED,
+    ...preset,
+    scheduleQuickLoad: preset.registersExternal,
+    managesCustomers: preset.executesServices,
+  };
+}
+
+/**
  * Resolves the capabilities requested by a body ({ type } preset, { capabilities } or loose flags).
  * Flags are merged over `base` (the current values; defaults when omitted). The result is validated.
  */

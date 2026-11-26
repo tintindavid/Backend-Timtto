@@ -7,6 +7,7 @@ import { seedDemoTenant, seedDeps } from '../../src/services/demo/demoSeed.servi
 import { demoLookup } from '../../src/services/demo/demoContext.service.js';
 import { demoId } from '../../src/services/demo/demoIds.js';
 import { DEMO_LIMITS } from '../../src/constants/demo.constants.js';
+import { demoCapabilities } from '../../src/config/tenantCapabilities.config.js';
 import { DemoLock } from '../../src/models/demoLock.model.js';
 import { Tenant } from '../../src/models/tenant.model.js';
 import { User } from '../../src/models/user.model.js';
@@ -32,6 +33,7 @@ let seedStatus;
 let failOn;
 let drafts;
 let usage;
+let tenant;
 
 const bucket = (name) => {
   if (!store.has(name)) store.set(name, new Map());
@@ -48,6 +50,8 @@ beforeEach(() => {
   usage = { users: 1, customers: 0, equipos: 0 };
   stub(demoLookup, 'find', async (t) => (t === 'demo1' ? { demo: { enabled: true, limits: { ...DEMO_LIMITS } } } : null));
   stub(seedDeps, 'getUsage', async () => usage);
+  tenant = null;
+  stub(seedDeps, 'getTenant', async () => tenant);
   stub(DemoLock, 'create', async () => ({}));
   stub(DemoLock, 'deleteOne', async () => ({}));
   stub(User, 'findOne', () => ({ sort: () => ({ lean: async () => ({ _id: demoId('x', 'admin'), firstName: 'Ana', lastName: 'Ruiz' }) }) }));
@@ -97,6 +101,13 @@ describe('seedDemoTenant', () => {
     assert.equal(retried.status, 'ready');
     assert.equal(bucket('OT').size, 9);
     assert.deepEqual(seedStatus, ['error', 'ready']);
+  });
+
+  it('seeds according to the capabilities of the tenant', async () => {
+    tenant = { name: 'Hospital Demo', capabilities: demoCapabilities('client') };
+    assert.equal((await seedDemoTenant('demo1')).status, 'ready');
+    assert.equal(bucket('OT').size, 0);
+    assert.ok(bucket('Report').size >= 15);
   });
 
   it('writes nothing when completing the sample data would exceed a limit', async () => {

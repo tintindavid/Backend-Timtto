@@ -6,7 +6,7 @@ import { Area } from '../../models/area.model.js';
 import { Requisicion } from '../../models/requisicion.model.js';
 import { logger } from '../../config/logger.config.js';
 import { requireTenant } from '../../utils/tenant.util.js';
-import { ALL_CAPABILITIES_ENABLED } from '../../config/tenantCapabilities.config.js';
+import { ALL_CAPABILITIES_ENABLED, normalizeCapabilities } from '../../config/tenantCapabilities.config.js';
 import { DEFAULT_AREAS, DEFAULT_TIPOS_REQUISICION } from '../../constants/requisicion.constants.js';
 import { seedRequisicionDefaults } from '../requisicionSeed.service.js';
 import { getDemoConfig } from './demoContext.service.js';
@@ -41,7 +41,7 @@ const SAMPLE_REQUISITIONS = [
 ];
 
 /** Creates the module defaults and two sample requisitions through the real service (idempotent by title). */
-async function seedRequisiciones(tenantId, admin, now) {
+async function seedRequisiciones(tenantId, admin, now, capabilities) {
   // Loaded on demand: the requisition service pulls most of the application with it.
   const { requisicionService } = await import('../requisicion.service.js');
   await seedRequisicionDefaults(tenantId, { now });
@@ -61,7 +61,7 @@ async function seedRequisiciones(tenantId, admin, now) {
       tipoRequisicionId: String(tipo._id),
       areaId: String(area._id),
       fechaRequerida: new Date(now.getTime() + 15 * 86400000),
-    }, ALL_CAPABILITIES_ENABLED);
+    }, capabilities);
     out.created += 1;
     if (!enviar) continue;
     try {
@@ -84,6 +84,7 @@ export const seedDeps = {
   insert: (Model, doc) => new Model(doc).save(),
   seedRequisiciones,
   getUsage: (tenantId) => getDemoUsage(tenantId),
+  getTenant: (tenantId) => Tenant.findOne({ tenantId }).select('name capabilities').lean(),
 };
 
 // Limited resources the sample data adds, by model; providers do not count as clients.
@@ -137,7 +138,10 @@ export async function seedDemoTenant(tenantId, { now = new Date() } = {}) {
       const user = await User.findOne({ tenantId, role: 'admin' }).sort({ createdAt: 1 }).lean();
       if (!user) throw new Error('La cuenta no tiene un usuario administrador');
       const admin = { ...user, fullName: user.fullName || `${user.firstName} ${user.lastName}`.trim() };
-      const { batches, counters } = buildDemoDataset({ tenantId, admin, catalog, now });
+      // The sample data follows the organization type of the account.
+      const tenant = await seedDeps.getTenant(tenantId);
+      const capabilities = tenant?.capabilities ? normalizeCapabilities(tenant.capabilities) : ALL_CAPABILITIES_ENABLED;
+      const { batches, counters } = buildDemoDataset({ tenantId, admin, catalog, now, capabilities, organizationName: tenant?.name });
 
       // The quota locks are held so users cannot add records between the limit check and the inserts.
       await withDemoLock(tenantId, 'customers', () => withDemoLock(tenantId, 'equipos', async () => {
@@ -148,7 +152,7 @@ export async function seedDemoTenant(tenantId, { now = new Date() } = {}) {
         }
         for (const batch of batches) created += await insertMissing(tenantId, batch);
       }, SEED_LOCK_HELD), SEED_LOCK_HELD);
-      const requisiciones = await seedDeps.seedRequisiciones(tenantId, admin, now);
+      const requisiciones = await seedDeps.seedRequisiciones(tenantId, admin, now, capabilities);
       created += requisiciones.created;
       return requisiciones.notes;
     }, SEED_LOCK);

@@ -1,4 +1,5 @@
 import { seedDemoTenant, seedDeps } from './demo/demoSeed.service.js';
+import { demoId } from './demo/demoIds.js';
 import mongoose from 'mongoose';
 import { Tenant } from '../models/tenant.model.js';
 import { User } from '../models/user.model.js';
@@ -18,7 +19,7 @@ import { env } from '../config/env.js';
 import { seedRequisicionDefaults } from './requisicionSeed.service.js';
 import { DEMO_LIMITS } from '../constants/demo.constants.js';
 import {
-  ALL_CAPABILITIES_ENABLED,
+  demoCapabilities,
   getTenantType,
   normalizeCapabilities,
   resolveCapabilitiesInput,
@@ -274,7 +275,7 @@ export class PlatformTenantService {
     const { tenant: tenantInput, admin: adminData } = payload;
     const { type: tenantLevelType, capabilities: tenantLevelCapabilities, isDemo, ...tenantData } = tenantInput;
     const capabilities = isDemo === true
-      ? { ...ALL_CAPABILITIES_ENABLED }
+      ? demoCapabilities(payload.type ?? tenantLevelType)
       : resolveCapabilitiesInput({
         type: payload.type ?? tenantLevelType,
         capabilities: payload.capabilities ?? tenantLevelCapabilities,
@@ -284,7 +285,8 @@ export class PlatformTenantService {
     const contactName = `${adminData.firstName} ${adminData.lastName}`.trim();
     let organization = null;
     // The organization customer is also needed in "mantenimiento propio" (executes services, does not manage customers).
-    if (!capabilities.executesServices || !capabilities.managesCustomers) {
+    // A demo account needs no organization data: its sample data creates that customer (below).
+    if (isDemo !== true && (!capabilities.executesServices || !capabilities.managesCustomers)) {
       buildOrganizationCustomerData(tenantData, contactName);
       organization = { customerId: new mongoose.Types.ObjectId(), contactName };
     }
@@ -304,7 +306,10 @@ export class PlatformTenantService {
 
     const tenantPayload = { ...tenantData, status: 'active', capabilities };
     if (organization) tenantPayload.organizationCustomerId = organization.customerId;
-    if (isDemo === true) tenantPayload.demo = { enabled: true, limits: { ...DEMO_LIMITS }, seedStatus: 'pending' };
+    if (isDemo === true) {
+      tenantPayload.demo = { enabled: true, limits: { ...DEMO_LIMITS }, seedStatus: 'pending' };
+      if (!capabilities.managesCustomers) tenantPayload.organizationCustomerId = demoId(tenantData.tenantId, 'customer:cliente');
+    }
 
     // Optional logo upload — before the transaction so a failed upload aborts
     // creation cleanly. Orphan logos on transaction failure are acceptable.
