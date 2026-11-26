@@ -1,0 +1,3565 @@
+{
+ "exportedAt": "2026-11-26T19:54:10.685Z",
+ "actividades": [
+  {
+   "key": "a1",
+   "Nombre": "Limpieza general interna y externa",
+   "Descripcion": "Desarme del equipo limpieza de sistemas mecanico, eléctrico y/o electrónico, revisión de componentes.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a2",
+   "Nombre": "Limpieza de sistema electrónico y sus componentes",
+   "Descripcion": "Limpieza con soplador, brocha y/o  limpiador electrónico.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a3",
+   "Nombre": "Limpieza y lubricación de sistema mecánico",
+   "Descripcion": "Limpieza de partes mecánicas, lubricación y ajuste si es necesario",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a4",
+   "Nombre": "Verificación de accesorios",
+   "Descripcion": "Prueba de funcionamiento de cada accesorio verificación del estado, operativos y completos",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a5",
+   "Nombre": "Revisión de motor eléctrico o compresor",
+   "Descripcion": "Revisión de funconamiento, medición de parametros voltaje, amperaje, ajustes.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a6",
+   "Nombre": "Test de pruebas de funcionamiento",
+   "Descripcion": "Realización de test de pruebas de funcionamiento y accesorios",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a7",
+   "Nombre": "Revisión de carga de las baterías y su estado",
+   "Descripcion": "Pruebas de trabajo del equipo desconectado de la red eléctrica, verificación de voltaje de carga e indicador de carga.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a8",
+   "Nombre": "Pruebas de funcionamiento general del equipo",
+   "Descripcion": "Verificación de funcionamiento del equipo prueba operacional de sistemas y componentes",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a9",
+   "Nombre": "Revisión de sistema termostático y componentes",
+   "Descripcion": "Revisión y limpieza de válvulas, resistencias, cheques, solenoides, sensores, acoples, empaques, filtros",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a10",
+   "Nombre": "Revisión de estructura física",
+   "Descripcion": "Revisión externa de la estructura, carcasa, mueble, carro y/o plataforma",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a11",
+   "Nombre": "Mantenimiento de sistema eléctrico",
+   "Descripcion": "Revisión de partes eléctricas cables, conexiónes, medición de parametros de voltaje y corriente",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a12",
+   "Nombre": "Revisión de panel de control (táctil o de pulsadores )",
+   "Descripcion": "Prueba de funcionamiento de controles, botones, perillas, luces piloto e indicadores de funciones o alarmas",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a13",
+   "Nombre": "Verificación de alarmas",
+   "Descripcion": "Pruebas de funcionamiento de alarmas audibles y/o visibles segun parametros programados.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a14",
+   "Nombre": "Mantenimiento de sistema neumático",
+   "Descripcion": "Desarme y limpieza de válvulas, filtros, revisión de mangueras, acoples, llaves de paso, ajustes y corrección de fugas",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a15",
+   "Nombre": "Revisión de cables de poder y conectores",
+   "Descripcion": "Revisión de conexion AC, estado de cables de poder, estado de conectores.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a16",
+   "Nombre": "Verificación de software",
+   "Descripcion": "Verificación de funcionamiento y versión, pruebas de trabajo",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a17",
+   "Nombre": "Mantenimiento de sistema hidráulico",
+   "Descripcion": "Limpieza de válvulas y filtros, purga del sistema, revision del estado de mangueras, tubos, acoples, llaves de paso, corrección de fugas",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a18",
+   "Nombre": "Revisión del estado de la impresora",
+   "Descripcion": "Revisión de conexión, calidad de impresión, sistemamecánico, rodillo, piñones y cabeza térmica",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a19",
+   "Nombre": "Ajustes mecánicos",
+   "Descripcion": "Ajuste de tornillos, lubricación de partes móviles, alineación de componentes, verificación de nivelación del equipo.",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a20",
+   "Nombre": "Evaluación post mantenimiento",
+   "Descripcion": "Verificación visual y estado del equipo despues del mantenimiento, pruebas de sistemas, controles e indicadores",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a21",
+   "Nombre": "Verificación  parámetros de trabajo",
+   "Descripcion": "Pruebas de funciónamiento, configuración y ajuste de parametros, medidas, lecturas, valores indicados",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a22",
+   "Nombre": "Prueba de creacion",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a23",
+   "Nombre": "Mantenimiento de sistema de frenos",
+   "Descripcion": "Limpieza de pista de frenos ajuste de solenoides, revisión de conexiones electricas y controles",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a24",
+   "Nombre": "Revisión de sistema neumático NIBP",
+   "Descripcion": "Revisión de bomba, válvulas, manguera y brazalete, verificación de fugas y ajuste si es necesario.",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a25",
+   "Nombre": "Revisión de cable de EKG",
+   "Descripcion": "Revisión del estado del cable de EKG y sus latiguillos, pruebas de funcionamiento de todas sus derivadas",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a26",
+   "Nombre": "Revisión de sensor de Oximetría",
+   "Descripcion": "Revisión del estado del sensor, funcionamiento mecánico de la pinza, verificación de diodo emisor y receptor",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a27",
+   "Nombre": "Revisión de puertos IBP",
+   "Descripcion": "Revisión de puertos de IBP, revisió de cable, conectores y pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a28",
+   "Nombre": "Revisión de modulo de capnografía",
+   "Descripcion": "Revisión de estado de trampa de agua, filtro y linea de capnografía verificación de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a29",
+   "Nombre": "Revisión de transductores",
+   "Descripcion": "Limpieza de conenectores con limpiador electrónico, revisión de cable y cabeza de transductores, prueba de funcionamiento.",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a30",
+   "Nombre": "Limpieza de generador de vapor",
+   "Descripcion": "Desmonte de resistencias, sensores de nivel y limpieza interior de calcificación y sedimentos",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a31",
+   "Nombre": "Limpieza de tubería, presostato, filtros y  trampa de vapor",
+   "Descripcion": "Desmonte de tubo y presostato, filtros,  trampa de vapor, limpieza de sedimentos",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a32",
+   "Nombre": "Revisión de estado resistencias",
+   "Descripcion": "Revisión del estado de resistencias, cables de alimentación, bornes y contactores, medición de voltaje y corriente",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a33",
+   "Nombre": "Revisión del tubo de Rayos X",
+   "Descripcion": "Revisión de cables de alta, conectores, lubricación, ajuste, prueba de comandos, pruebas y limpieza de colimador, revisión de bombillo o luz laser",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a34",
+   "Nombre": "Mantenimiento de mesa de rayos X",
+   "Descripcion": "Limpieza general, revisión y ajuste de freno, revisión de sistema electrico y mecánico, revisión de bucky y pruebas de trabajo",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a35",
+   "Nombre": "Revisión de válvula de aguja o perilla, columna y flotador indicador.",
+   "Descripcion": "Limpieza de columna, escala graduada y esfera o flotador, limpieza y ajuste de perilla o válvula de aguja y acople chemetron o CGA",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a36",
+   "Nombre": "Mantenimiento de sistema hidráulico, bomba y cilindros",
+   "Descripcion": "Revisión y limpieza de sistema Hidráulico, verificación de estado de la bomba, aceite hidráulico, valvúlas solenoides, mangueras y cilindros, pruebas de funciónamiento",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a37",
+   "Nombre": "Mantenimiento de módulo de control, motores o actuadores lineales",
+   "Descripcion": "Limpieza de módulo de control revisión de acoples, cables y contro, limpieza lubricación y ajuste de Motores y prueba s de funcionamiento de cada movimiento y posiciones.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a38",
+   "Nombre": "Revisión del estado de lámpara(s) o bombillo(s)",
+   "Descripcion": "Revisión del estado de lámpara(s) bombillo(s) sockets, conectores, limpieza pruebas de funcionamiento e intensidad de luz",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a39",
+   "Nombre": "Revisión del estado de fibra óptica",
+   "Descripcion": "Revisión de estado de la fibra óptica, limpieza y pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a40",
+   "Nombre": "Limpieza de sistema óptico",
+   "Descripcion": "Limpieza del sistema óptico (oculares, objetivos, condensador, cuerpo binocular y dispositivos de iluminación)",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a41",
+   "Nombre": "Limpieza y lubricación de mecanismos de enfoque",
+   "Descripcion": "Verificar los desplazamientos mecánicos para movimientos suaves, tornillos macrométricos, micrométricos de enfoque , platina porta objetos, revisión de apertura del diafragma, iris y montaje del condensador, ajuste y lubricación.",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a42",
+   "Nombre": "Revisión de motor, rotor y portatubos",
+   "Descripcion": "Revisión del estado del motor conexiones electricas, escobillas si aplica, verificación y balanceo de rotor y bandeja portatubos, ajustes mecánicos",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a43",
+   "Nombre": "Revisión de émbolo, cilindro y perilla selectora",
+   "Descripcion": "Desarme limpieza y lubricación de émbolo y cilindro, revusión de perilla selectora, trinquete y piñones de sistema numérico, pruebas de expulsión de puntas",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a44",
+   "Nombre": "Revisión del módulo de gasto cardiaco CO",
+   "Descripcion": "Revisión y limpieza del modulo, verificación de estad de accesorios, pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a45",
+   "Nombre": "Revisión del módulo de gases anestesicos",
+   "Descripcion": "Revisión y limpieza del módulo de medición de gases anestesicos, linea de muestra, filtro, pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a46",
+   "Nombre": "Limpieza de unidad condensadora y/o evaporador",
+   "Descripcion": "Limpieza remoción de polvo, suciedad con brocha o soplador, lavado si es necesario",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a47",
+   "Nombre": "Verificación de gas refrigerante",
+   "Descripcion": "Colocación de manometros, medición de presiones y/o medición de amperaje de compresor",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a48",
+   "Nombre": "Revisión de mecanismo de puertas, ajuste, lubricación, revisión de empaques",
+   "Descripcion": "Revisión de sistema de puertas bisagras, empaques, lubricación del mecanismo y pruebas de apertura y cierre",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a49",
+   "Nombre": "Revisión de controlador electrónico de temperatura",
+   "Descripcion": "Revisión de controlador, limpieza verificación de conexiones, verificación de parametros programados, pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a50",
+   "Nombre": "Revisión de filtro de admisión de aire",
+   "Descripcion": "Revisión de filtro, limpieza, verificación del estado",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a51",
+   "Nombre": "Revisión del sensor de temperatura",
+   "Descripcion": "Revisión del estado del sensor, pruebas de funcionamiento, limpieza, revisión de conector",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a52",
+   "Nombre": "Revisión de manómetro, brazalete y pera",
+   "Descripcion": "Revisión de sistema neumático, estado del manometro, brazalete y  pera, corrección de fugas, revisión de velcro adhesivo, ajuste si es necesario",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a53",
+   "Nombre": "Revisión de otoscopio y oftalmoscopio",
+   "Descripcion": "Limpieza de sistema optico, revisión de bombillo, limpieza de contactos, pruebas de intensidad",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a54",
+   "Nombre": "Revisión de sistema de frenado",
+   "Descripcion": "Revisión de sistema de frenado, limpieza ajustes, pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a55",
+   "Nombre": "Revisión de motor eléctrico",
+   "Descripcion": "Revisión del estado del motor, rodamientos, engranajes, correa, medición de voltaje y corriente de trabajo",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a56",
+   "Nombre": "Actividad adicional",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a57",
+   "Nombre": "Revisión de valvas, estado de bombillo o fibra optica",
+   "Descripcion": "Pruebas de funcionamiento de cada una de las valvas, limpieza y ajuste",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a58",
+   "Nombre": "Pruebas de potencia de corte y coagulación, mopolar y bipolar",
+   "Descripcion": "Pruebas de potencia con lapiz y pedal, revisión de conector de lapiz y placa, pruebas de REM",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a59",
+   "Nombre": "Revisión de electrodos y cables",
+   "Descripcion": "Revisión y limpieza de elecrodos y cables, pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a60",
+   "Nombre": "Revisión de membrana y olivas",
+   "Descripcion": "Revisión del estado de la membrana, revisión de olivas, limpieza y pruebas de funcionamiento",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a61",
+   "Nombre": "Revisión de válvula reguladora, limpieza ajuste y pruebas de trabajo",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a62",
+   "Nombre": "Revisión de manómetro de alta y/o baja, pruebas de funcionamiento",
+   "Descripcion": "Verificación del estado, pruebas de trabajo, ajuste si es necesario",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a63",
+   "Nombre": "Verificación de fugas del sistema, ajuste si es necesario",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a64",
+   "Nombre": "Revisión de celda de oxígeno",
+   "Descripcion": "Revisión de la celda, calibración y pruebas",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a65",
+   "Nombre": "Mantenimiento de sistema mécanico",
+   "Descripcion": "Revisión de mecanismos, limpieza, lubricación y ajustes",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a66",
+   "Nombre": "Revisión de cabezal de ultrasonido, verificación de oscilación, pruebas funcionales",
+   "Descripcion": "Prueba de funcionamiento del cabezal con agua o aceite",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a67",
+   "Nombre": "Mantenimiento preventivo",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a68",
+   "Nombre": "Inspección de grafitado",
+   "Descripcion": "Verificar que los números sean legibles y no estén desgastados.",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a69",
+   "Nombre": "Inspección Estructural",
+   "Descripcion": "Revisar que el tope fijo y el tope móvil se deslicen correctamente y mantengan una posición a 90 grados",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a70",
+   "Nombre": "Verificación de la Escala",
+   "Descripcion": "Comprobar que la regla métrica sea legible y esté alineada correctamente",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a71",
+   "Nombre": "Ajuste del Tope Móvil",
+   "Descripcion": "Verificar que la pieza móvil (tope) se deslice suavemente pero sin juego, manteniéndose paralela a la base",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a72",
+   "Nombre": "Limpieza de la lente",
+   "Descripcion": "Use un bastoncillo de algodón o un paño suave humedecido con agua o alcohol isopropílico para limpiar el sensor de infrarrojos (lente) de cualquier polvo o huellas dactilares",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a73",
+   "Nombre": "Limpieza del cuerpo",
+   "Descripcion": "Limpie la carcasa con un paño húmedo o alcohol, asegurándose de no sumergir el dispositivo",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a74",
+   "Nombre": "Revisión de sistema de calentamiento",
+   "Descripcion": "Incluye la revisión para equipos que tiene resistencias o sistemas de calentamiento.",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a75",
+   "Nombre": "Revisión de indicación, display y pantalla",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a76",
+   "Nombre": "Revisión de secadores refrigerativos, pruebas de funcionamiento",
+   "Descripcion": "Limpieza de sistema de refrigeración unidad condensadora  evaporadora",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a77",
+   "Nombre": "Revisión de sistema de monitoreo, monoxido y punto de rocío",
+   "Descripcion": "Revisión de sistema electrónico y pruebas de trabajo",
+   "EsObligatoria": "true",
+   "StatusReason": ""
+  },
+  {
+   "key": "a78",
+   "Nombre": "lUBRICACION DE MOTOR",
+   "Descripcion": "",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a79",
+   "Nombre": "Revisión de plataforma, nivelación y ajuste",
+   "Descripcion": "Revisión de topes y/o perillas de nivlación, ajustes y pruebas de estabilidad",
+   "EsObligatoria": "false",
+   "StatusReason": ""
+  },
+  {
+   "key": "a80",
+   "Nombre": "Limpieza de sistema termostático",
+   "Descripcion": "Desarme de trampa de vapor, filtros y limpieza de válvula solenoide",
+   "EsObligatoria": "",
+   "StatusReason": ""
+  }
+ ],
+ "protocolos": [
+  {
+   "key": "p1",
+   "nombre": "SUCCIONADOR",
+   "Descripcion": "Mantenimiento preventivo de sistemas de succión electromecánico",
+   "actividadKeys": [
+    "a3",
+    "a1",
+    "a14",
+    "a15",
+    "a10",
+    "a12",
+    "a4",
+    "a19",
+    "a8",
+    "a5"
+   ]
+  },
+  {
+   "key": "p2",
+   "nombre": "DESFIBRILADOR",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a13",
+    "a8",
+    "a2",
+    "a4",
+    "a7",
+    "a1",
+    "a18",
+    "a21",
+    "a15",
+    "a10",
+    "a12",
+    "a6"
+   ]
+  },
+  {
+   "key": "p3",
+   "nombre": "Equipos de medición y monitoreo",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a11",
+    "a8",
+    "a10",
+    "a13",
+    "a7",
+    "a4",
+    "a2",
+    "a5",
+    "a1",
+    "a14",
+    "a12"
+   ]
+  },
+  {
+   "key": "p4",
+   "nombre": "Medios de Calibración",
+   "Descripcion": "Incluyen, cámaras climáticas bloques y baños de calibración",
+   "actividadKeys": [
+    "a14",
+    "a8",
+    "a13",
+    "a10",
+    "a4",
+    "a1",
+    "a12",
+    "a3"
+   ]
+  },
+  {
+   "key": "p5",
+   "nombre": "TERMOHIGRÓMETROS / TERMÓMETROS DIGITALES",
+   "Descripcion": "Aplica para termómetros completos y sondas de temperatura con indicador",
+   "actividadKeys": [
+    "a8",
+    "a13",
+    "a10",
+    "a7",
+    "a4",
+    "a1",
+    "a12",
+    "a21",
+    "a2",
+    "a75",
+    "a51"
+   ]
+  },
+  {
+   "key": "p6",
+   "nombre": "EQUIPO DE FISIOTERAPIA",
+   "Descripcion": "TENS, ULTRASONIDO, CORRIENTES",
+   "actividadKeys": [
+    "a11",
+    "a8",
+    "a2",
+    "a10",
+    "a7",
+    "a4",
+    "a1",
+    "a12",
+    "a6",
+    "a3",
+    "a13",
+    "a21",
+    "a20",
+    "a15",
+    "a14",
+    "a66"
+   ]
+  },
+  {
+   "key": "p7",
+   "nombre": "BÁSCULA DIGITAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a8",
+    "a10",
+    "a7",
+    "a1",
+    "a3",
+    "a12",
+    "a2",
+    "a15",
+    "a19",
+    "a21"
+   ]
+  },
+  {
+   "key": "p8",
+   "nombre": "DOPPLER FETAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a15",
+    "a13",
+    "a10",
+    "a12",
+    "a8",
+    "a7",
+    "a1",
+    "a2",
+    "a56",
+    "a29"
+   ]
+  },
+  {
+   "key": "p9",
+   "nombre": "BOMBA DE INFUSIÓN",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a20",
+    "a19",
+    "a16",
+    "a15",
+    "a13",
+    "a10",
+    "a12",
+    "a7",
+    "a3",
+    "a2",
+    "a1"
+   ]
+  },
+  {
+   "key": "p10",
+   "nombre": "AUTOCLAVE",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a19",
+    "a17",
+    "a15",
+    "a14",
+    "a13",
+    "a10",
+    "a12",
+    "a9",
+    "a2",
+    "a3",
+    "a1",
+    "a11"
+   ]
+  },
+  {
+   "key": "p11",
+   "nombre": "CAMA ELÉCTRICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a15",
+    "a11",
+    "a10",
+    "a12",
+    "a7",
+    "a8",
+    "a5",
+    "a4",
+    "a3",
+    "a1"
+   ]
+  },
+  {
+   "key": "p12",
+   "nombre": "CAMA MECÁNICA/ CAMILLA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a10",
+    "a8",
+    "a4",
+    "a1",
+    "a3"
+   ]
+  },
+  {
+   "key": "p13",
+   "nombre": "BANDA CAMINADORA / TROTADORA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a11",
+    "a12",
+    "a10",
+    "a5",
+    "a3",
+    "a1",
+    "a2"
+   ]
+  },
+  {
+   "key": "p14",
+   "nombre": "ELECTROCARDIÓGRAFO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a20",
+    "a18",
+    "a21",
+    "a13",
+    "a15",
+    "a12",
+    "a11",
+    "a10",
+    "a7",
+    "a8",
+    "a4",
+    "a2",
+    "a1",
+    "a25"
+   ]
+  },
+  {
+   "key": "p15",
+   "nombre": "FONENDOSCOPIO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a8",
+    "a4",
+    "a1",
+    "a10",
+    "a60"
+   ]
+  },
+  {
+   "key": "p16",
+   "nombre": "LÁMPARA CIELÍTICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a15",
+    "a11",
+    "a10",
+    "a12",
+    "a8",
+    "a1",
+    "a3",
+    "a2",
+    "a38"
+   ]
+  },
+  {
+   "key": "p17",
+   "nombre": "MÁQUINA DE ANESTESIA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a20",
+    "a15",
+    "a14",
+    "a13",
+    "a10",
+    "a12",
+    "a8",
+    "a7",
+    "a4",
+    "a6",
+    "a2",
+    "a1"
+   ]
+  },
+  {
+   "key": "p18",
+   "nombre": "MONITOR DE SIGNOS VITALES BÁSICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a20",
+    "a16",
+    "a13",
+    "a14",
+    "a15",
+    "a12",
+    "a10",
+    "a7",
+    "a8",
+    "a4",
+    "a1",
+    "a2",
+    "a26",
+    "a24",
+    "a25"
+   ]
+  },
+  {
+   "key": "p19",
+   "nombre": "FLUJÓMETRO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a14",
+    "a10",
+    "a8",
+    "a1",
+    "a3",
+    "a35"
+   ]
+  },
+  {
+   "key": "p20",
+   "nombre": "REGULADOR DE OXÍGENO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a14",
+    "a8",
+    "a1",
+    "a3"
+   ]
+  },
+  {
+   "key": "p21",
+   "nombre": "TENSIÓMETRO ANALÓGICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a10",
+    "a8",
+    "a4",
+    "a1",
+    "a52",
+    "a24",
+    "a65",
+    "a14",
+    "a63"
+   ]
+  },
+  {
+   "key": "p22",
+   "nombre": "TENSIÓMETRO DIGITAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a14",
+    "a13",
+    "a10",
+    "a12",
+    "a7",
+    "a8",
+    "a4",
+    "a2"
+   ]
+  },
+  {
+   "key": "p23",
+   "nombre": "OXÍMETRO DE PULSO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a21",
+    "a13",
+    "a10",
+    "a12",
+    "a8",
+    "a7",
+    "a4",
+    "a1",
+    "a26"
+   ]
+  },
+  {
+   "key": "p24",
+   "nombre": "MONITOR MULTIPARAMETROS CON IBP Y CO2, CO",
+   "Descripcion": "Monitores multiparametros con modulos de IBP; CO2, CO, gases anestesicos",
+   "actividadKeys": [
+    "a28",
+    "a27",
+    "a26",
+    "a25",
+    "a21",
+    "a20",
+    "a13",
+    "a12",
+    "a7",
+    "a2",
+    "a1",
+    "a4",
+    "a10",
+    "a44",
+    "a45"
+   ]
+  },
+  {
+   "key": "p25",
+   "nombre": "ECÓGRAFO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a29",
+    "a21",
+    "a18",
+    "a15",
+    "a16",
+    "a12",
+    "a10",
+    "a8",
+    "a7",
+    "a2",
+    "a1"
+   ]
+  },
+  {
+   "key": "p26",
+   "nombre": "LÁMPARA DE EXAMINACIÓN",
+   "Descripcion": "Lámparas auxiliares o cuello de cisne",
+   "actividadKeys": [
+    "a19",
+    "a15",
+    "a10",
+    "a11",
+    "a3",
+    "a7",
+    "a38"
+   ]
+  },
+  {
+   "key": "p27",
+   "nombre": "MESA DE CIRUGÍA ELECTROHIDRÁULICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a23",
+    "a19",
+    "a15",
+    "a10",
+    "a8",
+    "a4",
+    "a3",
+    "a2",
+    "a1",
+    "a36"
+   ]
+  },
+  {
+   "key": "p28",
+   "nombre": "MESA DE CIRUGÍA O PARTO MECÁNICA",
+   "Descripcion": "Mesas de cirugía o parto mecÁnicas",
+   "actividadKeys": [
+    "a19",
+    "a10",
+    "a3",
+    "a1"
+   ]
+  },
+  {
+   "key": "p29",
+   "nombre": "MESA DE CIRUGIÁ ELECTROMECÁNICA",
+   "Descripcion": "Mesas con motores eléctricos, sillones",
+   "actividadKeys": [
+    "a37",
+    "a19",
+    "a15",
+    "a11",
+    "a8",
+    "a7",
+    "a2",
+    "a3",
+    "a4",
+    "a1"
+   ]
+  },
+  {
+   "key": "p30",
+   "nombre": "UNIDAD ODONTOLÓGICA",
+   "Descripcion": "Unidaes con sillones eléctricos",
+   "actividadKeys": [
+    "a15",
+    "a1",
+    "a2",
+    "a19",
+    "a37",
+    "a17",
+    "a14",
+    "a11",
+    "a38",
+    "a4",
+    "a8",
+    "a56"
+   ]
+  },
+  {
+   "key": "p31",
+   "nombre": "COMPRESOR ODONTOLÓGICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a14",
+    "a11",
+    "a8",
+    "a10",
+    "a5",
+    "a3",
+    "a1"
+   ]
+  },
+  {
+   "key": "p32",
+   "nombre": "UNIDAD ODONTOLÓGICA PORTÁTIL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a17",
+    "a14",
+    "a15",
+    "a11",
+    "a4",
+    "a3",
+    "a1",
+    "a38"
+   ]
+  },
+  {
+   "key": "p33",
+   "nombre": "LÁMPARA DE FOTOCURADO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a38",
+    "a12",
+    "a10",
+    "a11",
+    "a7",
+    "a8",
+    "a2",
+    "a1",
+    "a39"
+   ]
+  },
+  {
+   "key": "p34",
+   "nombre": "MICROSCOPIO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a41",
+    "a40",
+    "a39",
+    "a38",
+    "a19",
+    "a15",
+    "a11",
+    "a8",
+    "a4",
+    "a2",
+    "a1"
+   ]
+  },
+  {
+   "key": "p35",
+   "nombre": "NEGATOSCOPIO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a38",
+    "a19",
+    "a15",
+    "a12",
+    "a10",
+    "a11",
+    "a1"
+   ]
+  },
+  {
+   "key": "p36",
+   "nombre": "CENTRIFUGA",
+   "Descripcion": "Microcentrifugas, serofugas",
+   "actividadKeys": [
+    "a42",
+    "a19",
+    "a15",
+    "a11",
+    "a12",
+    "a10",
+    "a8",
+    "a2",
+    "a3",
+    "a54"
+   ]
+  },
+  {
+   "key": "p37",
+   "nombre": "MICROPIPETA",
+   "Descripcion": "Monocanal y multicanal",
+   "actividadKeys": [
+    "a21",
+    "a19",
+    "a10",
+    "a8",
+    "a3",
+    "a1",
+    "a43"
+   ]
+  },
+  {
+   "key": "p38",
+   "nombre": "NEVERA / REFRIGERADOR",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a46",
+    "a11",
+    "a2",
+    "a15",
+    "a10",
+    "a38",
+    "a13",
+    "a21",
+    "a8",
+    "a5",
+    "a47",
+    "a48",
+    "a49"
+   ]
+  },
+  {
+   "key": "p39",
+   "nombre": "BALANZA PARA BOLSA DE SANGRE",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a10",
+    "a3",
+    "a1",
+    "a21"
+   ]
+  },
+  {
+   "key": "p40",
+   "nombre": "SELLADOR DE BOLSA DE SANGRE",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a1",
+    "a11",
+    "a3",
+    "a2",
+    "a15",
+    "a32"
+   ]
+  },
+  {
+   "key": "p41",
+   "nombre": "EQUIPO ELECTRÓNICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a11",
+    "a2",
+    "a8",
+    "a15",
+    "a7",
+    "a10",
+    "a4",
+    "a56",
+    "a1",
+    "a67",
+    "a12"
+   ]
+  },
+  {
+   "key": "p42",
+   "nombre": "BÁSCULA ANALÓGICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a19",
+    "a3",
+    "a10",
+    "a8",
+    "a21",
+    "a79"
+   ]
+  },
+  {
+   "key": "p43",
+   "nombre": "INCUBADORA NEONATAL / SERVOCUNA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a49",
+    "a7",
+    "a32",
+    "a10",
+    "a50",
+    "a48",
+    "a51",
+    "a21",
+    "a13",
+    "a4",
+    "a2",
+    "a19",
+    "a8"
+   ]
+  },
+  {
+   "key": "p44",
+   "nombre": "EQUIPO DE ÓRGANOS DE LOS SENTIDOS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a10",
+    "a7",
+    "a53",
+    "a39",
+    "a38",
+    "a4",
+    "a1",
+    "a8",
+    "a57"
+   ]
+  },
+  {
+   "key": "p45",
+   "nombre": "BAÑO SEROLÓGICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a10",
+    "a49",
+    "a32",
+    "a12",
+    "a51",
+    "a21",
+    "a15",
+    "a8"
+   ]
+  },
+  {
+   "key": "p46",
+   "nombre": "AGITADOR DE MAZZINI",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a10",
+    "a49",
+    "a12",
+    "a19",
+    "a8",
+    "a55",
+    "a56"
+   ]
+  },
+  {
+   "key": "p47",
+   "nombre": "CUENTA CÉLULAS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a10",
+    "a8",
+    "a19"
+   ]
+  },
+  {
+   "key": "p48",
+   "nombre": "INCUBADORA DE LABORATORIO / HORNO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a11",
+    "a2",
+    "a15",
+    "a49",
+    "a32",
+    "a10",
+    "a12",
+    "a51",
+    "a8"
+   ]
+  },
+  {
+   "key": "p49",
+   "nombre": "CAVITRÓN / SCALER",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a17",
+    "a15",
+    "a10",
+    "a12",
+    "a8"
+   ]
+  },
+  {
+   "key": "p50",
+   "nombre": "PIEZA DE MANO ODONTOLÓGICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a10",
+    "a14",
+    "a8",
+    "a56"
+   ]
+  },
+  {
+   "key": "p51",
+   "nombre": "GLUCÓMETRO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a7",
+    "a10",
+    "a12",
+    "a6",
+    "a56"
+   ]
+  },
+  {
+   "key": "p52",
+   "nombre": "ELECTROBISTURÍS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a10",
+    "a2",
+    "a58",
+    "a12",
+    "a13",
+    "a20",
+    "a8",
+    "a56",
+    "a4"
+   ]
+  },
+  {
+   "key": "p53",
+   "nombre": "CABINA DE FLUJO LAMINAR / BIOSEGURIDAD",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a10",
+    "a50",
+    "a55",
+    "a48",
+    "a38",
+    "a21",
+    "a8",
+    "a11",
+    "a12",
+    "a19",
+    "a56"
+   ]
+  },
+  {
+   "key": "p54",
+   "nombre": "TENS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a7",
+    "a59",
+    "a10",
+    "a12",
+    "a4",
+    "a21"
+   ]
+  },
+  {
+   "key": "p55",
+   "nombre": "ULTRASONIDO TERAPIA FÍSICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a15",
+    "a10",
+    "a29",
+    "a21",
+    "a4",
+    "a56",
+    "a12",
+    "a8"
+   ]
+  },
+  {
+   "key": "p56",
+   "nombre": "TENSIÓMETRO ADULTO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a1",
+    "a8",
+    "a10",
+    "a52",
+    "a21",
+    "a4",
+    "a56"
+   ]
+  },
+  {
+   "key": "p57",
+   "nombre": "BALANZA PESA BEBÉ",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a2",
+    "a1",
+    "a11",
+    "a8",
+    "a7",
+    "a10",
+    "a12",
+    "a21"
+   ]
+  },
+  {
+   "key": "p58",
+   "nombre": "REGULADOR DE OXÍGENO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a10",
+    "a3",
+    "a19",
+    "a62",
+    "a63"
+   ]
+  },
+  {
+   "key": "p59",
+   "nombre": "EQUIPO DE HEMOGLOBINA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a10",
+    "a4",
+    "a13",
+    "a12",
+    "a1",
+    "a20",
+    "a19"
+   ]
+  },
+  {
+   "key": "p60",
+   "nombre": "VENTILADOR MECÁNICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a14",
+    "a7",
+    "a10",
+    "a12",
+    "a4",
+    "a21",
+    "a63",
+    "a13",
+    "a6",
+    "a50",
+    "a64"
+   ]
+  },
+  {
+   "key": "p61",
+   "nombre": "LÁMPARA DE FOTOTERAPIA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a11",
+    "a37",
+    "a15",
+    "a10",
+    "a12",
+    "a38",
+    "a8",
+    "a19"
+   ]
+  },
+  {
+   "key": "p62",
+   "nombre": "MANTA TÉRMICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a11",
+    "a49",
+    "a32",
+    "a8"
+   ]
+  },
+  {
+   "key": "p63",
+   "nombre": "MASAJEADOR ELÉCTRICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a10",
+    "a12",
+    "a3",
+    "a19"
+   ]
+  },
+  {
+   "key": "p64",
+   "nombre": "AMALGAMADOR",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a3",
+    "a15",
+    "a10",
+    "a55",
+    "a12",
+    "a8"
+   ]
+  },
+  {
+   "key": "p65",
+   "nombre": "ELECTROCAUTERIO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a58",
+    "a59",
+    "a10",
+    "a12",
+    "a13",
+    "a4",
+    "a8"
+   ]
+  },
+  {
+   "key": "p66",
+   "nombre": "MICROCENTRIFUGA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a3",
+    "a11",
+    "a15",
+    "a55",
+    "a42",
+    "a12",
+    "a54",
+    "a21",
+    "a8"
+   ]
+  },
+  {
+   "key": "p67",
+   "nombre": "SEROFUGA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a11",
+    "a23",
+    "a15",
+    "a10",
+    "a55",
+    "a42",
+    "a8"
+   ]
+  },
+  {
+   "key": "p68",
+   "nombre": "MONITOR FETAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a15",
+    "a7",
+    "a10",
+    "a12",
+    "a29",
+    "a18",
+    "a13",
+    "a2",
+    "a8"
+   ]
+  },
+  {
+   "key": "p69",
+   "nombre": "CONGELADOR",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a11",
+    "a46",
+    "a5",
+    "a13",
+    "a47",
+    "a48",
+    "a10",
+    "a49",
+    "a15",
+    "a8"
+   ]
+  },
+  {
+   "key": "p70",
+   "nombre": "BÁSCULA ANALÓGICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a10",
+    "a65",
+    "a8"
+   ]
+  },
+  {
+   "key": "p71",
+   "nombre": "BÁSCULA CON TALLÍMETRO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a3",
+    "a65",
+    "a15",
+    "a7",
+    "a10",
+    "a12",
+    "a8",
+    "a19"
+   ]
+  },
+  {
+   "key": "p72",
+   "nombre": "BALANZA ANALÓGICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a65",
+    "a10",
+    "a19",
+    "a8"
+   ]
+  },
+  {
+   "key": "p73",
+   "nombre": "ULTRACONGELADOR",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a46",
+    "a11",
+    "a15",
+    "a49",
+    "a10",
+    "a48",
+    "a5",
+    "a12",
+    "a51",
+    "a13",
+    "a47",
+    "a63"
+   ]
+  },
+  {
+   "key": "p74",
+   "nombre": "FRONTO LUZ",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a10",
+    "a38",
+    "a8",
+    "a20",
+    "a65",
+    "a7",
+    "a4"
+   ]
+  },
+  {
+   "key": "p75",
+   "nombre": "LARINGOSCOPIO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a10",
+    "a57",
+    "a39",
+    "a38",
+    "a4"
+   ]
+  },
+  {
+   "key": "p76",
+   "nombre": "ULTRASONIDO TERAPIA FÍSICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a2",
+    "a15",
+    "a10",
+    "a12",
+    "a66",
+    "a8"
+   ]
+  },
+  {
+   "key": "p77",
+   "nombre": "EQUIPO MECÁNICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a65",
+    "a67",
+    "a10",
+    "a19",
+    "a56",
+    "a8"
+   ]
+  },
+  {
+   "key": "p78",
+   "nombre": "INFANTOMETRO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a68",
+    "a20",
+    "a71",
+    "a69",
+    "a19",
+    "a73",
+    "a1"
+   ]
+  },
+  {
+   "key": "p79",
+   "nombre": "CINTA METRICA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a68",
+    "a71",
+    "a69",
+    "a19",
+    "a20",
+    "a73",
+    "a1"
+   ]
+  },
+  {
+   "key": "p80",
+   "nombre": "TALLIMETRO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a69",
+    "a71",
+    "a68",
+    "a20",
+    "a19",
+    "a73"
+   ]
+  },
+  {
+   "key": "p81",
+   "nombre": "TERMOMETRO INFRARROJO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a71",
+    "a19",
+    "a69",
+    "a68",
+    "a72",
+    "a20",
+    "a73",
+    "a1"
+   ]
+  },
+  {
+   "key": "p82",
+   "nombre": "COMPRESOR DE AIRE MEDICINAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a17",
+    "a14",
+    "a65",
+    "a36",
+    "a8",
+    "a15",
+    "a10",
+    "a50",
+    "a5",
+    "a12",
+    "a9",
+    "a13",
+    "a4",
+    "a21",
+    "a63",
+    "a19",
+    "a20",
+    "a46"
+   ]
+  },
+  {
+   "key": "p83",
+   "nombre": "CARBOXI",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a69",
+    "a20",
+    "a2",
+    "a31",
+    "a1",
+    "a3",
+    "a11",
+    "a8",
+    "a15",
+    "a59",
+    "a10",
+    "a12",
+    "a16"
+   ]
+  },
+  {
+   "key": "p84",
+   "nombre": "TENSAMAX",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a69",
+    "a20",
+    "a2",
+    "a1",
+    "a11",
+    "a8",
+    "a66",
+    "a15",
+    "a10",
+    "a4",
+    "a16"
+   ]
+  },
+  {
+   "key": "p85",
+   "nombre": "VENUS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a19",
+    "a69",
+    "a20",
+    "a2",
+    "a31",
+    "a1",
+    "a73",
+    "a3",
+    "a11",
+    "a8",
+    "a66",
+    "a15",
+    "a49",
+    "a10",
+    "a32",
+    "a50",
+    "a48",
+    "a29",
+    "a4",
+    "a16"
+   ]
+  },
+  {
+   "key": "p86",
+   "nombre": "PIPETEADOR",
+   "Descripcion": "EQUIPO ELECTRONICO CON MOTOR DE SUCCIÓN Y CON BATERIA RECARGABLE",
+   "actividadKeys": [
+    "a56",
+    "a19",
+    "a69",
+    "a2",
+    "a1",
+    "a37",
+    "a3",
+    "a8",
+    "a7"
+   ]
+  },
+  {
+   "key": "p87",
+   "nombre": "AGITADOR MAGNETICO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a56",
+    "a19",
+    "a69",
+    "a2",
+    "a1",
+    "a55",
+    "a74"
+   ]
+  },
+  {
+   "key": "p88",
+   "nombre": "CÁMARA DE ELECTROFORESIS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a56",
+    "a69",
+    "a68",
+    "a1",
+    "a11",
+    "a8"
+   ]
+  },
+  {
+   "key": "p89",
+   "nombre": "PH-METER",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a56",
+    "a69",
+    "a68",
+    "a2",
+    "a1",
+    "a15",
+    "a59",
+    "a10",
+    "a21",
+    "a75"
+   ]
+  },
+  {
+   "key": "p90",
+   "nombre": "CENTRIFUGA REFRIGERADA",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a56",
+    "a19",
+    "a69",
+    "a68",
+    "a2",
+    "a1",
+    "a11",
+    "a65",
+    "a49",
+    "a10",
+    "a75",
+    "a42",
+    "a55",
+    "a5",
+    "a63",
+    "a47"
+   ]
+  },
+  {
+   "key": "p91",
+   "nombre": "COMPRESOR DE AIRE MEDICINAL",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a14",
+    "a65",
+    "a11",
+    "a50",
+    "a12",
+    "a21",
+    "a13",
+    "a4",
+    "a55",
+    "a76",
+    "a77"
+   ]
+  },
+  {
+   "key": "p92",
+   "nombre": "BOMBA DE VACÍO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a69",
+    "a3",
+    "a11",
+    "a65",
+    "a19",
+    "a14",
+    "a8",
+    "a50",
+    "a10",
+    "a12"
+   ]
+  },
+  {
+   "key": "p93",
+   "nombre": "DUCHA LAVA OJOS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a63",
+    "a10",
+    "a8",
+    "a3",
+    "a56"
+   ]
+  },
+  {
+   "key": "p94",
+   "nombre": "AGITADOR DE PLAQUETAS",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a1",
+    "a3",
+    "a10",
+    "a49",
+    "a12",
+    "a19",
+    "a8",
+    "a55",
+    "a56",
+    "a78"
+   ]
+  },
+  {
+   "key": "p95",
+   "nombre": "VAPOR DE OZONO",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a71",
+    "a19",
+    "a30",
+    "a2",
+    "a1",
+    "a3",
+    "a11",
+    "a65",
+    "a8"
+   ]
+  },
+  {
+   "key": "p96",
+   "nombre": "SISTEMA DE MICRODERMOABRACIÓN",
+   "Descripcion": "",
+   "actividadKeys": [
+    "a20",
+    "a19",
+    "a1",
+    "a73",
+    "a15",
+    "a66",
+    "a10",
+    "a75",
+    "a48",
+    "a29",
+    "a21",
+    "a4",
+    "a63",
+    "a13",
+    "a16"
+   ]
+  }
+ ],
+ "items": [
+  {
+   "key": "i1",
+   "Nombre": "SUCCIONADOR PORTÁTIL",
+   "Observacion": "Equipos pequeños de un  solo frasco",
+   "protocoloKey": "p1"
+  },
+  {
+   "key": "i2",
+   "Nombre": "DESFIBRILADOR",
+   "Observacion": "",
+   "protocoloKey": "p2"
+  },
+  {
+   "key": "i3",
+   "Nombre": "Bomba Hidráulica",
+   "Observacion": "",
+   "protocoloKey": null
+  },
+  {
+   "key": "i4",
+   "Nombre": "Bloque de Calibración",
+   "Observacion": "Medios isotermos para calibración",
+   "protocoloKey": "p4"
+  },
+  {
+   "key": "i5",
+   "Nombre": "Cámara de clima constante",
+   "Observacion": "Medio de calibracion de equipos de condiciones ambientales",
+   "protocoloKey": "p4"
+  },
+  {
+   "key": "i6",
+   "Nombre": "Baño liquido",
+   "Observacion": "Medio isotermo para calibración de temperatura",
+   "protocoloKey": "p4"
+  },
+  {
+   "key": "i7",
+   "Nombre": "TERMÓMETRO DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i8",
+   "Nombre": "TERMOHIGRÓMETRO DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i9",
+   "Nombre": "REGULADOR DE OXÍGENO",
+   "Observacion": "",
+   "protocoloKey": "p6"
+  },
+  {
+   "key": "i10",
+   "Nombre": "BANDA CAMINADORA",
+   "Observacion": "",
+   "protocoloKey": "p6"
+  },
+  {
+   "key": "i11",
+   "Nombre": "OXÍMETRO DE PULSO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i12",
+   "Nombre": "TENSIÓMETRO ANALÓGICO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i13",
+   "Nombre": "BÁSCULA DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i14",
+   "Nombre": "FLUJÓMETRO SENCILLO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i15",
+   "Nombre": "CPAP",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i16",
+   "Nombre": "POLISOMNOGRAFO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i17",
+   "Nombre": "BANDA CAMINADORA",
+   "Observacion": "",
+   "protocoloKey": "p6"
+  },
+  {
+   "key": "i18",
+   "Nombre": "UNIDAD ODONTOLÓGICA PORTÁTIL",
+   "Observacion": "",
+   "protocoloKey": "p30"
+  },
+  {
+   "key": "i19",
+   "Nombre": "NEVERA",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i20",
+   "Nombre": "SELLADOR DE BOLSA DE SANGRE",
+   "Observacion": "",
+   "protocoloKey": "p12"
+  },
+  {
+   "key": "i21",
+   "Nombre": "BALANZA PARA BOLASA DE SANGRE",
+   "Observacion": "",
+   "protocoloKey": "p39"
+  },
+  {
+   "key": "i22",
+   "Nombre": "CENTRIFUGA",
+   "Observacion": "",
+   "protocoloKey": "p36"
+  },
+  {
+   "key": "i23",
+   "Nombre": "MICROSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p34"
+  },
+  {
+   "key": "i24",
+   "Nombre": "EQUIPO ELECTRÓNICO",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i25",
+   "Nombre": "MICROPIPETA",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i26",
+   "Nombre": "BÁSCULA ANALOGICA",
+   "Observacion": "",
+   "protocoloKey": "p72"
+  },
+  {
+   "key": "i27",
+   "Nombre": "BALANZA ELECTRÓNICA",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i28",
+   "Nombre": "BOMBA DE INFUSIÓN",
+   "Observacion": "",
+   "protocoloKey": "p9"
+  },
+  {
+   "key": "i29",
+   "Nombre": "DOPPLER FETAL",
+   "Observacion": "",
+   "protocoloKey": "p8"
+  },
+  {
+   "key": "i30",
+   "Nombre": "MONITOR MULTIPARAMETROS BÁSICO",
+   "Observacion": "",
+   "protocoloKey": "p18"
+  },
+  {
+   "key": "i31",
+   "Nombre": "ECOGRAFO",
+   "Observacion": "",
+   "protocoloKey": "p25"
+  },
+  {
+   "key": "i32",
+   "Nombre": "INCUBADORA ABIERTA / SERVOCUNA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i33",
+   "Nombre": "LÁMPARA AUXILIAR PIELÍTICA",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i34",
+   "Nombre": "MESA DE PARTOS",
+   "Observacion": "",
+   "protocoloKey": "p28"
+  },
+  {
+   "key": "i35",
+   "Nombre": "MONITOR FETAL",
+   "Observacion": "",
+   "protocoloKey": "p8"
+  },
+  {
+   "key": "i36",
+   "Nombre": "MONITOR MULTIPARÁMETROS CON IBP",
+   "Observacion": "",
+   "protocoloKey": "p24"
+  },
+  {
+   "key": "i37",
+   "Nombre": "INCUBADORA NEONATAL",
+   "Observacion": "",
+   "protocoloKey": "p43"
+  },
+  {
+   "key": "i38",
+   "Nombre": "EQUIPO DE ÓRGANOS DE LOS SENTIDOS",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i39",
+   "Nombre": "AGITADOR DE MAZZINI",
+   "Observacion": "",
+   "protocoloKey": "p36"
+  },
+  {
+   "key": "i40",
+   "Nombre": "AUTOCLAVE",
+   "Observacion": "",
+   "protocoloKey": "p10"
+  },
+  {
+   "key": "i41",
+   "Nombre": "PIEZA DE MANO DE ALTA VELOCIDAD",
+   "Observacion": "",
+   "protocoloKey": "p50"
+  },
+  {
+   "key": "i42",
+   "Nombre": "PIEZA DE MANO DE BAJA DE VELOCIDAD",
+   "Observacion": "",
+   "protocoloKey": "p50"
+  },
+  {
+   "key": "i43",
+   "Nombre": "AMALGAMADOR",
+   "Observacion": "",
+   "protocoloKey": "p46"
+  },
+  {
+   "key": "i44",
+   "Nombre": "LÁMPARA FOTOCURADO",
+   "Observacion": "",
+   "protocoloKey": "p33"
+  },
+  {
+   "key": "i45",
+   "Nombre": "NEVERA DE INSUMOS ODONTOLOGICO",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i46",
+   "Nombre": "UNIDAD ODONTOLÓGICA",
+   "Observacion": "",
+   "protocoloKey": "p30"
+  },
+  {
+   "key": "i47",
+   "Nombre": "FONENDOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p15"
+  },
+  {
+   "key": "i48",
+   "Nombre": "CONGELADOR HORIZONTAL",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i49",
+   "Nombre": "CONGELADOR",
+   "Observacion": "",
+   "protocoloKey": "p69"
+  },
+  {
+   "key": "i50",
+   "Nombre": "NEVERA HORIZONTAL DE VACUNAS",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i51",
+   "Nombre": "TERMÓMETRO DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i52",
+   "Nombre": "MICROSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p34"
+  },
+  {
+   "key": "i53",
+   "Nombre": "HORNO DE CULTIVO",
+   "Observacion": "",
+   "protocoloKey": "p48"
+  },
+  {
+   "key": "i54",
+   "Nombre": "CUENTA CÉLULAS",
+   "Observacion": "",
+   "protocoloKey": "p47"
+  },
+  {
+   "key": "i55",
+   "Nombre": "LARINGOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p44"
+  },
+  {
+   "key": "i56",
+   "Nombre": "MICROPIPETA",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i57",
+   "Nombre": "DOPPLER FETAL",
+   "Observacion": "",
+   "protocoloKey": "p8"
+  },
+  {
+   "key": "i58",
+   "Nombre": "FONENDOSCOPIO PEDIÁTRICO",
+   "Observacion": "",
+   "protocoloKey": "p15"
+  },
+  {
+   "key": "i59",
+   "Nombre": "TENSIÓMETRO DE PARED",
+   "Observacion": "",
+   "protocoloKey": "p21"
+  },
+  {
+   "key": "i60",
+   "Nombre": "TERMÓMETRO CORPORAL",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i61",
+   "Nombre": "COMPRESOR ODONTOLÓGICO",
+   "Observacion": "",
+   "protocoloKey": "p31"
+  },
+  {
+   "key": "i62",
+   "Nombre": "CAVITRÓN",
+   "Observacion": "",
+   "protocoloKey": "p49"
+  },
+  {
+   "key": "i63",
+   "Nombre": "NEVERA DE INSUMOS",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i64",
+   "Nombre": "SUCCIONADOR",
+   "Observacion": "",
+   "protocoloKey": "p1"
+  },
+  {
+   "key": "i65",
+   "Nombre": "TENSIÓMETRO PEDIÁTRICO",
+   "Observacion": "",
+   "protocoloKey": "p21"
+  },
+  {
+   "key": "i66",
+   "Nombre": "NEGATOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p35"
+  },
+  {
+   "key": "i67",
+   "Nombre": "FRONTOLUZ",
+   "Observacion": "",
+   "protocoloKey": "p74"
+  },
+  {
+   "key": "i68",
+   "Nombre": "ELECTROCARDIÓGRAFO",
+   "Observacion": "",
+   "protocoloKey": "p14"
+  },
+  {
+   "key": "i69",
+   "Nombre": "BALANZA PESA BEBÉ",
+   "Observacion": "",
+   "protocoloKey": "p57"
+  },
+  {
+   "key": "i70",
+   "Nombre": "RECUMBENT MAGNÉTICA",
+   "Observacion": "",
+   "protocoloKey": "p13"
+  },
+  {
+   "key": "i71",
+   "Nombre": "INCUBADORA DE LABORATORIO",
+   "Observacion": "",
+   "protocoloKey": "p48"
+  },
+  {
+   "key": "i72",
+   "Nombre": "EQUIPO DE HEMOGLOBINA",
+   "Observacion": "",
+   "protocoloKey": "p59"
+  },
+  {
+   "key": "i73",
+   "Nombre": "REGULADOR DE OXÍGENO",
+   "Observacion": "",
+   "protocoloKey": "p58"
+  },
+  {
+   "key": "i74",
+   "Nombre": "CABINA DE FLUJO LAMINAR",
+   "Observacion": "",
+   "protocoloKey": "p53"
+  },
+  {
+   "key": "i75",
+   "Nombre": "VENTILADOR MECÁNICO",
+   "Observacion": "",
+   "protocoloKey": "p60"
+  },
+  {
+   "key": "i76",
+   "Nombre": "TENS DE FISIOTERAPIA",
+   "Observacion": "",
+   "protocoloKey": "p54"
+  },
+  {
+   "key": "i77",
+   "Nombre": "LÁMPARA DE FOTOTERAPIA",
+   "Observacion": "",
+   "protocoloKey": "p61"
+  },
+  {
+   "key": "i78",
+   "Nombre": "MICROCENTRIFUGA",
+   "Observacion": "",
+   "protocoloKey": "p66"
+  },
+  {
+   "key": "i79",
+   "Nombre": "SERÓFUGA",
+   "Observacion": "",
+   "protocoloKey": "p67"
+  },
+  {
+   "key": "i80",
+   "Nombre": "BALANZA ALALÓGICA",
+   "Observacion": "",
+   "protocoloKey": "p57"
+  },
+  {
+   "key": "i81",
+   "Nombre": "ULTRACONGELADOR",
+   "Observacion": "",
+   "protocoloKey": "p73"
+  },
+  {
+   "key": "i82",
+   "Nombre": "LARINGOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p75"
+  },
+  {
+   "key": "i83",
+   "Nombre": "MASAJEADOR",
+   "Observacion": "",
+   "protocoloKey": "p63"
+  },
+  {
+   "key": "i84",
+   "Nombre": "ULTRASONIDO TERAPIA FÍSICA",
+   "Observacion": "",
+   "protocoloKey": "p55"
+  },
+  {
+   "key": "i85",
+   "Nombre": "VAPOR DE OZONO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i86",
+   "Nombre": "EQUIPO DE LIMPIEZA FACIAL",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i87",
+   "Nombre": "REACTION",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i88",
+   "Nombre": "CORRIENTE RUSA",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i89",
+   "Nombre": "ONDAS DE CHOKE",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i90",
+   "Nombre": "ONDAS DE CHOKE",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i91",
+   "Nombre": "LASER",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i92",
+   "Nombre": "LIPOMAX",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i93",
+   "Nombre": "CEPILLO TERAPIA CAPILAR",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i94",
+   "Nombre": "CEPILLO TERAPIA CAPILAR",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i95",
+   "Nombre": "LAMPARA TERAPIA CAPILAR",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i96",
+   "Nombre": "EQUIPO DE LIMPIEZA FACIAL",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i97",
+   "Nombre": "SUCIONADOR DE HUMO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i98",
+   "Nombre": "EQUIPO LASER",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i99",
+   "Nombre": "LAMPARA CIELITICA",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i100",
+   "Nombre": "DERMA-POD",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i101",
+   "Nombre": "ELECTROCAUTERIO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i102",
+   "Nombre": "CAMA DE PROCEDIMIENTO",
+   "Observacion": "",
+   "protocoloKey": "p11"
+  },
+  {
+   "key": "i103",
+   "Nombre": "SOLI-TONE",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i104",
+   "Nombre": "LUPA LED",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i105",
+   "Nombre": "CAMARA DE COLAGENO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i106",
+   "Nombre": "HAND FOOT",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i107",
+   "Nombre": "CAMARA DE COLAGENO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i108",
+   "Nombre": "NANOPORE",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i109",
+   "Nombre": "TENSIÓMETRO DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p22"
+  },
+  {
+   "key": "i110",
+   "Nombre": "HIDROCOLECTOR",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i111",
+   "Nombre": "LASER DE ALTA INTENSIDAD",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i112",
+   "Nombre": "SILLA DE RUEDAS",
+   "Observacion": "",
+   "protocoloKey": "p72"
+  },
+  {
+   "key": "i113",
+   "Nombre": "GLUCOMETRO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i114",
+   "Nombre": "MAQUINA DE ANESTESIA",
+   "Observacion": "",
+   "protocoloKey": "p17"
+  },
+  {
+   "key": "i115",
+   "Nombre": "ELECTROBISTURÍ",
+   "Observacion": "",
+   "protocoloKey": "p52"
+  },
+  {
+   "key": "i116",
+   "Nombre": "MESA PARA CIRUGIA",
+   "Observacion": "",
+   "protocoloKey": "p28"
+  },
+  {
+   "key": "i117",
+   "Nombre": "MONITOR MULTIPARAMETROS CON CAPNOGRAFÍA",
+   "Observacion": "",
+   "protocoloKey": "p24"
+  },
+  {
+   "key": "i118",
+   "Nombre": "BÁSCULA CON TALLÍMETRO",
+   "Observacion": "",
+   "protocoloKey": "p71"
+  },
+  {
+   "key": "i119",
+   "Nombre": "CAMA ELÉCTRICA",
+   "Observacion": "",
+   "protocoloKey": "p11"
+  },
+  {
+   "key": "i120",
+   "Nombre": "LÁMPARA  LUZ LED",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i121",
+   "Nombre": "LÁMPARA CUELLO DE CISNE",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i122",
+   "Nombre": "CINTA MÉTRICA",
+   "Observacion": "",
+   "protocoloKey": "p23"
+  },
+  {
+   "key": "i123",
+   "Nombre": "TALLIMETRO",
+   "Observacion": "",
+   "protocoloKey": "p71"
+  },
+  {
+   "key": "i124",
+   "Nombre": "INFANTOMETRO",
+   "Observacion": "",
+   "protocoloKey": "p35"
+  },
+  {
+   "key": "i125",
+   "Nombre": "TERMÓMETRO INFRARROJO",
+   "Observacion": "",
+   "protocoloKey": "p81"
+  },
+  {
+   "key": "i126",
+   "Nombre": "NEUROBIT",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i127",
+   "Nombre": "LAXMAN",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i128",
+   "Nombre": "STIMCER",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i129",
+   "Nombre": "CAMA HOSPITALARIA",
+   "Observacion": "",
+   "protocoloKey": "p12"
+  },
+  {
+   "key": "i130",
+   "Nombre": "TANQUE DE PARAFINA",
+   "Observacion": "",
+   "protocoloKey": "p45"
+  },
+  {
+   "key": "i131",
+   "Nombre": "LASER DE ALTA INTENSIDAD 2",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i132",
+   "Nombre": "LYMPHASTIM",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i133",
+   "Nombre": "BÁSCULA ANALIZADOR DE MASA CORPORAL",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i134",
+   "Nombre": "LÁMPARA DE LUZ INFRARROJA",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i135",
+   "Nombre": "MARTILLO DE REFLEJO",
+   "Observacion": "",
+   "protocoloKey": "p42"
+  },
+  {
+   "key": "i136",
+   "Nombre": "LINTERNA MEDICA",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i137",
+   "Nombre": "COMPRESOR DE AIRE MEDICINAL",
+   "Observacion": "",
+   "protocoloKey": "p82"
+  },
+  {
+   "key": "i138",
+   "Nombre": "COLPOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i139",
+   "Nombre": "RAYOS X",
+   "Observacion": "",
+   "protocoloKey": "p29"
+  },
+  {
+   "key": "i140",
+   "Nombre": "MANTA TERMICA",
+   "Observacion": "",
+   "protocoloKey": "p10"
+  },
+  {
+   "key": "i141",
+   "Nombre": "TERMOMETRO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i142",
+   "Nombre": "TERMOHIGROMETRO ANALOGO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i143",
+   "Nombre": "LAMPARA DE AGLUTINACION",
+   "Observacion": "",
+   "protocoloKey": "p16"
+  },
+  {
+   "key": "i144",
+   "Nombre": "EQUIPO DE HEMATOLOGIA",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i145",
+   "Nombre": "ANALIZADOR DE QUIMICA",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i146",
+   "Nombre": "CAMARA DE FLUJO LAMINAR",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i147",
+   "Nombre": "AGITADOR DE PIPETAS",
+   "Observacion": "",
+   "protocoloKey": "p46"
+  },
+  {
+   "key": "i148",
+   "Nombre": "BAÑO SEROLOGICO",
+   "Observacion": "",
+   "protocoloKey": "p45"
+  },
+  {
+   "key": "i149",
+   "Nombre": "CABINA DE BIOSEGURIDAD",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i150",
+   "Nombre": "FLUJOMETRO DOBLE",
+   "Observacion": "",
+   "protocoloKey": "p19"
+  },
+  {
+   "key": "i151",
+   "Nombre": "BICICLETA ESTATICA",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i152",
+   "Nombre": "ELIPTICA SPORFIT",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i153",
+   "Nombre": "BANCO PARA PIERNA",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i154",
+   "Nombre": "EQUIPO DE ORGANOS DE PARED",
+   "Observacion": "",
+   "protocoloKey": "p44"
+  },
+  {
+   "key": "i155",
+   "Nombre": "NEBULIZADOR",
+   "Observacion": "",
+   "protocoloKey": "p1"
+  },
+  {
+   "key": "i156",
+   "Nombre": "INFUSOR QX",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i157",
+   "Nombre": "CAMA PEDIATRICA",
+   "Observacion": "",
+   "protocoloKey": "p11"
+  },
+  {
+   "key": "i158",
+   "Nombre": "MONITOR FETAL",
+   "Observacion": "",
+   "protocoloKey": "p68"
+  },
+  {
+   "key": "i159",
+   "Nombre": "NEVERA DE RESIDUOS BIOLOGICOS",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i160",
+   "Nombre": "MANIFOLDS",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i161",
+   "Nombre": "VASER",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i162",
+   "Nombre": "DOPPLER FETAL",
+   "Observacion": "",
+   "protocoloKey": "p8"
+  },
+  {
+   "key": "i163",
+   "Nombre": "BALANZA ANALITICA",
+   "Observacion": "",
+   "protocoloKey": "p57"
+  },
+  {
+   "key": "i164",
+   "Nombre": "OSCILOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p3"
+  },
+  {
+   "key": "i165",
+   "Nombre": "BÁSCULA DIGITAL",
+   "Observacion": "",
+   "protocoloKey": "p7"
+  },
+  {
+   "key": "i166",
+   "Nombre": "CARBOXI",
+   "Observacion": "",
+   "protocoloKey": "p83"
+  },
+  {
+   "key": "i167",
+   "Nombre": "VENUS",
+   "Observacion": "",
+   "protocoloKey": "p85"
+  },
+  {
+   "key": "i168",
+   "Nombre": "TENSAMAX",
+   "Observacion": "",
+   "protocoloKey": "p84"
+  },
+  {
+   "key": "i169",
+   "Nombre": "MICROPIPETA MONOCANAL",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i170",
+   "Nombre": "MICROPIPETA PLUS",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i171",
+   "Nombre": "PIPETA AUTOCLAVE",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i172",
+   "Nombre": "PIPETA DE VOLUMEN VARIABLE",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i173",
+   "Nombre": "PIPETA VOLUMEN VARIABLE",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i174",
+   "Nombre": "PIPETA MECANCA",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i175",
+   "Nombre": "PIPETA MECANICA",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i176",
+   "Nombre": "DATALOGGER DE TEMPERATURA",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i177",
+   "Nombre": "DATALOGGER DE HUMEDAD Y TEMPERATURA",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i178",
+   "Nombre": "AGITADOR TIPO VORTEX",
+   "Observacion": "",
+   "protocoloKey": "p46"
+  },
+  {
+   "key": "i179",
+   "Nombre": "BAÑO MARIA",
+   "Observacion": "",
+   "protocoloKey": "p45"
+  },
+  {
+   "key": "i180",
+   "Nombre": "MICROSCOPIO DE FLUORESCENCIA CON CÁMARA DP 71",
+   "Observacion": "",
+   "protocoloKey": "p34"
+  },
+  {
+   "key": "i181",
+   "Nombre": "MICROSCOPIO INVERTIDO",
+   "Observacion": "",
+   "protocoloKey": "p34"
+  },
+  {
+   "key": "i182",
+   "Nombre": "MINI CENTRIFUGA",
+   "Observacion": "",
+   "protocoloKey": "p66"
+  },
+  {
+   "key": "i183",
+   "Nombre": "PIPETEADOR",
+   "Observacion": "",
+   "protocoloKey": "p86"
+  },
+  {
+   "key": "i184",
+   "Nombre": "AGITADOR MAGNETICO",
+   "Observacion": "",
+   "protocoloKey": "p87"
+  },
+  {
+   "key": "i185",
+   "Nombre": "REFRIGERADOR VERTICAL",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i186",
+   "Nombre": "CÁMARA DE ELECTROFORESIS",
+   "Observacion": "",
+   "protocoloKey": "p88"
+  },
+  {
+   "key": "i187",
+   "Nombre": "SISTEMA MINI PROTEAN 3",
+   "Observacion": "",
+   "protocoloKey": "p88"
+  },
+  {
+   "key": "i188",
+   "Nombre": "PH-METER",
+   "Observacion": "",
+   "protocoloKey": "p89"
+  },
+  {
+   "key": "i189",
+   "Nombre": "CENTRIFUGA REFRIGERADA",
+   "Observacion": "",
+   "protocoloKey": "p90"
+  },
+  {
+   "key": "i190",
+   "Nombre": "ESTEREOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p34"
+  },
+  {
+   "key": "i191",
+   "Nombre": "FUENTE DE PODER",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i192",
+   "Nombre": "HORNO DE SECADO",
+   "Observacion": "",
+   "protocoloKey": "p48"
+  },
+  {
+   "key": "i193",
+   "Nombre": "LAMPARA MICROSCOPIO DE FLUORESCENCIA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i194",
+   "Nombre": "LECTOR DE ELISA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i195",
+   "Nombre": "MICROTOMO DE ROTACIÓN",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i196",
+   "Nombre": "SHAKER DE MICROELISA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i197",
+   "Nombre": "SHAKER DE MICROELISA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i198",
+   "Nombre": "INCUBADORA CO2",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i199",
+   "Nombre": "ESPECTROFOTOMETRO",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i200",
+   "Nombre": "CÁMARA MINI IEF CELL",
+   "Observacion": "",
+   "protocoloKey": "p88"
+  },
+  {
+   "key": "i201",
+   "Nombre": "BOMBA DE VACIO",
+   "Observacion": "",
+   "protocoloKey": "p1"
+  },
+  {
+   "key": "i202",
+   "Nombre": "BALANCIN",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i203",
+   "Nombre": "BAÑO DE FLOTACION",
+   "Observacion": "",
+   "protocoloKey": "p45"
+  },
+  {
+   "key": "i204",
+   "Nombre": "DISPENSADOR DE PARAFINA",
+   "Observacion": "",
+   "protocoloKey": "p41"
+  },
+  {
+   "key": "i205",
+   "Nombre": "FRABICA DE HIELO EN ESCAMAS",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i206",
+   "Nombre": "BAÑO SECO",
+   "Observacion": "",
+   "protocoloKey": "p4"
+  },
+  {
+   "key": "i207",
+   "Nombre": "VENTILADOR MECÁNICO",
+   "Observacion": "",
+   "protocoloKey": "p60"
+  },
+  {
+   "key": "i208",
+   "Nombre": "MICROPIPETA MONOCANAL",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i209",
+   "Nombre": "PIPETA AUTOCLAVE (12 CANALES)",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i210",
+   "Nombre": "MICROPIPETAS MULTICANALES DE 12 CANALES TIPO AEREO",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i211",
+   "Nombre": "PIPETA AUTOCLAVE (12 CANALES)",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i212",
+   "Nombre": "PIPETA AUTOCLAVE (8 CANALES)",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i213",
+   "Nombre": "PIPETA DE 12 CANALES",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i214",
+   "Nombre": "PIPETA DE 8 CANALES",
+   "Observacion": "",
+   "protocoloKey": "p37"
+  },
+  {
+   "key": "i215",
+   "Nombre": "DUCHA LAVA HOJOS",
+   "Observacion": "",
+   "protocoloKey": "p32"
+  },
+  {
+   "key": "i216",
+   "Nombre": "DUCHA LAVA OJOS",
+   "Observacion": "",
+   "protocoloKey": "p93"
+  },
+  {
+   "key": "i217",
+   "Nombre": "BALANZA LEXUS",
+   "Observacion": "",
+   "protocoloKey": "p57"
+  },
+  {
+   "key": "i218",
+   "Nombre": "BALANZA ANALITICA",
+   "Observacion": "",
+   "protocoloKey": "p57"
+  },
+  {
+   "key": "i219",
+   "Nombre": "NEVERA DE INSUMOS",
+   "Observacion": "",
+   "protocoloKey": "p38"
+  },
+  {
+   "key": "i220",
+   "Nombre": "TENSIOMETRO",
+   "Observacion": "",
+   "protocoloKey": "p21"
+  },
+  {
+   "key": "i221",
+   "Nombre": "ELECTROBISTURÍ",
+   "Observacion": "",
+   "protocoloKey": "p52"
+  },
+  {
+   "key": "i222",
+   "Nombre": "CORRIENTE RUSA",
+   "Observacion": "",
+   "protocoloKey": "p76"
+  },
+  {
+   "key": "i223",
+   "Nombre": "LAMPARA FOTCURADO",
+   "Observacion": "",
+   "protocoloKey": "p33"
+  },
+  {
+   "key": "i224",
+   "Nombre": "EQUIPO DE ORGANOS DE LOS SENTIDOS",
+   "Observacion": "",
+   "protocoloKey": "p44"
+  },
+  {
+   "key": "i225",
+   "Nombre": "TERMOHIGROMETRO",
+   "Observacion": "",
+   "protocoloKey": "p5"
+  },
+  {
+   "key": "i226",
+   "Nombre": "AUTOCLAVE ODONTOLOGICO",
+   "Observacion": "",
+   "protocoloKey": "p10"
+  },
+  {
+   "key": "i227",
+   "Nombre": "RECUMBENT MAGNETICA",
+   "Observacion": "",
+   "protocoloKey": "p13"
+  },
+  {
+   "key": "i228",
+   "Nombre": "LAMPARA CUELLO CISNE",
+   "Observacion": "",
+   "protocoloKey": "p26"
+  },
+  {
+   "key": "i229",
+   "Nombre": "FONENDOSCOPIO",
+   "Observacion": "",
+   "protocoloKey": "p15"
+  },
+  {
+   "key": "i230",
+   "Nombre": "SILLA DE RUEDAS",
+   "Observacion": "",
+   "protocoloKey": "p12"
+  },
+  {
+   "key": "i231",
+   "Nombre": "VAPOR DE OZONO",
+   "Observacion": "",
+   "protocoloKey": "p49"
+  },
+  {
+   "key": "i232",
+   "Nombre": "BOMBA DE INFUSIÓN",
+   "Observacion": "",
+   "protocoloKey": "p9"
+  },
+  {
+   "key": "i233",
+   "Nombre": "SISTEMA DE MICRODERMOABRASION",
+   "Observacion": "",
+   "protocoloKey": "p96"
+  },
+  {
+   "key": "i234",
+   "Nombre": "Maquina de anestesia",
+   "Observacion": "",
+   "protocoloKey": "p60"
+  },
+  {
+   "key": "i235",
+   "Nombre": "MONITOR DE SIGNOS VITALES",
+   "Observacion": "",
+   "protocoloKey": "p18"
+  },
+  {
+   "key": "i236",
+   "Nombre": "OXIMETRO DE PULSO",
+   "Observacion": "",
+   "protocoloKey": "p23"
+  }
+ ],
+ "protocoloActividades": []
+}
