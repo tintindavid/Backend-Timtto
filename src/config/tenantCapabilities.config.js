@@ -142,6 +142,8 @@ export const COMMON_ROUTE_PREFIXES = Object.freeze([
   '/api/v1/pdf-reports',
   // dashboard indicators: read-only; each section reports `disponible: false` by capability/permission itself
   '/api/v1/dashboard',
+  // equipment search and summary: read-only; the summary gates each section by capability/permission itself
+  '/api/v1/busqueda',
   // notifications
   '/api/v1/notifications',
   '/api/v1/notification-rules',

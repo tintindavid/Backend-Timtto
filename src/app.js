@@ -40,6 +40,7 @@ import hvEquipoRoutes from './routes/hvequipo.routes.js';
 import informeRoutes from './routes/informe.routes.js';
 import informeGenerateRoutes from './routes/informeGenerate.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import busquedaRoutes from './routes/busqueda.routes.js';
 import itemsRoutes from './routes/items.routes.js';
 import otRoutes from './routes/ot.routes.js';
 import protocoloActividadRoutes from './routes/protocoloactividad.routes.js';
@@ -218,6 +219,7 @@ app.use('/api/v1/informes', informeRoutes);
 app.use('/api/v1/informes', informeGenerateRoutes);
 // Dashboard indicators (tenant scoped, aggregated server-side)
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/busqueda', busquedaRoutes);
 app.use('/api/v1/items', itemsRoutes);
 app.use('/api/v1/ots', otRoutes);
 app.use('/api/v1/protocolo-actividad', protocoloActividadRoutes);
