@@ -1,4 +1,6 @@
 import { TenantService } from '../services/tenant.service.js';
+import { getDemoConfig } from '../services/demo/demoContext.service.js';
+import { getDemoUsage } from '../services/demo/demoLimits.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import { ApiError } from '../utils/apiError.util.js';
 
@@ -43,6 +45,26 @@ export class MyTenantController {
 
       const data = await TenantService.getCapabilities(String(tenantId).trim().toLowerCase());
       return res.status(200).json(successResponse(data, 'Capacidades recuperadas'));
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  /**
+   * GET /api/v1/my-tenant/demo
+   * Limits and current usage when the effective tenant is a demo account.
+   */
+  static async getDemoStatus(req, res, next) {
+    try {
+      const tenantId = String(req.tenantId || req.user?.tenantId || '').trim().toLowerCase();
+      if (!tenantId) {
+        return next(new ApiError(400, 'No tenantId asociado al usuario', 'TENANT_MISSING'));
+      }
+      const demo = await getDemoConfig(tenantId);
+      const data = demo
+        ? { enabled: true, limits: demo.limits, usage: await getDemoUsage(tenantId) }
+        : { enabled: false };
+      return res.status(200).json(successResponse(data, 'Estado de demostración'));
     } catch (err) {
       return next(err);
     }

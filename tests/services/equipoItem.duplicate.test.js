@@ -5,6 +5,7 @@
  * (tasks.md 6.2/6.3/6.4). DB-free — EquipoItem statics are monkey-patched
  * (same convention as tests/services/reports.guard.test.js).
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { Customer } from '../../src/models/customer.model.js';
 import assert from 'node:assert/strict';

@@ -1,3 +1,4 @@
+import { withDemoPdfQuota } from '../services/demo/demoPdfQuota.service.js';
 import { sheetWorkService } from '../services/sheetwork.service.js';
 import { successResponse } from '../utils/apiResponse.util.js';
 import SheetWorkPDFService from '../services/sheetworkPDF.service.js';
@@ -125,7 +126,7 @@ export class SheetWorkController {
       // Obtener datos del sheetwork para construir el nombre del archivo
       const sheetWork = await sheetWorkService.getById(id, tenantId);
       
-      const pdfBuffer = await pdfService.generatePDF(id, tenantId);
+      const pdfBuffer = await withDemoPdfQuota(tenantId, 'sheetwork', [id], () => pdfService.generatePDF(id, tenantId));
 
       // Construir nombre del archivo: HT-{consecutivo}-{cliente}.pdf
       const consecutivo = sheetWork.numeroHoja || 'SN';

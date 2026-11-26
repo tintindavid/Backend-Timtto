@@ -57,6 +57,8 @@ export const createTenantWithAdminSchema = Joi.object({
     nit: Joi.string().trim().max(50).allow(null, '').optional(),
     website: Joi.string().uri().allow(null, '').optional(),
     plan: Joi.string().trim().max(50).optional(),
+    // Demo account (sample data and usage limits). Inside `tenant` so multipart requests carry it.
+    isDemo: Joi.boolean().optional(),
     // Accepted inside `tenant` too (multipart clients send only `tenant` and `admin` as JSON).
     type: typeSchema.optional(),
     capabilities: capabilitiesSchema.optional(),
@@ -79,6 +81,8 @@ export const createTenantWithAdminSchema = Joi.object({
 })
   .unknown(false)
   .custom((value, helpers) => {
+    // A demo account always gets every capability and manages customers: type/capabilities are ignored.
+    if (value.tenant?.isDemo === true) return value;
     const sources = [value.type, value.capabilities, value.tenant?.type, value.tenant?.capabilities]
       .filter((v) => v !== undefined);
     if (sources.length > 1) return helpers.error('capabilities.ambiguous');

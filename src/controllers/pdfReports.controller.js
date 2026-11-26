@@ -1,4 +1,6 @@
 'use strict';
+import { withDemoPdfQuota, withDemoReportSlots } from '../services/demo/demoPdfQuota.service.js';
+import { getDemoConfig } from '../services/demo/demoContext.service.js';
 import BulkPDFGenerator from '../services/bulkPDFGenerator.js';
 import PDFMicroserviceClient from '../services/pdfMicroserviceClient.js';
 import { getHTMLTemplate, generateHTMLFromReport } from '../utils/htmlTemplateGenerator.js';
@@ -30,6 +32,12 @@ export async function generateBulkPDFs(req, res, next) {
       return res.status(400).json(errorResponse('Debes proporcionar reportIds, otId, sheetworkId o filters', 'INVALID_PARAMS'));
     }
 
+    // Demo accounts generate the ZIP of one worksheet only: the download quota is per sheet.
+    const isDemo = Boolean(await getDemoConfig(tenantId));
+    if (isDemo && (!sheetworkId || reportIds?.length || otId)) {
+      throw new ApiError(403, 'En las cuentas de demostración el ZIP de reportes se descarga desde una hoja de trabajo', 'DEMO_FEATURE_BLOCKED', { feature: 'reports-zip' });
+    }
+
     query = applyTenantFilter({ ...query, isDeleted: false }, tenantId);
 
     
@@ -56,11 +64,12 @@ export async function generateBulkPDFs(req, res, next) {
 
     const generator = new BulkPDFGenerator();
     const template = getHTMLTemplate();
-    const zipBuffer = await generator.generateBulkPDFs(
-      reportsWithRepuestos,
+    const build = () => withDemoReportSlots(tenantId, reportsWithRepuestos, (allowed) => generator.generateBulkPDFs(
+      allowed,
       (report) => generateHTMLFromReport(report, tenantData, template),
-      { fileNameConfig }
-    );
+      { fileNameConfig, tenantId }
+    ));
+    const zipBuffer = isDemo ? await withDemoPdfQuota(tenantId, 'reportsZip', [sheetworkId], build) : await build();
 
     const iso = new Date().toISOString().split('T')[0];
     const fileName = `reportes_${iso}_${Date.now()}.zip`;
@@ -86,7 +95,8 @@ export async function generateSinglePDF(req, res, next) {
     const client = new PDFMicroserviceClient();
     const template = getHTMLTemplate();
     const html = generateHTMLFromReport(fullReport, template);
-    const pdfBuffer = await client.generatePDF(html);
+    const pdfBuffer = await withDemoReportSlots(tenantId, [report], () => withDemoPdfQuota(tenantId, 'report', [report._id],
+      () => client.generatePDF(html, {}, { tenantId })));
 
     const fileName = `${report.consecutivo || report._id}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
@@ -116,7 +126,8 @@ export async function downloadReportPDF(req, res, next) {
     const fullReport = { ...report, repuestos };
 
     const html = generateHTMLFromReport(fullReport, tenantData, getHTMLTemplate());
-    const pdfBuffer = await new PDFMicroserviceClient().generatePDF(html);
+    const pdfBuffer = await withDemoReportSlots(tenantId, [report], () => withDemoPdfQuota(tenantId, 'report', [report._id],
+      () => new PDFMicroserviceClient().generatePDF(html, {}, { tenantId })));
 
     const consecutivo = report.consecutivo || '';
     const itemText = report.equipoSnapshot?.ItemText || '';

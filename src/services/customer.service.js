@@ -65,6 +65,8 @@ export function sanitizeCustomerUpdate(data) {
   return clean;
 }
 
+import { withDemoQuota } from './demo/demoLimits.service.js';
+
 export class CustomerService {
   /**
    * Crea un nuevo customer con logo (si se proporciona)
@@ -108,17 +110,20 @@ export class CustomerService {
         }
       }
 
-      // Si se proporciona un logo, subirlo a Firebase Storage
-      if (logoFile && logoFile.buffer) {
-        logger.info('Subiendo logo a Firebase Storage...');
-        const logoUrl = await firebaseStorageService.uploadLogo(
-          logoFile.buffer,
-          logoFile.originalname,
-          logoFile.mimetype
-        );
-        data.Logo = logoUrl;
-      }
-      const entity = await Customer.create(data);
+      // Providers are not limited in demo accounts.
+      const entity = await withDemoQuota(t, 'customers', kind === 'customer' ? 1 : 0, async () => {
+        // Si se proporciona un logo, subirlo a Firebase Storage
+        if (logoFile && logoFile.buffer) {
+          logger.info('Subiendo logo a Firebase Storage...');
+          const logoUrl = await firebaseStorageService.uploadLogo(
+            logoFile.buffer,
+            logoFile.originalname,
+            logoFile.mimetype
+          );
+          data.Logo = logoUrl;
+        }
+        return Customer.create(data);
+      });
 
       // Providers have no branches or services: skip the default Sede/Servicio.
       if (kind === 'provider') {

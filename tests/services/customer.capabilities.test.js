@@ -2,6 +2,7 @@
  * tests/services/customer.capabilities.test.js
  * tenant-capabilities-hybrid-mode, task 2.4 (service + controller). DB-free: model statics are stubbed.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

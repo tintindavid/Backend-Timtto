@@ -1,3 +1,4 @@
+import { blockInDemo } from '../services/demo/demoContext.service.js';
 import { Router } from 'express';
 import { downloadCronogramaPDF, downloadCronogramaExcel, previewCronogramaHTML, getActividadesExternas } from '../controllers/cronograma.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -26,6 +27,7 @@ router.post(
   '/excel',
   authenticate,
   authorize(PERMISSIONS.EQUIPO_ITEMS_READ),
+  blockInDemo('excel-cronograma'),
   extractUserId,
   validate(cronogramaPDFDto, 'body'),
   downloadCronogramaExcel,

@@ -5,6 +5,7 @@
  * every signed HT whose otId is in the current token's scope. Writes
  * (signExistingSheet) stay under D12 — covered by clientPortalSignExisting.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

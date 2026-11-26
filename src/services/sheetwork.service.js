@@ -1,3 +1,4 @@
+import { getDemoConfig } from './demo/demoContext.service.js';
 import { SheetWork } from '../models/sheetwork.model.js';
 import { Report } from '../models/report.model.js';
 import { OT } from '../models/ot.model.js';
@@ -530,9 +531,14 @@ export class SheetWorkService {
 
     setImmediate(() => {
       const pdfService = new SheetWorkPDFService();
-      pdfService
-        .generatePDF(String(sheetId), tenantId)
-        .then(async (pdfBuffer) => {
+      // Demo accounts never store the signed PDF (it would bypass the download quota).
+      getDemoConfig(tenantId)
+        .then(async (demo) => {
+          if (demo) {
+            await SheetWork.updateOne(applyTenantFilter({ _id: sheetId }, tenantId), { $set: { pdfStatus: 'ready' } });
+            return;
+          }
+          const pdfBuffer = await pdfService.generatePDF(String(sheetId), tenantId);
           const { url } = await firebaseStorageService.uploadPdf(
             pdfBuffer,
             `HT-${sheet.numeroHoja || sheetId}.pdf`,

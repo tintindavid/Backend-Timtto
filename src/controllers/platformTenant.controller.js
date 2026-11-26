@@ -131,6 +131,18 @@ export class PlatformTenantController {
   }
 
   /**
+   * POST /api/v1/platform/tenants/:id/demo/seed
+   */
+  static async retryDemoSeed(req, res, next) {
+    try {
+      const result = await PlatformTenantService.retryDemoSeed(req.params.id);
+      return res.status(200).json(successResponse(result, 'Datos de ejemplo procesados'));
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  /**
    * DELETE /api/v1/platform/tenants/:id
    */
   static async softDelete(req, res, next) {

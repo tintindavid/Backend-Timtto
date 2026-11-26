@@ -1,3 +1,4 @@
+import { blockInDemo } from '../services/demo/demoContext.service.js';
 import { Router } from 'express';
 import { customerController } from '../controllers/customer.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -19,8 +20,10 @@ router.patch('/:id', authorize(PERMISSIONS.CUSTOMERS_UPDATE), uploadLogo, handle
 router.get('/', authorize(PERMISSIONS.CUSTOMERS_READ), validate(queryCustomerDto, 'query'), customerController.list);
 // CSV export must be registered BEFORE the generic /:id route so the literal
 // "export" segment isn't parsed as an ObjectId.
-router.get('/export', authorize(PERMISSIONS.CUSTOMERS_READ), customerController.exportCsv);
-router.get('/:id/inventario', authorize(PERMISSIONS.CUSTOMERS_DOWNLOAD_INVENTARIO), customerController.downloadInventario);
+router.get('/export', authorize(PERMISSIONS.CUSTOMERS_READ), blockInDemo('excel-clientes'), customerController.exportCsv);
+router.get('/:id/inventario', authorize(PERMISSIONS.CUSTOMERS_DOWNLOAD_INVENTARIO),
+  blockInDemo('excel-inventario', (req) => String(req.query.formato || 'excel').toLowerCase() === 'excel'),
+  customerController.downloadInventario);
 router.get('/:id', authorize(PERMISSIONS.CUSTOMERS_READ), customerController.getById);
 router.delete('/:id', authorize(PERMISSIONS.CUSTOMERS_DELETE), customerController.delete);
 

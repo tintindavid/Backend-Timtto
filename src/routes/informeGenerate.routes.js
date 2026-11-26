@@ -1,3 +1,4 @@
+import { blockInDemo } from '../services/demo/demoContext.service.js';
 import { Router } from 'express';
 import { informeGenerateController } from '../controllers/informeGenerate.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -11,10 +12,10 @@ const router = Router();
 router.use(authenticate);
 
 router.post('/generate',     authorize(PERMISSIONS.INFORMES_GENERATE), validate(generateInformeDto, 'body'), informeGenerateController.generateData.bind(informeGenerateController));
-router.post('/generate/pdf', authorize(PERMISSIONS.INFORMES_GENERATE), validate(generateInformeDto, 'body'), informeGenerateController.generatePdf.bind(informeGenerateController));
+router.post('/generate/pdf', authorize(PERMISSIONS.INFORMES_GENERATE), blockInDemo('informe-general'), validate(generateInformeDto, 'body'), informeGenerateController.generatePdf.bind(informeGenerateController));
 router.post('/por-ot',       authorize(PERMISSIONS.INFORMES_GENERATE), validate(informeGenerateByOtDto, 'body'), informeGenerateController.generateByOt.bind(informeGenerateController));
 router.post('/por-ot/pdf',   authorize(PERMISSIONS.INFORMES_GENERATE), validate(informeGenerateByOtDto, 'body'), informeGenerateController.downloadPdfByOt.bind(informeGenerateController));
 router.post('/por-ot/evidencias', authorize(PERMISSIONS.INFORMES_GENERATE), validate(informeEvidenciasByOtDto, 'body'), informeGenerateController.listEvidenciasByOt.bind(informeGenerateController));
-router.post('/por-ot/xlsx',  authorize(PERMISSIONS.INFORMES_GENERATE), validate(informeGenerateByOtDto, 'body'), informeGenerateController.downloadXlsxByOt.bind(informeGenerateController));
+router.post('/por-ot/xlsx',  authorize(PERMISSIONS.INFORMES_GENERATE), blockInDemo('excel-informe'), validate(informeGenerateByOtDto, 'body'), informeGenerateController.downloadXlsxByOt.bind(informeGenerateController));
 
 export default router;

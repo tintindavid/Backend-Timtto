@@ -209,7 +209,7 @@ export class RequisicionPortalPublicoService {
       consecutivo: ctx.row.consecutivo,
       titulo: ctx.row.titulo,
       proveedorNombre: ctx.row.proveedor.nombre,
-    }, { requisicionId: String(ctx.row._id) });
+    }, { tenantId: ctx.row.tenantId, requisicionId: String(ctx.row._id) });
   }
 
   // ------------------------------------------------------------------------------------------ answer the invitation

@@ -1,3 +1,4 @@
+import { blockInDemo } from '../services/demo/demoContext.service.js';
 import { Router } from 'express';
 import { requisicionController } from '../controllers/requisicion.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -63,7 +64,7 @@ router.post('/', authorize(PERMISSIONS.REQUISICIONES_CREATE), validate(createReq
 // self-scoped (any module user); the tenant section of it, the metrics and the list export need `requisiciones:reports`.
 router.get('/tablero', requisicionReportesUserLimiter, validate(queryTableroDto, 'query'), requisicionReporteController.tablero);
 router.get('/metricas', authorize(PERMISSIONS.REQUISICIONES_REPORTS), requisicionReportesUserLimiter, validate(queryMetricasDto, 'query'), requisicionReporteController.metricas);
-router.get('/export/xlsx', authorize(PERMISSIONS.REQUISICIONES_REPORTS), requisicionReportesUserLimiter, validate(queryExportListadoDto, 'query'), requisicionReporteController.exportListado);
+router.get('/export/xlsx', authorize(PERMISSIONS.REQUISICIONES_REPORTS), blockInDemo('excel-requisiciones'), requisicionReportesUserLimiter, validate(queryExportListadoDto, 'query'), requisicionReporteController.exportListado);
 
 router.get('/:id', authorizeReadOrParticipation(), validate(objectIdParamDto, 'params'), requisicionController.getById);
 router.patch('/:id', authorize(PERMISSIONS.REQUISICIONES_UPDATE), validate(objectIdParamDto, 'params'), validate(updateRequisicionDto, 'body'), requisicionController.update);
@@ -125,8 +126,8 @@ router.get('/:id/orden-compra/pdf', authorizeReadOrParticipation(), idParams, O.
 // like the detail); the comparison needs the purchasing permissions. The list export is declared above, before the `/:id` routes.
 const R = requisicionReporteController;
 router.get('/:id/export/pdf', authorizeReadOrParticipation(), requisicionReportesUserLimiter, idParams, R.exportPdf);
-router.get('/:id/export/xlsx', authorizeReadOrParticipation(), requisicionReportesUserLimiter, idParams, R.exportXlsx);
-router.get('/:id/licitacion/comparativo/export', authorizeAny(PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS, PERMISSIONS.REQUISICIONES_SELECT_WINNER), requisicionReportesUserLimiter, idParams, validate(queryComparativoExportDto, 'query'), R.exportComparativo);
+router.get('/:id/export/xlsx', authorizeReadOrParticipation(), blockInDemo('excel-requisiciones'), requisicionReportesUserLimiter, idParams, R.exportXlsx);
+router.get('/:id/licitacion/comparativo/export', authorizeAny(PERMISSIONS.REQUISICIONES_MANAGE_SUPPLIERS, PERMISSIONS.REQUISICIONES_SELECT_WINNER), blockInDemo('excel-requisiciones', (req) => req.query.formato === 'xlsx'), requisicionReportesUserLimiter, idParams, validate(queryComparativoExportDto, 'query'), R.exportComparativo);
 
 router.post('/:id/entregables', deliverables, idParams, uploadEntregablesArchivos, handleMulterError, validate(subirEntregablesDto, 'body'), O.subirEntregables);
 router.patch('/:id/entregables/marcar-recibidos', deliverables, idParams, validate(emptyBodyDto, 'body'), O.marcarRecibidos);

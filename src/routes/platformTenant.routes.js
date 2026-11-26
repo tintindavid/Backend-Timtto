@@ -124,6 +124,17 @@ router.patch(
 );
 
 /**
+ * POST /api/v1/platform/tenants/:id/demo/seed
+ * Completes the sample data of a demo account. Idempotent.
+ */
+router.post(
+  '/:id/demo/seed',
+  authenticate,
+  requireSuperAdmin,
+  PlatformTenantController.retryDemoSeed,
+);
+
+/**
  * DELETE /api/v1/platform/tenants/:id
  * Soft-delete. UI requires two-step confirmation. Returns 204.
  */

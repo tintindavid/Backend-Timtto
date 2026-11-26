@@ -1,4 +1,5 @@
 'use strict';
+import { withDemoPdfQuota } from '../services/demo/demoPdfQuota.service.js';
 import { informeGenerateService } from '../services/informeGenerate.service.js';
 import { informeGenerateByOtService } from '../services/informeGenerateByOt.service.js';
 import { buildInformeHtml } from '../services/informeHtml.service.js';
@@ -76,7 +77,7 @@ export class InformeGenerateController {
         landscape: false,
         printBackground: true,
         margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' },
-      });
+      }, { tenantId });
 
       const clienteNombre = sanitizeFilename(payload.meta.clienteNombre);
       const periodo       = sanitizeFilename(payload.meta.periodoLabel);
@@ -141,12 +142,12 @@ export class InformeGenerateController {
 
       const html = buildInformeHtmlByOt(payload);
 
-      const pdfBuffer = await pdfClient.generatePDF(html, {
+      const pdfBuffer = await withDemoPdfQuota(tenantId, 'informeOt', otIds, () => pdfClient.generatePDF(html, {
         format: 'A4',
         landscape: false,
         printBackground: true,
         margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' },
-      });
+      }, { tenantId }));
 
       const clienteNombre = sanitizeFilename(payload.meta.clienteNombre) || 'cliente';
       const fecha = new Date().toISOString().slice(0, 10);

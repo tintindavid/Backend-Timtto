@@ -3,6 +3,7 @@ import axios from 'axios';
 import { logger } from '../config/logger.config.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { env } from '../config/env.js';
+import { watermarkIfDemo } from '../utils/demoWatermark.util.js';
 
 export default class PDFMicroserviceClient {
   constructor(config = {}) {
@@ -17,7 +18,14 @@ export default class PDFMicroserviceClient {
     this.config = { url: normalizedBase, endpoint, healthUrl: `${healthBase}/health`, timeout, ...config };
   }
 
-  async generatePDF(html, options = {}) {
+  /**
+   * @param {string} html
+   * @param {object} [options] Puppeteer PDF options
+   * @param {{ tenantId: string }} context REQUIRED: demo accounts get a watermark, so every caller names its tenant.
+   */
+  async generatePDF(html, options = {}, { tenantId } = {}) {
+    if (!tenantId) throw new ApiError(500, 'Falta el tenant para generar el PDF', 'PDF_TENANT_REQUIRED');
+    const finalHtml = await watermarkIfDemo(html, tenantId);
     try {
       logger.debug(`PDF Microservice endpoint: ${this.config.endpoint}`);
       const defaultOptions = {
@@ -26,7 +34,7 @@ export default class PDFMicroserviceClient {
         printBackground: true,
         margin: { top: '10mm', right: '8mm', bottom: '10mm', left: '8mm' },
       };
-      const body = { html, options: { ...defaultOptions, ...options } };
+      const body = { html: finalHtml, options: { ...defaultOptions, ...options } };
 
       logger.debug('Sending request to PDF microservice...');
       logger.debug(JSON.stringify(body).substring(0, 500)); // log first 500 chars only

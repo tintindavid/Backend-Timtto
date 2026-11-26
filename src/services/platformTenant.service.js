@@ -1,3 +1,4 @@
+import { seedDemoTenant, seedDeps } from './demo/demoSeed.service.js';
 import mongoose from 'mongoose';
 import { Tenant } from '../models/tenant.model.js';
 import { User } from '../models/user.model.js';
@@ -15,7 +16,9 @@ import { PERMISSION_VALUES } from '../constants/permissions.js';
 import { logger } from '../config/logger.config.js';
 import { env } from '../config/env.js';
 import { seedRequisicionDefaults } from './requisicionSeed.service.js';
+import { DEMO_LIMITS } from '../constants/demo.constants.js';
 import {
+  ALL_CAPABILITIES_ENABLED,
   getTenantType,
   normalizeCapabilities,
   resolveCapabilitiesInput,
@@ -222,6 +225,30 @@ export class PlatformTenantService {
   }
 
   /**
+   * Loads the sample data of a newly created demo account and adds the outcome as `demoSeed`.
+   * @private
+   */
+  static async _withDemoSeed(result) {
+    if (result.tenant.demo?.enabled !== true) return result;
+    const demoSeed = await seedDemoTenant(result.tenant.tenantId);
+    return {
+      ...result,
+      tenant: { ...result.tenant, demo: { ...result.tenant.demo, seedStatus: demoSeed.status } },
+      demoSeed,
+    };
+  }
+
+  /** Completes the sample data of a demo account (only what is missing). */
+  static async retryDemoSeed(id) {
+    const tenant = mongoose.isValidObjectId(id) ? await Tenant.findById(id).lean() : null;
+    if (!tenant) throw new ApiError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
+    if (tenant.demo?.enabled !== true) {
+      throw new ApiError(400, 'El tenant no es una cuenta de demostración', 'NOT_A_DEMO_TENANT');
+    }
+    return seedDemoTenant(tenant.tenantId);
+  }
+
+  /**
    * Creates a Tenant + first admin User atomically.
    * Uses Mongoose sessions + withTransaction (requires Atlas / replica set).
    * Falls back to compensatory flow on single-node MongoDB (design D1).
@@ -245,11 +272,13 @@ export class PlatformTenantService {
    */
   static async createWithAdmin(payload, logoFile = null) {
     const { tenant: tenantInput, admin: adminData } = payload;
-    const { type: tenantLevelType, capabilities: tenantLevelCapabilities, ...tenantData } = tenantInput;
-    const capabilities = resolveCapabilitiesInput({
-      type: payload.type ?? tenantLevelType,
-      capabilities: payload.capabilities ?? tenantLevelCapabilities,
-    });
+    const { type: tenantLevelType, capabilities: tenantLevelCapabilities, isDemo, ...tenantData } = tenantInput;
+    const capabilities = isDemo === true
+      ? { ...ALL_CAPABILITIES_ENABLED }
+      : resolveCapabilitiesInput({
+        type: payload.type ?? tenantLevelType,
+        capabilities: payload.capabilities ?? tenantLevelCapabilities,
+      });
 
     // Validate everything the organization client needs BEFORE touching the DB or Firebase.
     const contactName = `${adminData.firstName} ${adminData.lastName}`.trim();
@@ -259,6 +288,9 @@ export class PlatformTenantService {
       buildOrganizationCustomerData(tenantData, contactName);
       organization = { customerId: new mongoose.Types.ObjectId(), contactName };
     }
+
+    // A demo account is useless without its sample data: fail before writing anything.
+    if (isDemo === true) seedDeps.loadCatalog();
 
     // Fast-fail: tenantId uniqueness check before touching the DB in a loop
     const existing = await Tenant.findOne({ tenantId: tenantData.tenantId })
@@ -272,6 +304,7 @@ export class PlatformTenantService {
 
     const tenantPayload = { ...tenantData, status: 'active', capabilities };
     if (organization) tenantPayload.organizationCustomerId = organization.customerId;
+    if (isDemo === true) tenantPayload.demo = { enabled: true, limits: { ...DEMO_LIMITS }, seedStatus: 'pending' };
 
     // Optional logo upload — before the transaction so a failed upload aborts
     // creation cleanly. Orphan logos on transaction failure are acceptable.
@@ -357,13 +390,13 @@ export class PlatformTenantService {
         })
         .catch((err) => logger.error('platformTenant(tx): unhandled email error', { tenantId: createdTenant.tenantId, error: err.message }));
 
-      return {
+      return await PlatformTenantService._withDemoSeed({
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(), // password stripped by toJSON transform
         temporaryPassword,
         emailSent: env.NOTIFICATIONS_ENABLED === true,
         ...(requisicionesDefaults ? { requisicionesDefaults } : {}),
-      };
+      });
     } catch (txErr) {
       if (isTransactionUnsupportedError(txErr)) {
         logger.warn(
@@ -442,13 +475,14 @@ export class PlatformTenantService {
         })
         .catch((err) => logger.error('platformTenant(compensatory): unhandled email error', { tenantId: createdTenant.tenantId, error: err.message }));
 
-      return {
+      // Never throws, so it cannot trigger the compensation below.
+      return await PlatformTenantService._withDemoSeed({
         tenant: createdTenant.toJSON(),
         admin: createdAdmin.toJSON(),
         temporaryPassword,
         emailSent: env.NOTIFICATIONS_ENABLED === true,
         ...(requisicionesDefaults ? { requisicionesDefaults } : {}),
-      };
+      });
     } catch (userErr) {
       logger.error(
         'PlatformTenantService._createWithAdminCompensatory: user creation failed, compensating',

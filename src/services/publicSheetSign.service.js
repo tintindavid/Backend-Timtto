@@ -10,6 +10,8 @@ import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.util.js';
 import { logger } from '../config/logger.config.js';
 import { applyTenantFilter } from '../utils/tenant.util.js';
+import { getDemoConfig } from './demo/demoContext.service.js';
+import { watermarkIfDemo } from '../utils/demoWatermark.util.js';
 import { validateSignaturePng } from '../utils/validateSignaturePng.util.js';
 import { firebaseStorageService } from './external/firebase.service.js';
 import SheetWorkPDFService from './sheetworkPDF.service.js';
@@ -66,16 +68,19 @@ export class PublicSheetSignService {
     };
 
     if (resolved.status === 'signed') {
+      // Demo accounts never store the signed PDF: tell the page so it does not wait for it.
+      const isDemo = Boolean(await getDemoConfig(tenantId));
       return {
         ...basePayload,
         pdfStatus: sheet.pdfStatus,
-        pdfUrl: sheet.PdfHojaTrabajo || null,
+        pdfUrl: isDemo ? null : sheet.PdfHojaTrabajo || null,
+        ...(isDemo ? { downloadUnavailable: true } : {}),
       };
     }
 
     // active — render the preview HTML using the shared PDF template so the
     // client sees exactly what they'll sign
-    const previewHtml = this.pdfService.generateHTML(sheet, tenant || {});
+    const previewHtml = await watermarkIfDemo(this.pdfService.generateHTML(sheet, tenant || {}), tenantId);
     return { ...basePayload, previewHtml };
   }
 
@@ -97,7 +102,7 @@ export class PublicSheetSignService {
       .lean();
     if (!sheet) throw new ApiError(404, 'Hoja no encontrada', 'SHEET_NOT_FOUND');
     const tenant = await Tenant.findOne({ tenantId: tokenDoc.tenantId }).lean();
-    return this.pdfService.generateHTML(sheet, tenant || {});
+    return watermarkIfDemo(this.pdfService.generateHTML(sheet, tenant || {}), tokenDoc.tenantId);
   }
 
   async signWithToken(token, body, meta = {}) {

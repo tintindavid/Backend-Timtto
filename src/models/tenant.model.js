@@ -59,6 +59,21 @@ const TenantSchema = new Schema(
     requisiciones: {
       margenReaprobacionOcPct: { type: Number, min: 0, max: 100, default: undefined },
     },
+    // Demo account: set only by the superadmin creation flow, never by an edit route. Absent = real tenant.
+    demo: {
+      type: new Schema({
+        enabled: { type: Boolean, default: false },
+        limits: {
+          users: { type: Number, min: 0 },
+          customers: { type: Number, min: 0 },
+          equipos: { type: Number, min: 0 },
+          reportsPerOt: { type: Number },
+      pdfPerDocument: { type: Number, min: 0 },
+        },
+        seedStatus: { type: String, enum: ['pending', 'ready', 'error'], default: 'pending' },
+      }, { _id: false }),
+      default: undefined,
+    },
     // Soft delete
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },

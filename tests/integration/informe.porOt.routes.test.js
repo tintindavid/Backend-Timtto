@@ -7,6 +7,7 @@
  * controller.<method> in sequence with fake req/res objects, mocking only
  * the service singleton (the DB boundary) and the PDF microservice client.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

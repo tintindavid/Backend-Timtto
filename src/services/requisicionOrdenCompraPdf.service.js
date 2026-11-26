@@ -92,7 +92,7 @@ export class RequisicionOrdenCompraPdfService {
     if (!oc?.numero) throw new ApiError(404, 'La requisición no tiene orden de compra', 'ORDEN_COMPRA_NOT_FOUND');
     const html = buildOrdenCompraHtml(oc, view);
     try {
-      const buffer = await this._client().generatePDF(html);
+      const buffer = await this._client().generatePDF(html, {}, { tenantId: logCtx.tenantId });
       return { buffer, filename: `${oc.numero}-v${oc.version}.pdf` };
     } catch (err) {
       logger.warn('requisicion OC pdf failed', { ...logCtx, err: String(err?.message || err) });

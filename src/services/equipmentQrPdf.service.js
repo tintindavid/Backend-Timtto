@@ -116,7 +116,7 @@ export class EquipmentQrPdfService {
       format: 'A6',
       landscape: true,
       margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
-    });
+    }, { tenantId });
   }
 
   /**
@@ -173,7 +173,7 @@ export class EquipmentQrPdfService {
       format: 'A4',
       landscape: false,
       margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-    });
+    }, { tenantId });
   }
 }
 

@@ -12,6 +12,7 @@ export default class BulkPDFGenerator {
 
   async generateBulkPDFs(reports = [], htmlGenerator, options = {}) {
     this.fileNameConfig = options.fileNameConfig || null;
+    const { tenantId } = options;
     const zip = new JSZip();
     const results = { successful: 0, failed: 0, errors: [] };
     const total = reports.length;
@@ -26,7 +27,7 @@ export default class BulkPDFGenerator {
       logger.info(`Procesando ${i + 1}/${total} - Reporte: ${numeroReporte}`);
       try {
         const html = await htmlGenerator(report);
-        const pdfBuffer = await this.pdfClient.generatePDF(html);
+        const pdfBuffer = await this.pdfClient.generatePDF(html, {}, { tenantId });
         const fileName = this.generateFileName(report, i);
         zip.file(fileName, pdfBuffer);
         results.successful += 1;

@@ -8,6 +8,7 @@
  * as tests/services/equipoItem.duplicate.test.js and
  * tests/services/reports.guard.test.js).
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { Customer } from '../../src/models/customer.model.js';
 import assert from 'node:assert/strict';

@@ -1,6 +1,7 @@
 /**
  * requisiciones-e1-base-aprobacion, tasks 3.5 / 3.6: `areaId` on users, only through users:update.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

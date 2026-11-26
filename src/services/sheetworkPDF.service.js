@@ -136,7 +136,7 @@ class SheetWorkPDFService {
     };
 
       // 6. Generar PDF usando el cliente
-      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions);
+      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions, { tenantId });
 
       logger.info('PDF de Hoja de Trabajo generado exitosamente', { sheetWorkId });
       return pdfBuffer;

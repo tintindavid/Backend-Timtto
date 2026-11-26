@@ -25,6 +25,12 @@ router.get('/', authenticate, authorize(PERMISSIONS.MY_TENANT_READ), MyTenantCon
 router.get('/capabilities', authenticate, MyTenantController.getCapabilities);
 
 /**
+ * GET /api/v1/my-tenant/demo
+ * Demo limits and usage of the effective tenant. Only authentication is required: every role sees the demo banner.
+ */
+router.get('/demo', authenticate, MyTenantController.getDemoStatus);
+
+/**
  * PUT /api/v1/my-tenant
  * Updates editable metadata of the user's own tenant.
  * Restricted to role='admin'. Technicians and regular users receive 403.

@@ -11,6 +11,7 @@ import { applyTenantFilter, requireTenant } from '../utils/tenant.util.js';
 import { generateTemporaryPassword } from '../utils/temporaryPassword.util.js';
 import { emailService } from './external/email.service.js';
 import { env } from '../config/env.js';
+import { withDemoQuota } from './demo/demoLimits.service.js';
 
 export class UserService {
   async create(data) {
@@ -49,7 +50,7 @@ export class UserService {
         mustChangePassword: temporaryPassword !== null,
       };
 
-      const user = await User.create(userPayload);
+      const user = await withDemoQuota(tenantId, 'users', 1, () => User.create(userPayload));
       logger.info(`User creado: ${user._id}`);
 
       let emailSent = false;

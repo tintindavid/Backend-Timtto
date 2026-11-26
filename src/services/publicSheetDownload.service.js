@@ -1,4 +1,5 @@
 'use strict';
+import { withDemoPdfQuota, withDemoReportSlots } from './demo/demoPdfQuota.service.js';
 import mongoose from 'mongoose';
 import { SheetWork } from '../models/sheetwork.model.js';
 import { Tenant } from '../models/tenant.model.js';
@@ -56,10 +57,12 @@ export class PublicSheetDownloadService {
    * failure they'd hit again on retry anyway.
    */
   async streamHtPdf(tokenDoc) {
-    const inc = await sheetWorkDownloadTokenService.incrementHtDownload(tokenDoc._id);
-    if (!inc.ok) throw new ApiError(410, 'Sin descargas disponibles', 'DOWNLOAD_EXHAUSTED');
-
-    const pdfBuffer = await this.pdfService.generatePDF(String(tokenDoc.sheetId), tokenDoc.tenantId);
+    // The demo quota wraps the token counter so an exhausted demo does not spend the link.
+    const pdfBuffer = await withDemoPdfQuota(tokenDoc.tenantId, 'sheetwork', [tokenDoc.sheetId], async () => {
+      const inc = await sheetWorkDownloadTokenService.incrementHtDownload(tokenDoc._id);
+      if (!inc.ok) throw new ApiError(410, 'Sin descargas disponibles', 'DOWNLOAD_EXHAUSTED');
+      return this.pdfService.generatePDF(String(tokenDoc.sheetId), tokenDoc.tenantId);
+    });
     const sheet = await SheetWork.findOne(applyTenantFilter({ _id: tokenDoc.sheetId }, tokenDoc.tenantId))
       .select('numeroHoja')
       .lean();
@@ -71,9 +74,11 @@ export class PublicSheetDownloadService {
     if (!tokenDoc.allowReports) {
       throw new ApiError(403, 'Los reportes no están habilitados para este enlace', 'REPORTS_NOT_ALLOWED');
     }
-    const inc = await sheetWorkDownloadTokenService.incrementReportDownload(tokenDoc._id);
-    if (!inc.ok) throw new ApiError(410, 'Sin descargas de reportes disponibles', 'REPORTS_DOWNLOAD_EXHAUSTED');
+    // The demo quota wraps the token counter so an exhausted demo does not spend the link.
+    return withDemoPdfQuota(tokenDoc.tenantId, 'reportsZip', [tokenDoc.sheetId], () => this._buildReportsZip(tokenDoc));
+  }
 
+  async _buildReportsZip(tokenDoc) {
     const tenantId = tokenDoc.tenantId;
     const sheetId = tokenDoc.sheetId;
 
@@ -105,9 +110,13 @@ export class PublicSheetDownloadService {
     const tenantData = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
     const generator = new BulkPDFGenerator();
     const template = getHTMLTemplate();
-    const zipBuffer = await generator.generateBulkPDFs(reportsWithRepuestos, (report) =>
-      generateHTMLFromReport(report, tenantData || {}, template)
-    );
+    // The link download is spent only once there is something to deliver.
+    const zipBuffer = await withDemoReportSlots(tenantId, reportsWithRepuestos, async (allowed) => {
+      const inc = await sheetWorkDownloadTokenService.incrementReportDownload(tokenDoc._id);
+      if (!inc.ok) throw new ApiError(410, 'Sin descargas de reportes disponibles', 'REPORTS_DOWNLOAD_EXHAUSTED');
+      return generator.generateBulkPDFs(allowed, (report) =>
+        generateHTMLFromReport(report, tenantData || {}, template), { tenantId });
+    });
 
     const sheet = await SheetWork.findOne(applyTenantFilter({ _id: sheetId }, tenantId))
       .select('numeroHoja')
