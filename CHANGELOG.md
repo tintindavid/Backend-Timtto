@@ -1,3 +1,10 @@
+# [2.38.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.37.0...v2.38.0) (2026-11-26)
+
+
+### Features
+
+* **demo:** choose the organization type of demo accounts ([#60](https://github.com/tintindavid/Backend-Timtto/issues/60)) ([b208fb3](https://github.com/tintindavid/Backend-Timtto/commit/b208fb39ed889020187481bb0103b1b8d2551e81))
+
 # [2.37.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.36.0...v2.37.0) (2026-11-26)
 
 
