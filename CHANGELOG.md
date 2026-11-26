@@ -1,3 +1,10 @@
+# [2.37.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.36.0...v2.37.0) (2026-11-26)
+
+
+### Features
+
+* **demo:** demo accounts with usage limits and sample data ([#59](https://github.com/tintindavid/Backend-Timtto/issues/59)) ([f393650](https://github.com/tintindavid/Backend-Timtto/commit/f393650fbe09b8dd4c4b5c046191ea38643d590c))
+
 # [2.36.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.35.0...v2.36.0) (2026-11-26)
 
 
