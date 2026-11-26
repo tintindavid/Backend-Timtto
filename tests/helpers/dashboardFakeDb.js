@@ -14,6 +14,7 @@ export function getPath(doc, path) {
 }
 
 function condMatch(actual, cond) {
+  if (cond instanceof RegExp) return !isNil(actual) && cond.test(String(actual));
   if (cond && typeof cond === 'object' && !(cond instanceof Date) && !(typeof cond.toHexString === 'function')
     && Object.keys(cond).some((k) => k.startsWith('$'))) {
     return Object.entries(cond).every(([op, arg]) => {
