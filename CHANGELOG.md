@@ -1,3 +1,10 @@
+# [2.35.0](https://github.com/tintindavid/Backend-Timtto/compare/v2.34.1...v2.35.0) (2026-11-26)
+
+
+### Features
+
+* **dashboard:** per-tenant dashboard with compliance, activity and time indicators ([#57](https://github.com/tintindavid/Backend-Timtto/issues/57)) ([b17ff90](https://github.com/tintindavid/Backend-Timtto/commit/b17ff90902aaadebca70102af44c4059162ec29c))
+
 ## [2.34.1](https://github.com/tintindavid/Backend-Timtto/compare/v2.34.0...v2.34.1) (2026-11-13)
 
 
