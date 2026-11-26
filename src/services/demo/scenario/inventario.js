@@ -62,7 +62,8 @@ export function buildInventario(ctx) {
 
   const closed = ctx.refs.ot_cerrada;
   const corrective = ctx.refs.ot_correctiva;
-  const repuestos = [
+  // Spare part requests hang from work orders: an organization that does not execute services has none.
+  const repuestos = !closed ? [] : [
     spare({ key: 'instalado', inventoryIndex: 1, source: closed.reports[0], report: closed.reports[0], ot: closed.ot, status: 'Instalado', days: 115 }),
     spare({ key: 'solicitado', inventoryIndex: 0, source: corrective.reports[0], report: corrective.reports[0], ot: corrective.ot, status: 'Solicitado', days: 50 }),
   ];
@@ -78,9 +79,9 @@ export function buildInventario(ctx) {
     cantidad: 1,
     stockAnterior: used.stockActual,
     stockResultante: used.stockActual - 1,
-    motivo: `Instalado en ${closed.ot.Consecutivo}`,
-    referenciaTipo: 'OT',
-    referenciaId: String(closed.ot._id),
+    ...(closed
+      ? { motivo: `Instalado en ${closed.ot.Consecutivo}`, referenciaTipo: 'OT', referenciaId: String(closed.ot._id) }
+      : { motivo: 'Entregado para un mantenimiento externo', referenciaTipo: 'manual' }),
     usuarioId: String(admin._id),
     createdAt: ctx.daysAgo(114),
   });

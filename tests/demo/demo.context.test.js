@@ -15,6 +15,7 @@ import { User } from '../../src/models/user.model.js';
 import { Role } from '../../src/models/role.model.js';
 import { emailService } from '../../src/services/external/email.service.js';
 import { seedDeps } from '../../src/services/demo/demoSeed.service.js';
+import { demoId } from '../../src/services/demo/demoIds.js';
 
 const stubs = [];
 function stub(target, key, value) { stubs.push([target, key, target[key]]); target[key] = value; }
@@ -72,6 +73,39 @@ describe('demo DTOs', () => {
   });
 });
 
+describe('createWithAdmin demo by type', () => {
+  const expected = {
+    provider: { executesServices: true, registersExternal: false, managesCustomers: true, scheduleQuickLoad: false },
+    client: { executesServices: false, registersExternal: true, managesCustomers: false, scheduleQuickLoad: true },
+    hybrid: { executesServices: true, registersExternal: true, managesCustomers: true, scheduleQuickLoad: true },
+  };
+  for (const [type, flags] of Object.entries(expected)) {
+    it(`${type}: capabilities of the type, premium modules on`, async () => {
+      let persisted;
+      stub(Tenant, 'findOne', () => ({ setOptions: () => ({ lean: async () => null }) }));
+      stub(mongoose, 'startSession', async () => ({ withTransaction: async (fn) => fn(), endSession: async () => {} }));
+      stub(Tenant, 'create', async ([doc]) => { persisted = doc; return [{ ...doc, toJSON: () => doc }]; });
+      stub(Role, 'create', async ([doc]) => [{ ...doc, _id: new mongoose.Types.ObjectId() }]);
+      stub(User, 'create', async ([doc]) => [{ ...doc, toJSON: () => doc }]);
+      stub(emailService, 'sendWelcomeEmail', async () => {});
+      stub(PlatformTenantService, '_seedRequisiciones', async () => ({}));
+      stub(PlatformTenantService, '_withDemoSeed', async (r) => r);
+      stub(PlatformTenantService, '_createOrganizationClient', async () => { throw new Error('the seed creates it'); });
+      stub(seedDeps, 'loadCatalog', () => ({}));
+
+      const body = { tenant: { tenantId: 'demo1', name: 'Demo', isDemo: true }, admin, type };
+      assert.equal(createTenantWithAdminSchema.validate(body).error, undefined);
+      await PlatformTenantService.createWithAdmin(body);
+
+      assert.deepEqual(persisted.capabilities, { ...ALL_CAPABILITIES_ENABLED, ...flags });
+      assert.equal(
+        persisted.organizationCustomerId && String(persisted.organizationCustomerId),
+        type === 'client' ? String(demoId('demo1', 'customer:cliente')) : undefined,
+      );
+    });
+  }
+});
+
 describe('createWithAdmin demo', () => {
   it('persists demo limits and all capabilities, without isDemo', async () => {
     let persisted;
@@ -84,7 +118,7 @@ describe('createWithAdmin demo', () => {
     stub(PlatformTenantService, '_seedRequisiciones', async () => ({}));
     stub(seedDeps, 'loadCatalog', () => ({})); // the catalogue file is not needed here
 
-    await PlatformTenantService.createWithAdmin({ tenant: { tenantId: 'demo1', name: 'Demo', isDemo: true }, admin, type: 'client' });
+    await PlatformTenantService.createWithAdmin({ tenant: { tenantId: 'demo1', name: 'Demo', isDemo: true }, admin });
 
     assert.deepEqual(persisted.demo, { enabled: true, limits: { ...DEMO_LIMITS }, seedStatus: 'pending' });
     assert.deepEqual(persisted.capabilities, { ...ALL_CAPABILITIES_ENABLED });

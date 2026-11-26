@@ -7,6 +7,7 @@ import { buildDemoDataset } from '../../src/services/demo/scenario/index.js';
 import { demoId } from '../../src/services/demo/demoIds.js';
 import { loadDemoCatalog, DEFAULT_CATALOG_PATH } from '../../src/services/demo/demoCatalog.js';
 import { catalogoFixture } from './catalogoFixture.js';
+import { demoCapabilities } from '../../src/config/tenantCapabilities.config.js';
 
 const NOW = new Date('2026-03-04T15:00:00.000Z');
 const admin = { _id: demoId('t', 'admin'), fullName: 'Ana Ruiz' };
@@ -180,6 +181,56 @@ describe('buildDemoDataset', () => {
 
   it('works in January (history crosses the year)', () => {
     checkIntegrity(build('demo1', catalogoFixture(), new Date('2026-01-02T00:00:00Z')), 'demo1');
+  });
+});
+
+describe('sample data by organization type', () => {
+  const of = (type) => buildDemoDataset({ tenantId: 'demo1', admin, catalog: catalogoFixture(), now: NOW, capabilities: demoCapabilities(type), organizationName: 'Hospital Demo' });
+  const external = (data) => docsOf(data, 'Report').filter((r) => r.origen === 'externo');
+
+  for (const type of ['provider', 'client', 'hybrid']) {
+    it(`${type}: consistent references, counters and a long verification history`, () => {
+      const data = of(type);
+      checkIntegrity(data, 'demo1');
+      for (const hv of docsOf(data, 'HVEquipo')) {
+        const dates = docsOf(data, 'Report')
+          .filter((r) => String(r.Equipo) === String(hv.EquipoId) && r.verificationParam?.length)
+          .map((r) => r.fechaProcesado.getTime());
+        assert.ok(new Set(dates).size >= 8);
+      }
+      const numbers = docsOf(data, 'Report').map((r) => r.consecutivo);
+      assert.equal(new Set(numbers).size, numbers.length);
+      const seq = Object.fromEntries(data.counters.map((c) => [c.key, c.seq]));
+      assert.equal(seq.REPORT, numbers.length);
+      for (const item of docsOf(data, 'InventarioRepuesto')) {
+        const moves = docsOf(data, 'InventarioMovimiento').filter((m) => String(m.itemId) === String(item._id));
+        assert.equal(item.stockActual, moves.at(-1).stockResultante);
+      }
+    });
+  }
+
+  it('provider: own services only, nothing from third parties', () => {
+    const data = of('provider');
+    assert.equal(docsOf(data, 'OT').length, 9);
+    assert.equal(external(data).length, 0);
+    assert.equal(docsOf(data, 'CadenaActividad').length + docsOf(data, 'EquipoActividadExterna').length, 0);
+  });
+
+  it('client: its own organization, serviced by third parties, without work orders', () => {
+    const data = of('client');
+    for (const model of ['OT', 'SheetWork', 'Repuestos']) assert.equal(docsOf(data, model).length, 0, model);
+    assert.ok(docsOf(data, 'Report').every((r) => r.origen === 'externo' && r.estado === 'Cerrado' && r.externo.proveedorId));
+    assert.ok(external(data).length >= 15);
+    assert.equal(docsOf(data, 'CadenaActividad').length, 2);
+    const [organization] = docsOf(data, 'Customer').filter((c) => c.kind === 'customer');
+    assert.equal(organization.Razonsocial, 'Hospital Demo');
+    assert.equal(String(organization._id), String(demoId('demo1', 'customer:cliente')));
+  });
+
+  it('hybrid: both', () => {
+    const data = of('hybrid');
+    assert.equal(docsOf(data, 'OT').length, 9);
+    assert.equal(external(data).length, 1);
   });
 });
 

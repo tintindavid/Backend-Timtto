@@ -9,7 +9,8 @@ export function buildTerceros(ctx) {
     _id: id('customer:cliente'),
     tenantId,
     kind: 'customer',
-    Razonsocial: 'Clínica Ejemplo San Rafael',
+    // An organization that does not manage customers IS its single customer ("Mi información").
+    Razonsocial: (!ctx.capabilities.managesCustomers && ctx.organizationName) || 'Clínica Ejemplo San Rafael',
     Nit: 900000001,
     Ciudad: 'Bogotá',
     Departamento: 'Cundinamarca',

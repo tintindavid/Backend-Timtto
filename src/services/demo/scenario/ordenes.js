@@ -30,6 +30,7 @@ const PLAN = [
 ];
 
 export function buildOrdenes(ctx) {
+  if (!ctx.capabilities.executesServices) return [];
   const { tenantId, id, admin } = ctx;
   const { cliente } = ctx.refs;
   const ots = [];
