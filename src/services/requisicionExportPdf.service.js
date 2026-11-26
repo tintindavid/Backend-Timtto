@@ -121,7 +121,7 @@ export class RequisicionExportPdfService {
   /** HTML -> PDF buffer; any failure of the microservice is a 502 PDF_NO_DISPONIBLE and changes nothing. */
   async render(html, logCtx = {}) {
     try {
-      return await this._client().generatePDF(html);
+      return await this._client().generatePDF(html, {}, { tenantId: logCtx.tenantId });
     } catch (err) {
       logger.warn('requisicion export pdf failed', { ...logCtx, err: String(err?.message || err) });
       throw new ApiError(502, 'El servicio de PDF no está disponible; intenta de nuevo en un momento', 'PDF_NO_DISPONIBLE');

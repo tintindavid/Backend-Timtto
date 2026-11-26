@@ -12,6 +12,7 @@ import { normalizeSerial, serialHasDigit } from '../utils/serial.util.js';
 import { EstadoOperativoValues, EstadoOperativoDefault } from '../constants/estadoOperativo.js';
 import { nameShort } from '../utils/nameShort.util.js';
 import { escapeRegex } from '../utils/escapeRegex.util.js';
+import { withDemoQuota } from './demo/demoLimits.service.js';
 
 const DUPLICATE_CHECK_BULK_LIMIT = 500;
 
@@ -206,7 +207,7 @@ export class EquipoItemService {
 
       let entity;
       try {
-        entity = await EquipoItem.create(data);
+        entity = await withDemoQuota(t, 'equipos', 1, () => EquipoItem.create(data));
       } catch (insertErr) {
         if (insertErr && insertErr.code === 11000) {
           // Race: another concurrent create won between our guard check and

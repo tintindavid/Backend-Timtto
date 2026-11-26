@@ -24,6 +24,7 @@ import { buildOtResponsibleAssignedPayload } from './notifications/otResponsible
 import { buildOtNoteAddedPayload } from './notifications/otNoteAddedPayload.util.js';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { REPORT_RESOLVED_STATES } from '../constants/report.constants.js';
+import { withDemoQuota } from './demo/demoLimits.service.js';
 
 export class OTService {
   /**
@@ -666,6 +667,15 @@ export class OTService {
   }
 
   async addEquipos(otId, body, tenantId, user) {
+    // Demo accounts: the whole batch of NEW equipment must fit before anything is written.
+    const t = tenantId || body.tenantId;
+    requireTenant(t);
+    const nuevos = (Array.isArray(body.equipos) ? body.equipos : []).filter((i) => !i.equipoId && i.equipo).length;
+    return withDemoQuota(t, 'equipos', nuevos, () => this._addEquipos(otId, body, tenantId, user));
+  }
+
+  /** @private */
+  async _addEquipos(otId, body, tenantId, user) {
     try {
       const t = tenantId || body.tenantId;
       requireTenant(t);

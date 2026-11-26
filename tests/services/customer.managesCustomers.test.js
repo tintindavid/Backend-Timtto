@@ -4,6 +4,7 @@
  * create / edit / delete kind=customer documents (403 CAPABILITY_DISABLED), except that the
  * system-managed organization customer stays editable. Providers are never gated here. Reads are untouched.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

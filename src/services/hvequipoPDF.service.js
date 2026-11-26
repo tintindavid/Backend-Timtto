@@ -50,7 +50,7 @@ export class HVEquipoPDFService {
         margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' }
       };
       
-      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions);
+      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions, { tenantId });
       logger.info(`✅ PDF generado exitosamente para HV: ${hvId}`);
 
       return {

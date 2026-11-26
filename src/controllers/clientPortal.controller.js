@@ -144,12 +144,18 @@ export class ClientPortalController {
 
   async getSheetPdf(req, res, next) {
     try {
-      const { url } = await clientPortalService.getSheetPdfLocation(
+      const { url, buffer, filename } = await clientPortalService.getSheetPdfLocation(
         req.tenantId,
         req.tokenId,
         req.params.sheetId
       );
-      res.redirect(302, url);
+      if (!buffer) return res.redirect(302, url);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Length': buffer.length,
+      });
+      return res.send(buffer);
     } catch (err) { next(err); }
   }
 

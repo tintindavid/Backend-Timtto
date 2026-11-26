@@ -63,7 +63,7 @@ class CronogramaPDFService {
       const html       = this.generateHTML(data, tenant, user, prepared);
       const pdfOptions = await this.buildPdfOptions(prepared, tenant);
 
-      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions);
+      const pdfBuffer = await this.pdfClient.generatePDF(html, pdfOptions, { tenantId: data.tenantId || tenant?.tenantId });
       logger.info('PDF de Cronograma generado exitosamente');
       return pdfBuffer;
 

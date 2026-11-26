@@ -24,6 +24,9 @@ import { SIGN_BATCH_ID_LENGTH } from '../constants/clientPortal.constants.js';
 import { notificationService } from './notification.service.js';
 import { buildSheetSignedPayload } from './notifications/sheetSignedPayload.util.js';
 import { REPORT_RESOLVED_STATES, CLOSE_UNLESS_CANCELLED_EXPR } from '../constants/report.constants.js';
+import { watermarkIfDemo } from '../utils/demoWatermark.util.js';
+import { getDemoConfig } from './demo/demoContext.service.js';
+import { withDemoPdfQuota, withDemoReportSlots } from './demo/demoPdfQuota.service.js';
 
 /**
  * ClientPortalService — read-only data shaping for the public client portal.
@@ -238,10 +241,10 @@ export class ClientPortalService {
     // size uniformly. Injected AFTER the template renders so the actual PDF
     // pipeline (pdfReports.controller.js) is unaffected — clients still
     // receive the deliverable at the original size.
-    return html.replace(
+    return watermarkIfDemo(html.replace(
       '<head>',
       '<head><style>html{zoom:0.857}</style>'
-    );
+    ), tenantId);
   }
 
   /** Summary shape for the consolidated (list) view — no evidences/activities. */
@@ -926,18 +929,23 @@ export class ClientPortalService {
 
     // Stitch N documents with a hard page break so the client can
     // scroll through each HT in the preview iframe.
-    if (previewHtmls.length === 1) return previewHtmls[0];
+    if (previewHtmls.length === 1) return watermarkIfDemo(previewHtmls[0], tenantId);
     const separator = `
       <div style="page-break-before: always; margin: 24px 0; padding: 12px; text-align:center; color:#666; background:#f5f5f5; border-radius:8px; font-family:Arial,sans-serif;">
         — Siguiente hoja de trabajo —
       </div>`;
-    return previewHtmls.join(separator);
+    return watermarkIfDemo(previewHtmls.join(separator), tenantId);
   }
 
   async generatePdfsForBatch(signedBatchId, tenantId) {
     const sheets = await SheetWork.find({ 'clientSignature.signedBatchId': signedBatchId, tenantId }).lean();
 
+    const isDemo = Boolean(await getDemoConfig(tenantId));
     for (const sheet of sheets) {
+      if (isDemo) {
+        await SheetWork.updateOne(applyTenantFilter({ _id: sheet._id }, tenantId), { $set: { pdfStatus: 'ready' } });
+        continue;
+      }
       try {
         const pdfBuffer = await this.pdfService.generatePDF(String(sheet._id), tenantId);
         const { url } = await firebaseStorageService.uploadPdf(
@@ -1029,6 +1037,13 @@ export class ClientPortalService {
     }).lean();
     if (!sheet) {
       throw new ApiError(404, 'Hoja de trabajo no encontrada', 'SHEET_NOT_FOUND');
+    }
+
+    // Demo accounts never store the signed PDF: it is rendered per download, under the quota.
+    if (await getDemoConfig(tenantId)) {
+      const buffer = await withDemoPdfQuota(tenantId, 'sheetwork', [sheet._id],
+        () => this.pdfService.generatePDF(String(sheet._id), tenantId));
+      return { buffer, filename: `HT-${sheet.numeroHoja || sheet._id}.pdf` };
     }
 
     if (sheet.pdfStatus === 'pending') {
@@ -1242,9 +1257,15 @@ export class ClientPortalService {
     const tenantData = await Tenant.findOne({ tenantId, isDeleted: false }).lean();
     const generator = new BulkPDFGenerator();
     const template = getHTMLTemplate();
-    const zipBuffer = await generator.generateBulkPDFs(reportsWithRepuestos, (report) =>
-      generateHTMLFromReport(report, tenantData || {}, template)
-    );
+    const zipBuffer = await withDemoPdfQuota(tenantId, 'reportsZip', [sheetId], () => withDemoReportSlots(
+      tenantId,
+      reportsWithRepuestos,
+      (allowed) => generator.generateBulkPDFs(
+        allowed,
+        (report) => generateHTMLFromReport(report, tenantData || {}, template),
+        { tenantId },
+      ),
+    ));
 
     const iso = new Date().toISOString().split('T')[0];
     const filename = `reportes_${sheet.numeroHoja || sheetId}_${iso}.zip`;

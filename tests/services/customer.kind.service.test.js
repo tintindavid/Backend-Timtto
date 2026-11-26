@@ -2,6 +2,7 @@
  * tests/services/customer.kind.service.test.js
  * terceros-customers-providers, tasks 1.3 / 3.3-3.5 / 5.1. DB-free: model statics are stubbed.
  */
+import '../helpers/noDemoAccounts.js';
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 

@@ -1,3 +1,4 @@
+import { watermarkIfDemo } from '../utils/demoWatermark.util.js';
 import cronogramaPDFService from '../services/cronogramaPDF.service.js';
 import { cronogramaExportService } from '../services/cronogramaExport.service.js';
 import { Tenant } from '../models/tenant.model.js';
@@ -82,7 +83,7 @@ export const downloadCronogramaPDF = async (req, res, next) => {
 
     // Generar PDF
     const pdfBuffer = await cronogramaPDFService.generatePDF(
-      { cliente, grupos, filtros },
+      { cliente, grupos, filtros, tenantId: req.tenantId },
       tenantData,
       userData
     );
@@ -200,7 +201,7 @@ export const previewCronogramaHTML = async (req, res, next) => {
     });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(html);
+    return res.send(await watermarkIfDemo(html, req.tenantId));
   } catch (error) {
     logger.error('Error en previewCronogramaHTML:', { error: error.message });
     next(error);

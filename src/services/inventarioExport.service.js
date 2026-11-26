@@ -254,7 +254,7 @@ export class InventarioExportService {
       footerTemplate: this.#buildFooterTemplate(tenant),
     };
 
-    const buffer = await this.pdfClient.generatePDF(html, pdfOptions);
+    const buffer = await this.pdfClient.generatePDF(html, pdfOptions, { tenantId });
     logger.info(`inventarioExport.generatePDF: PDF generado para clienteId=${clienteId}`);
     return buffer;
   }
